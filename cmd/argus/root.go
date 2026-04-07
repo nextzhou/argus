@@ -126,5 +126,7 @@ func newInvariantCmd() *cobra.Command {
 		Hidden: true,
 	}
 	cmd.AddCommand(newInvariantInspectCmd())
+	cmd.AddCommand(newInvariantCheckCmd())
+	cmd.AddCommand(newInvariantListCmd())
 	return cmd
 }
