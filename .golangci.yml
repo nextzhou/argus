@@ -1,0 +1,36 @@
+version: "2"
+
+linters:
+  default: none
+  enable:
+    - errcheck
+    - govet
+    - staticcheck
+    - ineffassign
+    - gocritic
+    - revive
+    - misspell
+    - nolintlint
+    - unconvert
+    - unparam
+    - gochecknoinits
+    - forbidigo
+  exclusions:
+    rules:
+      - path: '^cmd/argus/main\.go$'
+        linters:
+          - errcheck
+        text: 'Error return value of `os.Stdout.WriteString` is not checked'
+      - path: '^cmd/argus/main\.go$'
+        linters:
+          - revive
+        text: package-comments
+  settings:
+    forbidigo:
+      forbid:
+        - pattern: 'fmt\.Print'
+          msg: use os.Stdout.WriteString or slog instead of fmt.Print*
+
+formatters:
+  enable:
+    - goimports
