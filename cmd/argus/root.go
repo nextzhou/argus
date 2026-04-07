@@ -105,19 +105,6 @@ func newTrapCmd() *cobra.Command {
 	return cmd
 }
 
-// newJobDoneCmd creates the job-done command (internal, hidden).
-func newJobDoneCmd() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:    "job-done",
-		Short:  "Mark a job as done",
-		Hidden: true,
-		RunE: func(_ *cobra.Command, _ []string) error {
-			return nil
-		},
-	}
-	return cmd
-}
-
 // newStatusCmd creates the status command (internal, hidden).
 func newStatusCmd() *cobra.Command {
 	cmd := &cobra.Command{
