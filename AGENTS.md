@@ -233,6 +233,21 @@ Circular dependencies between `internal/*` packages are prohibited.
 - Each package must have at least one test file in M1+
 - Integration tests go in `internal/<pkg>/<pkg>_integration_test.go`
 
+#### Sequence Tests (Cross-Command State Flow)
+
+Sequence tests verify that state produced by one CLI command is correctly consumed by subsequent commands. They complement unit tests by validating cross-command contracts that individual tests cannot catch.
+
+**When to write a sequence test** — apply ALL three criteria:
+1. **Implicit state coupling**: Command B reads state written by Command A via the file system (e.g., pipeline YAML), with no compile-time contract
+2. **Directional operation path**: The commands form an ordered sequence with a defined entry point (e.g., `start → job-done → status`)
+3. **Cumulative effect / terminal state**: The sequence accumulates state changes and reaches a final condition that must be verified (e.g., pipeline status transitions from `running` to `completed`)
+
+**Conventions**:
+- File naming: `cmd_<theme>_test.go` (e.g., `cmd_pipeline_lifecycle_test.go`)
+- Pipeline state must be produced by actual commands (`workflow start`), not by `writePipelineFixture`
+- `t.Parallel()` is prohibited (os.Stdout capture is incompatible)
+- Source files whose output participates in sequence tests must carry a `// SEQUENCE-TEST:` comment above the relevant command constructor, referencing the test file
+
 ### Commit Convention
 
 Format: `type(scope): description`
