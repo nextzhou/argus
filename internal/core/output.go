@@ -40,11 +40,11 @@ func OKEnvelope(data any) ([]byte, error) {
 		return nil, fmt.Errorf("marshaling envelope data: %w", err)
 	}
 
-	// Decode data into a generic map
+	// OKEnvelope only accepts JSON objects (structs/maps); slices and primitives cannot be
+	// merged into a flat top-level envelope and will return an error.
 	var dataMap map[string]any
 	if err := json.Unmarshal(dataBytes, &dataMap); err != nil {
-		// Data might not be an object (e.g., slice or primitive) — fall back to wrapping
-		return json.Marshal(map[string]any{"status": "ok", "data": data})
+		return nil, fmt.Errorf("envelope data must be a JSON object (struct or map), got non-object: %w", err)
 	}
 
 	// Inject "status":"ok" into the map

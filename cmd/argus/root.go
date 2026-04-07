@@ -46,17 +46,6 @@ func NewRootCmd(version string) *cobra.Command {
 	return rootCmd
 }
 
-// newVersionCmd creates the version command.
-func newVersionCmd(version string) *cobra.Command {
-	return &cobra.Command{
-		Use:   "version",
-		Short: "Print the version number",
-		Run: func(cmd *cobra.Command, _ []string) {
-			cmd.Printf("argus version %s\n", version)
-		},
-	}
-}
-
 // newInstallCmd creates the install command (stub).
 func newInstallCmd() *cobra.Command {
 	return &cobra.Command{

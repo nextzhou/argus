@@ -3,7 +3,6 @@ package core
 import (
 	"bytes"
 	"encoding/json"
-	"io"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -96,10 +95,3 @@ func TestWriteJSON(t *testing.T) {
 		assert.Equal(t, "value", result["key"])
 	})
 }
-
-// Compile-time check that MarkdownRenderer is a valid interface
-var _ MarkdownRenderer = (*testRenderer)(nil)
-
-type testRenderer struct{}
-
-func (t *testRenderer) RenderMarkdown(_ io.Writer) {}
