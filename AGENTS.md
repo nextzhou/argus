@@ -135,6 +135,8 @@ No `confirm` / `auto` fields. Write confirmation requirements directly in job pr
 
 - Record tradeoff analysis for important design decisions to guide future design and prevent drift.
 - To restore context quickly, read `AGENTS.md` first, then `docs/technical-overview.md`; read other `docs/technical-*.md` on demand.
+- When a function's correct usage depends on a specific call sequence (timing contract), document the sequence in the function's godoc comment. Callers should be able to understand usage constraints without reading architecture documents.
+- If a reviewer (including automated review) misreads code and files a false positive, treat it as a signal that the code's intent is not clear enough. Add comments, rename symbols, or restructure to eliminate the ambiguity — even though the behavior is already correct.
 
 ## Development Guidelines
 
@@ -156,6 +158,7 @@ For every implementation task:
 - Define custom error types for structured error data
 - Always wrap errors with context: `fmt.Errorf("reading config: %w", err)`
 - Never ignore error return values
+- When loading state files that may not exist yet (session, pipeline data), distinguish "file not found" (create fresh) from "file exists but malformed" (return error). Never silently swallow all load errors with a fallback.
 
 **Logging**:
 - Use `log/slog` for all structured logging
@@ -176,6 +179,9 @@ For every implementation task:
 **Go 1.24 Features**:
 - Use `slices` and `maps` standard library packages where applicable
 - Prefer `errors.Is` and `errors.As` for error inspection
+
+**Context Propagation**:
+- In cobra `RunE` functions, use `cmd.Context()` when calling context-aware APIs, not `context.Background()`. This maintains proper cancellation propagation even in CLI commands.
 
 ### Anti-Patterns (Prohibited)
 
