@@ -8,8 +8,6 @@ import (
 	"regexp"
 	"strings"
 	"text/template"
-
-	"github.com/nextzhou/argus/internal/pipeline"
 )
 
 var simplePlaceholderPattern = regexp.MustCompile(`{{-?\s*\.[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)*\s*-?}}`)
@@ -58,11 +56,19 @@ type TemplateJobOutputContext struct {
 	Message string
 }
 
+// PipelineJobData holds per-job runtime data needed for template rendering.
+// This type decouples the template engine from the pipeline package to avoid circular imports.
+type PipelineJobData struct {
+	StartedAt string
+	EndedAt   *string
+	Message   *string
+}
+
 // BuildContext assembles the template context for the selected workflow job.
-func BuildContext(p *pipeline.Pipeline, w *Workflow, jobIdx int) *TemplateContext {
+func BuildContext(jobs map[string]*PipelineJobData, w *Workflow, jobIdx int) *TemplateContext {
 	ctx := &TemplateContext{
 		Env:  buildEnvContext(),
-		Jobs: buildJobsContext(p),
+		Jobs: buildJobsContext(jobs),
 		Git: TemplateGitContext{
 			Branch: gitBranch(),
 		},
@@ -96,7 +102,7 @@ func BuildContext(p *pipeline.Pipeline, w *Workflow, jobIdx int) *TemplateContex
 	previousJobID := w.Jobs[jobIdx-1].ID
 	ctx.PreJob = TemplatePreJobContext{
 		ID:      previousJobID,
-		Message: previousJobMessage(p, previousJobID),
+		Message: previousJobMessage(jobs, previousJobID),
 	}
 
 	return ctx
@@ -202,34 +208,26 @@ func buildEnvContext() map[string]string {
 	return values
 }
 
-func buildJobsContext(p *pipeline.Pipeline) map[string]TemplateJobOutputContext {
+func buildJobsContext(jobData map[string]*PipelineJobData) map[string]TemplateJobOutputContext {
 	jobs := make(map[string]TemplateJobOutputContext)
-	if p == nil {
-		return jobs
-	}
-
-	for jobID, jobData := range p.Jobs {
-		if jobData == nil || jobData.EndedAt == nil || jobData.Message == nil || *jobData.Message == "" {
+	for jobID, data := range jobData {
+		if data == nil || data.Message == nil || *data.Message == "" || data.EndedAt == nil {
 			continue
 		}
 
-		jobs[jobID] = TemplateJobOutputContext{Message: *jobData.Message}
+		jobs[jobID] = TemplateJobOutputContext{Message: *data.Message}
 	}
 
 	return jobs
 }
 
-func previousJobMessage(p *pipeline.Pipeline, previousJobID string) string {
-	if p == nil {
+func previousJobMessage(jobData map[string]*PipelineJobData, previousJobID string) string {
+	data := jobData[previousJobID]
+	if data == nil || data.Message == nil {
 		return ""
 	}
 
-	jobData := p.Jobs[previousJobID]
-	if jobData == nil || jobData.Message == nil {
-		return ""
-	}
-
-	return *jobData.Message
+	return *data.Message
 }
 
 func gitBranch() string {

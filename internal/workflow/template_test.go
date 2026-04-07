@@ -8,7 +8,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/nextzhou/argus/internal/pipeline"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -34,7 +33,7 @@ func TestTemplateBuildContext(t *testing.T) {
 	tests := []struct {
 		name              string
 		jobIdx            int
-		pipeline          *pipeline.Pipeline
+		jobs              map[string]*PipelineJobData
 		wantJobID         string
 		wantJobIndex      int
 		wantPreJobID      string
@@ -42,11 +41,9 @@ func TestTemplateBuildContext(t *testing.T) {
 		wantCompletedJobs []string
 	}{
 		{
-			name:   "first job uses empty previous job fields",
-			jobIdx: 0,
-			pipeline: &pipeline.Pipeline{
-				Jobs: map[string]*pipeline.JobData{},
-			},
+			name:              "first job uses empty previous job fields",
+			jobIdx:            0,
+			jobs:              map[string]*PipelineJobData{},
 			wantJobID:         "prepare",
 			wantJobIndex:      0,
 			wantPreJobID:      "",
@@ -56,28 +53,26 @@ func TestTemplateBuildContext(t *testing.T) {
 		{
 			name:   "later job includes previous message and completed jobs only",
 			jobIdx: 2,
-			pipeline: &pipeline.Pipeline{
-				Jobs: map[string]*pipeline.JobData{
-					"prepare": {
-						StartedAt: "20240115T103000Z",
-						EndedAt:   strPtr("20240115T103100Z"),
-						Message:   strPtr("prepared"),
-					},
-					"run_tests": {
-						StartedAt: "20240115T103101Z",
-						EndedAt:   strPtr("20240115T103200Z"),
-						Message:   strPtr("tests passed"),
-					},
-					"deploy": {
-						StartedAt: "20240115T103201Z",
-						EndedAt:   nil,
-						Message:   nil,
-					},
-					"notify": {
-						StartedAt: "20240115T103201Z",
-						EndedAt:   strPtr("20240115T103250Z"),
-						Message:   strPtr(""),
-					},
+			jobs: map[string]*PipelineJobData{
+				"prepare": {
+					StartedAt: "20240115T103000Z",
+					EndedAt:   strPtr("20240115T103100Z"),
+					Message:   strPtr("prepared"),
+				},
+				"run_tests": {
+					StartedAt: "20240115T103101Z",
+					EndedAt:   strPtr("20240115T103200Z"),
+					Message:   strPtr("tests passed"),
+				},
+				"deploy": {
+					StartedAt: "20240115T103201Z",
+					EndedAt:   nil,
+					Message:   nil,
+				},
+				"notify": {
+					StartedAt: "20240115T103201Z",
+					EndedAt:   strPtr("20240115T103250Z"),
+					Message:   strPtr(""),
 				},
 			},
 			wantJobID:         "deploy",
@@ -90,7 +85,7 @@ func TestTemplateBuildContext(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := BuildContext(tt.pipeline, workflowDef, tt.jobIdx)
+			ctx := BuildContext(tt.jobs, workflowDef, tt.jobIdx)
 			require.NotNil(t, ctx)
 
 			assert.Equal(t, workflowDef.ID, ctx.Workflow.ID)
