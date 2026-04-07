@@ -15,6 +15,7 @@ type workflowCancelOutput struct {
 	Cancelled []string `json:"cancelled"`
 }
 
+// SEQUENCE-TEST: consumes state from workflow start — see cmd_pipeline_lifecycle_test.go
 func newWorkflowCancelCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "cancel",

@@ -26,6 +26,7 @@ type workflowStartNextJob struct {
 	Skill  *string `json:"skill"`
 }
 
+// SEQUENCE-TEST: output consumed by job-done, status, cancel — see cmd_pipeline_lifecycle_test.go
 func newWorkflowStartCmd() *cobra.Command {
 	var markdownFlag bool
 

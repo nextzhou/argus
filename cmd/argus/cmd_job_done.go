@@ -27,6 +27,7 @@ type nextJobInfo struct {
 	Skill  *string `json:"skill"`
 }
 
+// SEQUENCE-TEST: output consumed by status; consumes state from workflow start — see cmd_pipeline_lifecycle_test.go
 func newJobDoneCmd() *cobra.Command {
 	var (
 		failFlag        bool
