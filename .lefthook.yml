@@ -1,0 +1,10 @@
+pre-commit:
+  commands:
+    lint-and-test:
+      run: golangci-lint run --fix && go test ./...
+
+commit-msg:
+  commands:
+    conventional-commits:
+      run: |
+        grep -qE '^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\(.+\))?: .{1,72}$' {1}
