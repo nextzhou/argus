@@ -1,0 +1,251 @@
+package workflow
+
+import (
+	"bytes"
+	"fmt"
+	"os"
+	"os/exec"
+	"regexp"
+	"strings"
+	"text/template"
+
+	"github.com/nextzhou/argus/internal/pipeline"
+)
+
+var simplePlaceholderPattern = regexp.MustCompile(`{{-?\s*\.[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)*\s*-?}}`)
+
+// TemplateContext stores all prompt values available to template rendering.
+type TemplateContext struct {
+	Workflow TemplateWorkflowContext
+	Job      TemplateJobContext
+	PreJob   TemplatePreJobContext
+	Git      TemplateGitContext
+	Project  TemplateProjectContext
+	Env      map[string]string
+	Jobs     map[string]TemplateJobOutputContext
+}
+
+// TemplateWorkflowContext stores workflow-scoped values for prompt rendering.
+type TemplateWorkflowContext struct {
+	ID          string
+	Description string
+}
+
+// TemplateJobContext stores current-job values for prompt rendering.
+type TemplateJobContext struct {
+	ID    string
+	Index int
+}
+
+// TemplatePreJobContext stores previous-job values for prompt rendering.
+type TemplatePreJobContext struct {
+	ID      string
+	Message string
+}
+
+// TemplateGitContext stores git-scoped values for prompt rendering.
+type TemplateGitContext struct {
+	Branch string
+}
+
+// TemplateProjectContext stores project-scoped values for prompt rendering.
+type TemplateProjectContext struct {
+	Root string
+}
+
+// TemplateJobOutputContext stores completed-job values for prompt rendering.
+type TemplateJobOutputContext struct {
+	Message string
+}
+
+// BuildContext assembles the template context for the selected workflow job.
+func BuildContext(p *pipeline.Pipeline, w *Workflow, jobIdx int) *TemplateContext {
+	ctx := &TemplateContext{
+		Env:  buildEnvContext(),
+		Jobs: buildJobsContext(p),
+		Git: TemplateGitContext{
+			Branch: gitBranch(),
+		},
+		Project: TemplateProjectContext{
+			Root: projectRoot(),
+		},
+	}
+
+	if w == nil {
+		return ctx
+	}
+
+	ctx.Workflow = TemplateWorkflowContext{
+		ID:          w.ID,
+		Description: w.Description,
+	}
+
+	if jobIdx < 0 || jobIdx >= len(w.Jobs) {
+		return ctx
+	}
+
+	ctx.Job = TemplateJobContext{
+		ID:    w.Jobs[jobIdx].ID,
+		Index: jobIdx,
+	}
+
+	if jobIdx == 0 {
+		return ctx
+	}
+
+	previousJobID := w.Jobs[jobIdx-1].ID
+	ctx.PreJob = TemplatePreJobContext{
+		ID:      previousJobID,
+		Message: previousJobMessage(p, previousJobID),
+	}
+
+	return ctx
+}
+
+// RenderPrompt substitutes known placeholders and preserves unresolved ones.
+func RenderPrompt(prompt string, ctx *TemplateContext) (string, []string) {
+	if _, err := template.New("prompt").Parse(prompt); err != nil {
+		return prompt, []string{fmt.Sprintf("invalid template syntax: %v", err)}
+	}
+
+	if ctx == nil {
+		ctx = &TemplateContext{}
+	}
+
+	data := ctx.templateData()
+	matches := simplePlaceholderPattern.FindAllStringIndex(prompt, -1)
+	if len(matches) == 0 {
+		return prompt, nil
+	}
+
+	var rendered strings.Builder
+	warnings := make([]string, 0)
+	lastIndex := 0
+
+	for _, match := range matches {
+		rendered.WriteString(prompt[lastIndex:match[0]])
+
+		placeholder := prompt[match[0]:match[1]]
+		value, warning := renderPlaceholder(placeholder, data)
+		if warning != "" {
+			rendered.WriteString(placeholder)
+			warnings = append(warnings, warning)
+		} else {
+			rendered.WriteString(value)
+		}
+
+		lastIndex = match[1]
+	}
+
+	rendered.WriteString(prompt[lastIndex:])
+
+	return rendered.String(), warnings
+}
+
+func (ctx *TemplateContext) templateData() map[string]any {
+	jobs := make(map[string]map[string]string, len(ctx.Jobs))
+	for jobID, job := range ctx.Jobs {
+		jobs[jobID] = map[string]string{
+			"message": job.Message,
+		}
+	}
+
+	return map[string]any{
+		"workflow": map[string]string{
+			"id":          ctx.Workflow.ID,
+			"description": ctx.Workflow.Description,
+		},
+		"job": map[string]any{
+			"id":    ctx.Job.ID,
+			"index": ctx.Job.Index,
+		},
+		"pre_job": map[string]string{
+			"id":      ctx.PreJob.ID,
+			"message": ctx.PreJob.Message,
+		},
+		"git": map[string]string{
+			"branch": ctx.Git.Branch,
+		},
+		"project": map[string]string{
+			"root": ctx.Project.Root,
+		},
+		"env":  ctx.Env,
+		"jobs": jobs,
+	}
+}
+
+func renderPlaceholder(placeholder string, data map[string]any) (string, string) {
+	tmpl, err := template.New("placeholder").Option("missingkey=error").Parse(placeholder)
+	if err != nil {
+		return "", fmt.Sprintf("invalid template placeholder %q: %v", placeholder, err)
+	}
+
+	var rendered bytes.Buffer
+	if err := tmpl.Execute(&rendered, data); err != nil {
+		return "", fmt.Sprintf("template placeholder %q could not be resolved: %v", placeholder, err)
+	}
+
+	return rendered.String(), ""
+}
+
+func buildEnvContext() map[string]string {
+	env := os.Environ()
+	values := make(map[string]string, len(env))
+	for _, entry := range env {
+		key, value, found := strings.Cut(entry, "=")
+		if !found {
+			continue
+		}
+		values[key] = value
+	}
+
+	return values
+}
+
+func buildJobsContext(p *pipeline.Pipeline) map[string]TemplateJobOutputContext {
+	jobs := make(map[string]TemplateJobOutputContext)
+	if p == nil {
+		return jobs
+	}
+
+	for jobID, jobData := range p.Jobs {
+		if jobData == nil || jobData.EndedAt == nil || jobData.Message == nil || *jobData.Message == "" {
+			continue
+		}
+
+		jobs[jobID] = TemplateJobOutputContext{Message: *jobData.Message}
+	}
+
+	return jobs
+}
+
+func previousJobMessage(p *pipeline.Pipeline, previousJobID string) string {
+	if p == nil {
+		return ""
+	}
+
+	jobData := p.Jobs[previousJobID]
+	if jobData == nil || jobData.Message == nil {
+		return ""
+	}
+
+	return *jobData.Message
+}
+
+func gitBranch() string {
+	output, err := exec.Command("git", "rev-parse", "--abbrev-ref", "HEAD").Output()
+	if err != nil {
+		return ""
+	}
+
+	return strings.TrimSpace(string(output))
+}
+
+func projectRoot() string {
+	root, err := os.Getwd()
+	if err != nil {
+		return ""
+	}
+
+	return root
+}
