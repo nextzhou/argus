@@ -79,19 +79,6 @@ func newDoctorCmd() *cobra.Command {
 	}
 }
 
-// newTickCmd creates the tick command (internal, hidden).
-func newTickCmd() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:    "tick",
-		Short:  "Tick the workflow state machine",
-		Hidden: true,
-		RunE: func(_ *cobra.Command, _ []string) error {
-			return nil
-		},
-	}
-	return cmd
-}
-
 // newWorkflowCmd creates the workflow command with subcommands.
 func newWorkflowCmd() *cobra.Command {
 	cmd := &cobra.Command{
