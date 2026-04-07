@@ -131,16 +131,14 @@ func newStatusCmd() *cobra.Command {
 	return cmd
 }
 
-// newWorkflowCmd creates the workflow command (internal, hidden).
+// newWorkflowCmd creates the workflow command with subcommands.
 func newWorkflowCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:    "workflow",
 		Short:  "Manage workflows",
 		Hidden: true,
-		RunE: func(_ *cobra.Command, _ []string) error {
-			return nil
-		},
 	}
+	cmd.AddCommand(newWorkflowInspectCmd())
 	return cmd
 }
 
