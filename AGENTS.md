@@ -71,6 +71,17 @@ All external inputs used to construct file paths must be validated in Go before 
 
 Fallback: after constructing the path, verify via `filepath.Rel` that the resolved path is still under the expected directory.
 
+### 8. Public-by-default repository
+
+Argus is designed so the repository can be made public at any time without a cleanup pass.
+
+- All git-tracked files and embedded assets must be safe to publish and legally redistributable.
+- The core project must not depend on private infrastructure, unpublished APIs, internal documents, or private credentials to build, test, install, or explain its main workflows.
+- Organization-specific or proprietary integrations must be added as optional adapters, ideally in separate repositories, and must not introduce a reverse dependency from the core project to private code or private services.
+- The core repository is responsible for stable extension points and public contracts; adapters may extend behavior, but the core project must remain buildable, testable, and understandable without them.
+- Default logs, examples, fixtures, and templates must not assume internal context or include sensitive data.
+- Any outbound data transfer, telemetry, or auto-update behavior must be explicit, documented, and not required for core local use.
+
 ## Naming Conventions
 
 ### Namespace reservation
