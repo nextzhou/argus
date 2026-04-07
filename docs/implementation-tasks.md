@@ -765,8 +765,8 @@ make lint
 | Commit | `feat(cli): add workflow list and cancel commands` |
 
 **实现内容**:
-- `workflow list` 读取 `.argus/workflows/` 并列出所有可用 workflow。
-- `workflow cancel` 取消当前活跃 pipeline。
+- `argus workflow list` 读取 `.argus/workflows/` 并列出所有可用 workflow。
+- `argus workflow cancel` 取消当前活跃 pipeline。
 - 异常状态下若存在多个 running pipeline，则全部取消。
 - 无活跃 pipeline 时返回 error envelope，exit 1。
 - 保持 cancel 是外部控制动作，不修改当前 job 的 message / ended_at 记录。
