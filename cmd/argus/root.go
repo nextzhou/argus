@@ -139,6 +139,7 @@ func newWorkflowCmd() *cobra.Command {
 		Hidden: true,
 	}
 	cmd.AddCommand(newWorkflowInspectCmd())
+	cmd.AddCommand(newWorkflowStartCmd())
 	return cmd
 }
 
