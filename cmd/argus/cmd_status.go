@@ -1,12 +1,16 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
+	"time"
 
 	"github.com/nextzhou/argus/internal/core"
+	"github.com/nextzhou/argus/internal/invariant"
 	"github.com/nextzhou/argus/internal/pipeline"
 	"github.com/nextzhou/argus/internal/workflow"
 	"github.com/spf13/cobra"
@@ -39,10 +43,16 @@ type statusJob struct {
 	Message *string `json:"message"`
 }
 
+type statusInvariantDetail struct {
+	ID          string `json:"id"`
+	Description string `json:"description"`
+	Status      string `json:"status"`
+}
+
 type statusInvariants struct {
-	Passed  int   `json:"passed"`
-	Failed  int   `json:"failed"`
-	Details []any `json:"details"`
+	Passed  int                     `json:"passed"`
+	Failed  int                     `json:"failed"`
+	Details []statusInvariantDetail `json:"details"`
 }
 
 func newStatusCmd() *cobra.Command {
@@ -74,10 +84,12 @@ func newStatusCmd() *cobra.Command {
 
 			out := statusOutput{
 				Invariants: statusInvariants{
-					Details: []any{},
+					Details: []statusInvariantDetail{},
 				},
 				Hints: []string{},
 			}
+
+			runStatusInvariants(&out)
 
 			if len(actives) == 0 {
 				if markdownFlag {
@@ -176,10 +188,65 @@ func buildStatusPipeline(p *pipeline.Pipeline, wf *workflow.Workflow, _ string, 
 	return sp
 }
 
+func runStatusInvariants(out *statusOutput) {
+	invariantsDir := filepath.Join(".argus", "invariants")
+	entries, err := os.ReadDir(invariantsDir)
+	if err != nil {
+		return
+	}
+
+	var totalCheckTime time.Duration
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".yaml") {
+			continue
+		}
+
+		fullPath := filepath.Join(invariantsDir, entry.Name())
+		inv, parseErr := invariant.ParseInvariantFile(fullPath)
+		if parseErr != nil {
+			continue
+		}
+
+		if inv.Auto == "never" {
+			continue
+		}
+
+		result := invariant.RunCheck(context.Background(), inv, ".")
+		totalCheckTime += result.TotalTime
+
+		status := "passed"
+		if !result.Passed {
+			status = "failed"
+			out.Invariants.Failed++
+		} else {
+			out.Invariants.Passed++
+		}
+
+		out.Invariants.Details = append(out.Invariants.Details, statusInvariantDetail{
+			ID:          inv.ID,
+			Description: invariantDescription(inv),
+			Status:      status,
+		})
+	}
+
+	if totalCheckTime.Seconds() > 2 {
+		out.Hints = append(out.Hints, fmt.Sprintf("Invariant 检查总耗时 %.1fs，建议运行 argus doctor 排查慢检查项", totalCheckTime.Seconds()))
+	}
+}
+
+func renderStatusMarkdownFailedInvariants(w io.Writer, out statusOutput) {
+	for _, d := range out.Invariants.Details {
+		if d.Status == "failed" {
+			_, _ = fmt.Fprintf(w, "  [FAIL] %s: %s\n", d.ID, d.Description)
+		}
+	}
+}
+
 func renderStatusMarkdownNoPipeline(w io.Writer, out statusOutput) {
 	_, _ = fmt.Fprintf(w, "[Argus] 项目状态\n\n")
 	_, _ = fmt.Fprintf(w, "Pipeline: 无活跃 Pipeline\n\n")
 	_, _ = fmt.Fprintf(w, "Invariant: %d passed, %d failed\n", out.Invariants.Passed, out.Invariants.Failed)
+	renderStatusMarkdownFailedInvariants(w, out)
 }
 
 func renderStatusMarkdownActive(w io.Writer, out statusOutput, instanceID string) {
@@ -208,4 +275,5 @@ func renderStatusMarkdownActive(w io.Writer, out statusOutput, instanceID string
 	}
 
 	_, _ = fmt.Fprintf(w, "\nInvariant: %d passed, %d failed\n", out.Invariants.Passed, out.Invariants.Failed)
+	renderStatusMarkdownFailedInvariants(w, out)
 }

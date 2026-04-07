@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -13,7 +14,7 @@ import (
 
 // executeStatusCmd runs the status command and captures stdout output.
 // Tests using this helper must NOT call t.Parallel since os.Stdout is redirected.
-func executeStatusCmd(t *testing.T, args ...string) ([]byte, error) {
+func executeStatusCmd(t *testing.T) ([]byte, error) {
 	t.Helper()
 
 	old := os.Stdout
@@ -24,7 +25,7 @@ func executeStatusCmd(t *testing.T, args ...string) ([]byte, error) {
 	cmd := newStatusCmd()
 	cmd.SilenceErrors = true
 	cmd.SilenceUsage = true
-	cmd.SetArgs(args)
+	cmd.SetArgs(nil)
 	cmdErr := cmd.Execute()
 
 	require.NoError(t, w.Close())
@@ -283,6 +284,190 @@ func TestStatusMarkdownNoPipeline(t *testing.T) {
 	assert.Contains(t, output, "[Argus] 项目状态")
 	assert.Contains(t, output, "Pipeline: 无活跃 Pipeline")
 	assert.Contains(t, output, "Invariant: 0 passed, 0 failed")
+}
+
+func TestStatusWithInvariants(t *testing.T) {
+	tests := []struct {
+		name      string
+		setup     func(t *testing.T)
+		checkJSON func(t *testing.T, data map[string]any)
+	}{
+		{
+			name: "passing invariants appear in details",
+			setup: func(t *testing.T) {
+				writeInvariantFixture(t, "check-pass", `version: v0.1.0
+id: check-pass
+description: Always passes
+auto: always
+check:
+  - shell: "true"
+    description: "always true"
+prompt: "Fix it"
+`)
+			},
+			checkJSON: func(t *testing.T, data map[string]any) {
+				inv := data["invariants"].(map[string]any)
+				assert.Equal(t, float64(1), inv["passed"])
+				assert.Equal(t, float64(0), inv["failed"])
+
+				details := inv["details"].([]any)
+				require.Len(t, details, 1)
+				d0 := details[0].(map[string]any)
+				assert.Equal(t, "check-pass", d0["id"])
+				assert.Equal(t, "Always passes", d0["description"])
+				assert.Equal(t, "passed", d0["status"])
+			},
+		},
+		{
+			name: "failing invariants appear in details",
+			setup: func(t *testing.T) {
+				writeInvariantFixture(t, "check-fail", `version: v0.1.0
+id: check-fail
+description: Always fails
+auto: always
+check:
+  - shell: "false"
+    description: "always false"
+prompt: "Fix it"
+`)
+			},
+			checkJSON: func(t *testing.T, data map[string]any) {
+				inv := data["invariants"].(map[string]any)
+				assert.Equal(t, float64(0), inv["passed"])
+				assert.Equal(t, float64(1), inv["failed"])
+
+				details := inv["details"].([]any)
+				require.Len(t, details, 1)
+				d0 := details[0].(map[string]any)
+				assert.Equal(t, "check-fail", d0["id"])
+				assert.Equal(t, "Always fails", d0["description"])
+				assert.Equal(t, "failed", d0["status"])
+			},
+		},
+		{
+			name: "auto never invariants are filtered out",
+			setup: func(t *testing.T) {
+				writeInvariantFixture(t, "always-pass", `version: v0.1.0
+id: always-pass
+description: Always passes
+auto: always
+check:
+  - shell: "true"
+prompt: "Fix it"
+`)
+				writeInvariantFixture(t, "never-run", `version: v0.1.0
+id: never-run
+description: Never runs
+auto: never
+check:
+  - shell: "false"
+prompt: "Fix it"
+`)
+			},
+			checkJSON: func(t *testing.T, data map[string]any) {
+				inv := data["invariants"].(map[string]any)
+				assert.Equal(t, float64(1), inv["passed"])
+				assert.Equal(t, float64(0), inv["failed"])
+
+				details := inv["details"].([]any)
+				require.Len(t, details, 1)
+				d0 := details[0].(map[string]any)
+				assert.Equal(t, "always-pass", d0["id"])
+			},
+		},
+		{
+			name: "description fallback to shell commands in status",
+			setup: func(t *testing.T) {
+				writeInvariantFixture(t, "no-desc", `version: v0.1.0
+id: no-desc
+auto: always
+check:
+  - shell: "true"
+  - shell: "echo ok"
+prompt: "Fix it"
+`)
+			},
+			checkJSON: func(t *testing.T, data map[string]any) {
+				inv := data["invariants"].(map[string]any)
+				details := inv["details"].([]any)
+				require.Len(t, details, 1)
+				d0 := details[0].(map[string]any)
+				assert.Equal(t, "true; echo ok", d0["description"])
+			},
+		},
+		{
+			name: "slow check adds hint",
+			setup: func(t *testing.T) {
+				writeInvariantFixture(t, "slow-check", `version: v0.1.0
+id: slow-check
+description: Slow check
+auto: always
+check:
+  - shell: "sleep 3"
+prompt: "Fix it"
+`)
+			},
+			checkJSON: func(t *testing.T, data map[string]any) {
+				hints := data["hints"].([]any)
+				require.NotEmpty(t, hints)
+				found := false
+				for _, h := range hints {
+					if strings.Contains(h.(string), "Invariant 检查总耗时") {
+						found = true
+						break
+					}
+				}
+				assert.True(t, found, "should contain slow check hint")
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Chdir(t.TempDir())
+
+			if tt.setup != nil {
+				tt.setup(t)
+			}
+
+			output, err := executeStatusCmd(t)
+			require.NoError(t, err)
+
+			var data map[string]any
+			require.NoError(t, json.Unmarshal(output, &data), "output should be valid JSON: %s", string(output))
+			assert.Equal(t, "ok", data["status"])
+
+			tt.checkJSON(t, data)
+		})
+	}
+}
+
+func TestStatusMarkdownWithFailedInvariants(t *testing.T) {
+	t.Chdir(t.TempDir())
+
+	writeInvariantFixture(t, "check-fail", `version: v0.1.0
+id: check-fail
+description: Always fails
+auto: always
+check:
+  - shell: "false"
+    description: "always false"
+prompt: "Fix it"
+`)
+
+	cmd := newStatusCmd()
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SilenceErrors = true
+	cmd.SilenceUsage = true
+	cmd.SetArgs([]string{"--markdown"})
+
+	err := cmd.Execute()
+	require.NoError(t, err)
+
+	output := buf.String()
+	assert.Contains(t, output, "Invariant: 0 passed, 1 failed")
+	assert.Contains(t, output, "[FAIL] check-fail: Always fails")
 }
 
 func TestStatusMarkdownWithMessage(t *testing.T) {
