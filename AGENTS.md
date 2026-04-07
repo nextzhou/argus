@@ -1,8 +1,8 @@
-# AGENTS.md — Argus V2
+# AGENTS.md — Argus
 
 ## Project Overview
 
-Argus V2 is an AI Agent workflow orchestration tool. It provides a CLI binary (Go) that integrates with multiple AI Agents (Claude Code, Codex, OpenCode) via their hook systems, orchestrating workflows, invariants, and project state.
+Argus is an AI Agent workflow orchestration tool. It provides a CLI binary (Go) that integrates with multiple AI Agents (Claude Code, Codex, OpenCode) via their hook systems, orchestrating workflows, invariants, and project state.
 
 **Current phase**: Final document verification. All design decisions recorded, technical documents written, eight rounds of Oracle verification completed. No implementation code exists yet.
 
@@ -190,4 +190,4 @@ All design topics have been discussed. Final technical documents (8 files) have 
 15. **Verification Round 10**: conflict (CLEAN), clarity (4 BLOCKING → 3 fixed + 1 no change needed)
     - L-class fixes (3): snooze-all post-tick priority rule (snooze wins, tick silent), workspace install path validation + uninstall normalization matching, global tick decision tree clarified (non-git directories silently skipped)
     - L-class decisions (1): --agent + --workspace combination = natural behavior (agent scopes hooks/skills, workspace registration is agent-agnostic), no change needed
-16. **Cleanup**: Draft discussion records and early spec document (`docs/argus-v2-spec.md`) removed. All content preserved in git history.
+16. **Cleanup**: Draft discussion records and the early spec document were removed. All content is preserved in git history.

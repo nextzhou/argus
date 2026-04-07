@@ -1,6 +1,6 @@
 # Pipeline 与 Session 状态管理
 
-本文档定义了 Argus V2 的 Pipeline 运行时数据模型、Session 管理机制以及状态跟踪逻辑。这些设计遵循 "产物作为 ground truth" 的核心原则，确保系统的健壮性与可预测性。
+本文档定义了 Argus 的 Pipeline 运行时数据模型、Session 管理机制以及状态跟踪逻辑。这些设计遵循 "产物作为 ground truth" 的核心原则，确保系统的健壮性与可预测性。
 
 ---
 

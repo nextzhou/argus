@@ -1,12 +1,12 @@
 # Workflow 系统规范 (Technical Workflow)
 
-本文档定义了 Argus V2 的 Workflow 系统规范，涵盖 YAML Schema、Job 模型、执行流程及校验机制。
+本文档定义了 Argus 的 Workflow 系统规范，涵盖 YAML Schema、Job 模型、执行流程及校验机制。
 
 ---
 
 ## 1. 系统定位与设计哲学
 
-Workflow 是 Argus V2 的命令式（Imperative）编排组件，负责定义"怎么做"（过程保障）。它通过将复杂任务拆解为一系列顺序执行的 Job，引导 AI Agent 完成预定的工作流。
+Workflow 是 Argus 的命令式（Imperative）编排组件，负责定义"怎么做"（过程保障）。它通过将复杂任务拆解为一系列顺序执行的 Job，引导 AI Agent 完成预定的工作流。
 
 根据 [技术概览 (technical-overview.md)](technical-overview.md) 中的架构不变量，Workflow 遵循以下核心原则：
 - **编排层定位**：Argus 只负责状态跟踪和上下文注入，不直接执行业务逻辑。

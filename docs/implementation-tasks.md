@@ -1,10 +1,10 @@
-# Argus V2 实施任务拆解
+# Argus 实施任务拆解
 
 ## 1. 前言
 
 本文档面向后续执行实现工作的 AI Agents。
 它不是技术规范的替代品，而是基于既有规范整理出的里程碑式落地计划。
-目标是把 Argus V2 的 Phase 1 能力拆解成可串行推进、可并行协作、可逐任务提交的执行清单。
+目标是把 Argus 的 Phase 1 能力拆解成可串行推进、可并行协作、可逐任务提交的执行清单。
 执行时必须始终把 `docs/technical-*.md` 作为规范真源；本文件只回答“先做什么、后做什么、每一步的完成定义是什么”。
 
 ### 1.1 已确认技术决策
@@ -1293,11 +1293,11 @@ make lint
 
 ```bash
 cd /tmp && mkdir test-project && cd test-project && git init
-/path/to/argus_v2/bin/argus install --yes
+/path/to/argus/bin/argus install --yes
 test -d .argus/workflows
 test -d .argus/invariants
 test -f .agents/skills/argus-doctor/SKILL.md
-/path/to/argus_v2/bin/argus uninstall --yes
+/path/to/argus/bin/argus uninstall --yes
 test ! -d .argus
 go test ./internal/install/...
 make lint

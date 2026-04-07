@@ -1,13 +1,13 @@
 # 技术概览 (Technical Overview)
 
-本文档是 Argus V2 的技术规范入口，涵盖了系统的核心定位、设计原则、架构约束及项目组织结构。
+本文档是 Argus 的技术规范入口，涵盖了系统的核心定位、设计原则、架构约束及项目组织结构。
 
 ---
 
 ## 1. 系统定位与核心概念
 
 ### 1.1 Argus 定位
-Argus V2 是一个 **AI Agent 工作流编排工具**。它提供一个 Go 编写的 CLI 二进制工具，通过各 AI Agent（Claude Code, Codex, OpenCode）提供的 Hook 系统进行集成，实现对复杂任务流、项目不变量（Invariants）和项目状态的自动化编排与管理。
+Argus 是一个 **AI Agent 工作流编排工具**。它提供一个 Go 编写的 CLI 二进制工具，通过各 AI Agent（Claude Code, Codex, OpenCode）提供的 Hook 系统进行集成，实现对复杂任务流、项目不变量（Invariants）和项目状态的自动化编排与管理。
 
 ### 1.2 设计原则 (Architecture Invariants)
 Argus 的设计遵循以下 7 个核心原则：

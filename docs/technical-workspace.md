@@ -1,6 +1,6 @@
 # 工作区机制与 Skill 分发
 
-本文档详细描述 Argus V2 的工作区（Workspace）机制以及 Skill 的分发与安装标准。
+本文档详细描述 Argus 的工作区（Workspace）机制以及 Skill 的分发与安装标准。
 
 ## 10. 工作区机制
 
