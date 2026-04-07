@@ -116,6 +116,7 @@ func newWorkflowCmd() *cobra.Command {
 	cmd.AddCommand(newWorkflowStartCmd())
 	cmd.AddCommand(newWorkflowListCmd())
 	cmd.AddCommand(newWorkflowCancelCmd())
+	cmd.AddCommand(newWorkflowSnoozeCmd())
 	return cmd
 }
 
