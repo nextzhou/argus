@@ -1,3 +1,20 @@
 todo.md
 .sisyphus/
 docs/drafts/
+
+# Go build artifacts
+bin/
+*.exe
+*.test
+*.out
+
+# Editor directories
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Argus local-only directories
+.argus/pipelines/
+.argus/logs/
+.argus/tmp/
