@@ -1,6 +1,6 @@
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 
-.PHONY: build test lint fmt clean
+.PHONY: build test lint fmt fix clean
 
 build:
 	go build -ldflags "-X main.version=$(VERSION)" -o ./bin/argus ./cmd/argus
@@ -12,7 +12,10 @@ lint:
 	golangci-lint run
 
 fmt:
-	goimports -w .
+	golangci-lint fmt
+
+fix:
+	golangci-lint run --fix
 
 clean:
 	rm -rf bin/

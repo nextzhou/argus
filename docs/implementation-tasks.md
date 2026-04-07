@@ -121,7 +121,8 @@ Critical Path: M0 → M1 → M2 → M3 → M4 → M5 → M6 → M7 → M8
 - `build` 输出固定到 `./bin/argus`，避免后续文档与测试路径不一致。
 - 增加 `test` target，执行 `go test ./...`。
 - 增加 `lint` target，执行 `golangci-lint run`。
-- 增加 `fmt` target，执行 `goimports -w .`。
+- 增加 `fmt` target，执行 `golangci-lint fmt`。
+- 增加 `fix` target，执行 `golangci-lint run --fix`。
 - 增加 `clean` target，清理 `bin/` 目录。
 
 **测试要求**:
@@ -164,7 +165,8 @@ Critical Path: M0 → M1 → M2 → M3 → M4 → M5 → M6 → M7 → M8
 | Commit | `build(hooks): add lefthook for pre-commit lint and commit-msg validation` |
 
 **实现内容**:
-- 配置 pre-commit 执行 `golangci-lint run --fix && go test ./...`。
+- 配置 pre-commit 执行 `make lint && make test`。
+- lint 失败时提示执行 `make fix` 后重试提交。
 - 配置 commit-msg 校验 Conventional Commits 正则。
 - 提交信息长度限制与作用域语法遵循既定规范。
 - 保持配置足够简单，不在 hook 层实现业务逻辑。

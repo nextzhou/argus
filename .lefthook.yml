@@ -1,7 +1,9 @@
 pre-commit:
   commands:
-    lint-and-test:
-      run: golangci-lint run --fix && go test ./...
+    lint:
+      run: make lint || { echo 'Lint failed. Run `make fix` and retry commit.' >&2; exit 1; }
+    test:
+      run: make test
 
 commit-msg:
   commands:
