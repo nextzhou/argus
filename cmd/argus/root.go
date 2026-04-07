@@ -92,19 +92,6 @@ func newTickCmd() *cobra.Command {
 	return cmd
 }
 
-// newTrapCmd creates the trap command (internal, hidden).
-func newTrapCmd() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:    "trap",
-		Short:  "Trap a signal or event",
-		Hidden: true,
-		RunE: func(_ *cobra.Command, _ []string) error {
-			return nil
-		},
-	}
-	return cmd
-}
-
 // newWorkflowCmd creates the workflow command with subcommands.
 func newWorkflowCmd() *cobra.Command {
 	cmd := &cobra.Command{
