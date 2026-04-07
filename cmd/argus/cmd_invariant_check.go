@@ -26,8 +26,11 @@ type checkResultOutput struct {
 	Description string            `json:"description"`
 	Status      string            `json:"status"`
 	Steps       []checkStepOutput `json:"steps"`
-	Workflow    *string           `json:"workflow"`
-	Prompt      *string           `json:"prompt"`
+	// Workflow and Prompt use *string so they serialize as null (not absent) in JSON.
+	// They are only populated when the invariant check fails, providing remediation info.
+	// For passing invariants these remain nil → JSON null.
+	Workflow *string `json:"workflow"`
+	Prompt   *string `json:"prompt"`
 }
 
 type invariantCheckOutput struct {
@@ -41,18 +44,18 @@ func newInvariantCheckCmd() *cobra.Command {
 		Use:   "check [id]",
 		Short: "Run invariant checks",
 		Args:  cobra.MaximumNArgs(1),
-		RunE: func(_ *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			invariantsDir := filepath.Join(".argus", "invariants")
 
 			if len(args) == 1 {
-				return runSingleCheck(args[0], invariantsDir)
+				return runSingleCheck(cmd.Context(), args[0], invariantsDir)
 			}
-			return runAllChecks(invariantsDir)
+			return runAllChecks(cmd.Context(), invariantsDir)
 		},
 	}
 }
 
-func runSingleCheck(id, invariantsDir string) error {
+func runSingleCheck(ctx context.Context, id, invariantsDir string) error {
 	filePath := filepath.Join(invariantsDir, id+".yaml")
 	inv, err := invariant.ParseInvariantFile(filePath)
 	if err != nil {
@@ -68,13 +71,13 @@ func runSingleCheck(id, invariantsDir string) error {
 		return fmt.Errorf("invariant check failed: %w", err)
 	}
 
-	result := invariant.RunCheck(context.Background(), inv, ".")
+	result := invariant.RunCheck(ctx, inv, ".")
 	output := buildCheckOutput(inv, result)
 
 	return writeCheckOutput([]checkResultOutput{output})
 }
 
-func runAllChecks(invariantsDir string) error {
+func runAllChecks(ctx context.Context, invariantsDir string) error {
 	entries, err := os.ReadDir(invariantsDir)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
@@ -96,7 +99,7 @@ func runAllChecks(invariantsDir string) error {
 			continue
 		}
 
-		result := invariant.RunCheck(context.Background(), inv, ".")
+		result := invariant.RunCheck(ctx, inv, ".")
 		results = append(results, buildCheckOutput(inv, result))
 	}
 

@@ -89,7 +89,7 @@ func newStatusCmd() *cobra.Command {
 				Hints: []string{},
 			}
 
-			runStatusInvariants(&out)
+			runStatusInvariants(cmd.Context(), &out)
 
 			if len(actives) == 0 {
 				if markdownFlag {
@@ -188,7 +188,7 @@ func buildStatusPipeline(p *pipeline.Pipeline, wf *workflow.Workflow, _ string, 
 	return sp
 }
 
-func runStatusInvariants(out *statusOutput) {
+func runStatusInvariants(ctx context.Context, out *statusOutput) {
 	invariantsDir := filepath.Join(".argus", "invariants")
 	entries, err := os.ReadDir(invariantsDir)
 	if err != nil {
@@ -211,7 +211,7 @@ func runStatusInvariants(out *statusOutput) {
 			continue
 		}
 
-		result := invariant.RunCheck(context.Background(), inv, ".")
+		result := invariant.RunCheck(ctx, inv, ".")
 		totalCheckTime += result.TotalTime
 
 		status := "passed"

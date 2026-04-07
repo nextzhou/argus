@@ -7,7 +7,21 @@ import (
 	"github.com/nextzhou/argus/internal/core"
 )
 
+// Session manager provides building blocks for session lifecycle operations.
+//
+// Timing contract for first-tick invariant checks:
+// The caller (tick handler) MUST follow this sequence:
+//  1. Call IsFirstTick to check if this is the first tick for the session
+//  2. If true, run invariant checks (auto != "never")
+//  3. Call SaveSession to persist the session, creating the session file
+//
+// SaveSession MUST only be called AFTER invariant checks complete.
+// IsFirstTick relies on session file existence; saving before checks
+// would cause subsequent ticks to skip invariant checks incorrectly.
+
 // IsFirstTick reports whether the session file does not exist yet.
+// This is part of the timing contract: a true return means invariant
+// checks should run before the session file is created via SaveSession.
 func IsFirstTick(baseDir, sessionID string) bool {
 	return !Exists(baseDir, sessionID)
 }

@@ -1,7 +1,9 @@
 package main
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 
@@ -44,6 +46,9 @@ func newWorkflowSnoozeCmd() *cobra.Command {
 
 			s, loadErr := session.LoadSession(sessionBaseDir, sessionID)
 			if loadErr != nil {
+				if !errors.Is(loadErr, fs.ErrNotExist) {
+					return fmt.Errorf("loading session: %w", loadErr)
+				}
 				s = &session.Session{}
 			}
 
