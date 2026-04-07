@@ -14,6 +14,22 @@ type Config struct {
 	Workspaces []string `yaml:"workspaces"`
 }
 
+// DeduplicateWorkspaces removes duplicate workspace paths from the list.
+// Two paths are considered duplicates if they are equal as stored (normalized form).
+// The first occurrence is kept; subsequent duplicates are removed.
+// The relative order of unique paths is preserved.
+func DeduplicateWorkspaces(workspaces []string) []string {
+	seen := make(map[string]bool, len(workspaces))
+	result := make([]string, 0, len(workspaces))
+	for _, ws := range workspaces {
+		if !seen[ws] {
+			seen[ws] = true
+			result = append(result, ws)
+		}
+	}
+	return result
+}
+
 // LoadConfig reads a workspace config file, rejecting unknown fields.
 func LoadConfig(path string) (*Config, error) {
 	f, err := os.Open(path)

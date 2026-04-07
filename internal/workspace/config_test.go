@@ -66,3 +66,49 @@ func TestLoadConfig_EmptyWorkspaces(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, cfg.Workspaces)
 }
+
+func TestDeduplicateWorkspaces(t *testing.T) {
+	tests := []struct {
+		name  string
+		input []string
+		want  []string
+	}{
+		{
+			name:  "no duplicates",
+			input: []string{"~/work/a", "~/work/b"},
+			want:  []string{"~/work/a", "~/work/b"},
+		},
+		{
+			name:  "duplicate removed",
+			input: []string{"~/work/a", "~/work/b", "~/work/a"},
+			want:  []string{"~/work/a", "~/work/b"},
+		},
+		{
+			name:  "all duplicates",
+			input: []string{"~/work/a", "~/work/a", "~/work/a"},
+			want:  []string{"~/work/a"},
+		},
+		{
+			name:  "empty input",
+			input: []string{},
+			want:  []string{},
+		},
+		{
+			name:  "nil input",
+			input: nil,
+			want:  []string{},
+		},
+		{
+			name:  "preserves order",
+			input: []string{"~/work/b", "~/work/a", "~/work/b"},
+			want:  []string{"~/work/b", "~/work/a"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := DeduplicateWorkspaces(tt.input)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
