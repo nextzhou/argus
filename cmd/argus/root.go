@@ -144,15 +144,12 @@ func newWorkflowCmd() *cobra.Command {
 	return cmd
 }
 
-// newInvariantCmd creates the invariant command (internal, hidden).
 func newInvariantCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:    "invariant",
 		Short:  "Manage invariants",
 		Hidden: true,
-		RunE: func(_ *cobra.Command, _ []string) error {
-			return nil
-		},
 	}
+	cmd.AddCommand(newInvariantInspectCmd())
 	return cmd
 }
