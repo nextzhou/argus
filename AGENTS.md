@@ -187,6 +187,7 @@ The following patterns are prohibited and enforced by golangci-lint:
 - **No `any` abuse**: Use typed parameters and return values; avoid `interface{}` where a concrete type works
 - **No ignored errors**: All error return values must be checked (`errcheck`)
 - **No `fmt.Print*` in production code**: Use `os.Stdout.WriteString` or `log/slog` (`forbidigo`)
+- **No raw `json.Marshal` for CLI output**: Use `core.OKEnvelope`/`core.ErrorEnvelope`/`core.WriteJSON` (they disable HTML escaping via `SetEscapeHTML(false)`; raw `json.Marshal` escapes `<>&` as `\uXXXX`)
 
 ### Package Organization and Dependency Direction
 

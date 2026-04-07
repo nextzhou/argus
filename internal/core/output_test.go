@@ -54,6 +54,27 @@ func TestOKEnvelope(t *testing.T) {
 		require.NoError(t, err)
 		assert.True(t, json.Valid(data), "output must be valid JSON")
 	})
+
+	t.Run("no HTML escaping in angle brackets", func(t *testing.T) {
+		type payload struct {
+			Cmd string `json:"cmd"`
+		}
+		data, err := OKEnvelope(payload{Cmd: "argus workflow start <workflow-id>"})
+		require.NoError(t, err)
+		assert.Contains(t, string(data), "<workflow-id>")
+		assert.NotContains(t, string(data), `\u003c`)
+		assert.NotContains(t, string(data), `\u003e`)
+	})
+
+	t.Run("no HTML escaping in ampersand", func(t *testing.T) {
+		type payload struct {
+			Cmd string `json:"cmd"`
+		}
+		data, err := OKEnvelope(payload{Cmd: "make test && make lint"})
+		require.NoError(t, err)
+		assert.Contains(t, string(data), "&&")
+		assert.NotContains(t, string(data), `\u0026`)
+	})
 }
 
 func TestErrorEnvelope(t *testing.T) {
@@ -80,6 +101,21 @@ func TestErrorEnvelope(t *testing.T) {
 		require.NoError(t, err)
 		assert.True(t, json.Valid(data))
 	})
+
+	t.Run("no HTML escaping in angle brackets", func(t *testing.T) {
+		data, err := ErrorEnvelope("use argus workflow start <workflow-id>")
+		require.NoError(t, err)
+		assert.Contains(t, string(data), "<workflow-id>")
+		assert.NotContains(t, string(data), `\u003c`)
+		assert.NotContains(t, string(data), `\u003e`)
+	})
+
+	t.Run("no HTML escaping in ampersand", func(t *testing.T) {
+		data, err := ErrorEnvelope("run: make test && make lint")
+		require.NoError(t, err)
+		assert.Contains(t, string(data), "&&")
+		assert.NotContains(t, string(data), `\u0026`)
+	})
 }
 
 func TestWriteJSON(t *testing.T) {
@@ -93,5 +129,26 @@ func TestWriteJSON(t *testing.T) {
 		var result map[string]any
 		require.NoError(t, json.Unmarshal(buf.Bytes(), &result))
 		assert.Equal(t, "value", result["key"])
+	})
+
+	t.Run("no HTML escaping in angle brackets", func(t *testing.T) {
+		type payload struct {
+			Msg string `json:"msg"`
+		}
+		buf := new(bytes.Buffer)
+		WriteJSON(buf, payload{Msg: "<b>bold</b>"})
+		assert.Contains(t, buf.String(), "<b>bold</b>")
+		assert.NotContains(t, buf.String(), `\u003c`)
+		assert.NotContains(t, buf.String(), `\u003e`)
+	})
+
+	t.Run("no HTML escaping in ampersand", func(t *testing.T) {
+		type payload struct {
+			Cmd string `json:"cmd"`
+		}
+		buf := new(bytes.Buffer)
+		WriteJSON(buf, payload{Cmd: "make test && make lint"})
+		assert.Contains(t, buf.String(), "&&")
+		assert.NotContains(t, buf.String(), `\u0026`)
 	})
 }

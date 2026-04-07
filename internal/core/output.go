@@ -1,6 +1,7 @@
 package core
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -11,6 +12,21 @@ import (
 // Reserved for future --markdown flag support. No implementation in M1.
 type MarkdownRenderer interface {
 	RenderMarkdown(w io.Writer)
+}
+
+// marshalNoHTMLEscape marshals v to JSON without escaping <, >, and & characters.
+// This is necessary because Argus outputs JSON to terminal/Agent consumers, not HTML.
+// The default json.Marshal escapes these characters as \u003c, \u003e, \u0026, which
+// produces unreadable error messages.
+func marshalNoHTMLEscape(v any) ([]byte, error) {
+	var buf bytes.Buffer
+	enc := json.NewEncoder(&buf)
+	enc.SetEscapeHTML(false)
+	if err := enc.Encode(v); err != nil {
+		return nil, err
+	}
+	// Encode appends a trailing newline; trim it to match json.Marshal behavior
+	return bytes.TrimSuffix(buf.Bytes(), []byte("\n")), nil
 }
 
 // errorEnvelopeJSON is the internal struct for error envelope serialization.
@@ -31,11 +47,11 @@ type errorEnvelopeJSON struct {
 // Returns an error if marshaling fails.
 func OKEnvelope(data any) ([]byte, error) {
 	if data == nil {
-		return json.Marshal(map[string]any{"status": "ok"})
+		return marshalNoHTMLEscape(map[string]any{"status": "ok"})
 	}
 
 	// Marshal data to get its fields as a map
-	dataBytes, err := json.Marshal(data)
+	dataBytes, err := marshalNoHTMLEscape(data)
 	if err != nil {
 		return nil, fmt.Errorf("marshaling envelope data: %w", err)
 	}
@@ -50,13 +66,13 @@ func OKEnvelope(data any) ([]byte, error) {
 	// Inject "status":"ok" into the map
 	dataMap["status"] = "ok"
 
-	return json.Marshal(dataMap)
+	return marshalNoHTMLEscape(dataMap)
 }
 
 // ErrorEnvelope marshals an error message into the standard error envelope.
 // Always produces: {"status":"error","message":"..."}
 func ErrorEnvelope(msg string) ([]byte, error) {
-	return json.Marshal(errorEnvelopeJSON{
+	return marshalNoHTMLEscape(errorEnvelopeJSON{
 		Status:  "error",
 		Message: msg,
 	})
@@ -66,7 +82,9 @@ func ErrorEnvelope(msg string) ([]byte, error) {
 // This is a best-effort operation: if writing fails, the error is logged via slog
 // but not returned. Callers at the CLI boundary cannot meaningfully handle stdout failures.
 func WriteJSON(w io.Writer, data any) {
-	if err := json.NewEncoder(w).Encode(data); err != nil {
+	enc := json.NewEncoder(w)
+	enc.SetEscapeHTML(false)
+	if err := enc.Encode(data); err != nil {
 		slog.Error("failed to write JSON output", "error", err)
 	}
 }
