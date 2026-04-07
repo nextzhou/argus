@@ -156,16 +156,3 @@ func newInvariantCmd() *cobra.Command {
 	}
 	return cmd
 }
-
-// newToolboxCmd creates the toolbox command (internal, hidden).
-func newToolboxCmd() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:    "toolbox",
-		Short:  "Toolbox utilities",
-		Hidden: true,
-		RunE: func(_ *cobra.Command, _ []string) error {
-			return nil
-		},
-	}
-	return cmd
-}
