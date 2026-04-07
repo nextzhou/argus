@@ -127,6 +127,8 @@ func newWorkflowCmd() *cobra.Command {
 	}
 	cmd.AddCommand(newWorkflowInspectCmd())
 	cmd.AddCommand(newWorkflowStartCmd())
+	cmd.AddCommand(newWorkflowListCmd())
+	cmd.AddCommand(newWorkflowCancelCmd())
 	return cmd
 }
 
