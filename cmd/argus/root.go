@@ -105,19 +105,6 @@ func newTrapCmd() *cobra.Command {
 	return cmd
 }
 
-// newStatusCmd creates the status command (internal, hidden).
-func newStatusCmd() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:    "status",
-		Short:  "Show workflow status",
-		Hidden: true,
-		RunE: func(_ *cobra.Command, _ []string) error {
-			return nil
-		},
-	}
-	return cmd
-}
-
 // newWorkflowCmd creates the workflow command with subcommands.
 func newWorkflowCmd() *cobra.Command {
 	cmd := &cobra.Command{
