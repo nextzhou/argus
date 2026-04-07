@@ -135,3 +135,128 @@ No `confirm` / `auto` fields. Write confirmation requirements directly in job pr
 
 - Record tradeoff analysis for important design decisions to guide future design and prevent drift.
 - To restore context quickly, read `AGENTS.md` first, then `docs/technical-overview.md`; read other `docs/technical-*.md` on demand.
+
+## Development Guidelines
+
+### Standard Workflow
+
+For every implementation task:
+1. Read the task specification in `docs/implementation-tasks.md`
+2. Read the relevant technical chapter in `docs/technical-*.md`
+3. Write tests first (TDD): define expected behavior before implementation
+4. Implement the minimum code to make tests pass
+5. Refactor for clarity and maintainability
+6. Run `make build && make test && make lint` before committing
+7. Commit with Conventional Commits format
+
+### Go Best Practices
+
+**Error Handling**:
+- Use sentinel errors for known error conditions: `var ErrNotFound = errors.New("not found")`
+- Define custom error types for structured error data
+- Always wrap errors with context: `fmt.Errorf("reading config: %w", err)`
+- Never ignore error return values
+
+**Logging**:
+- Use `log/slog` for all structured logging
+- Do not use `fmt.Print*` for output; use `os.Stdout.WriteString` or `slog` instead
+- Log at appropriate levels: Debug for development, Info for operations, Error for failures
+
+**Testing**:
+- Use table-driven tests for coverage of multiple cases
+- Test file naming: `foo_test.go` alongside `foo.go`
+- Use `testing` standard library for M0; `testify/assert` and `testify/require` from M1+
+- Test both happy path and error paths
+
+**Interface Design**:
+- Prefer small, single-method interfaces (Go interface segregation)
+- Define interfaces at the point of use, not at the point of implementation
+- Accept interfaces, return concrete types
+
+**Go 1.24 Features**:
+- Use `slices` and `maps` standard library packages where applicable
+- Prefer `errors.Is` and `errors.As` for error inspection
+
+### Anti-Patterns (Prohibited)
+
+The following patterns are prohibited and enforced by golangci-lint:
+
+- **No `init()` functions**: Use explicit initialization in `main` or constructors (`gochecknoinits`)
+- **No global mutable state**: Pass dependencies explicitly via function parameters or struct fields
+- **No `panic` in business logic**: Use error returns; `panic` is reserved for unrecoverable programmer errors
+- **No `any` abuse**: Use typed parameters and return values; avoid `interface{}` where a concrete type works
+- **No ignored errors**: All error return values must be checked (`errcheck`)
+- **No `fmt.Print*` in production code**: Use `os.Stdout.WriteString` or `log/slog` (`forbidigo`)
+
+### Package Organization and Dependency Direction
+
+The dependency graph flows strictly one way:
+
+```
+cmd -> internal/*
+```
+
+- `cmd/argus/`: Entry point only. Wires up dependencies, calls internal packages.
+- `internal/core/`: Core domain types shared across packages (no external imports)
+- `internal/workflow/`: Workflow parsing and execution logic
+- `internal/invariant/`: Invariant definition parsing and check logic
+- `internal/pipeline/`: Pipeline state management
+- `internal/session/`: Session lifecycle management
+- `internal/hook/`: Hook command handlers (tick, trap, job-done)
+- `internal/workspace/`: Workspace discovery and management
+- `internal/install/`: Install and asset release logic
+- `internal/doctor/`: Diagnostic reporting (read-only)
+- `internal/toolbox/`: Shared utilities (no dependencies on other internal packages)
+
+Circular dependencies between `internal/*` packages are prohibited.
+
+### Test Standards
+
+- Follow TDD order: test -> implement -> refactor -> commit
+- Use table-driven tests:
+  ```go
+  tests := []struct {
+      name    string
+      input   string
+      want    string
+      wantErr bool
+  }{
+      {"valid input", "foo", "bar", false},
+      {"empty input", "", "", true},
+  }
+  for _, tt := range tests {
+      t.Run(tt.name, func(t *testing.T) { ... })
+  }
+  ```
+- Test file naming: `foo_test.go` in the same package as `foo.go`
+- Each package must have at least one test file in M1+
+- Integration tests go in `internal/<pkg>/<pkg>_integration_test.go`
+
+### Commit Convention
+
+Format: `type(scope): description`
+
+**Types**: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`
+
+**Scope examples**:
+- `cli`: CLI command changes
+- `core`: Core domain types
+- `workflow`: Workflow parsing/execution
+- `invariant`: Invariant definition/checking
+- `pipeline`: Pipeline state management
+- `session`: Session lifecycle
+- `hook`: Hook command handlers
+- `workspace`: Workspace management
+- `install`: Install and asset release
+- `doctor`: Diagnostic tools
+- `toolbox`: Shared utilities
+- `project`: Project-level configuration
+- `make`: Makefile changes
+- `lint`: Linter configuration
+- `hooks`: Git hook configuration
+- `agents`: AGENTS.md or AI agent configuration
+
+**Message rules**:
+- Description: 1-72 characters, lowercase, no trailing period
+- Scope is optional but recommended for non-trivial changes
+- Breaking changes: append `!` after scope, e.g., `feat(core)!: redesign error types`
