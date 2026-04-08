@@ -46,17 +46,6 @@ func NewRootCmd(version string) *cobra.Command {
 	return rootCmd
 }
 
-// newDoctorCmd creates the doctor command (stub).
-func newDoctorCmd() *cobra.Command {
-	return &cobra.Command{
-		Use:   "doctor",
-		Short: "Run diagnostic checks",
-		RunE: func(_ *cobra.Command, _ []string) error {
-			return nil
-		},
-	}
-}
-
 // newWorkflowCmd creates the workflow command with subcommands.
 func newWorkflowCmd() *cobra.Command {
 	cmd := &cobra.Command{
