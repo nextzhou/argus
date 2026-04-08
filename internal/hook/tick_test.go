@@ -338,7 +338,9 @@ jobs:
 
 	output, logDetails, snapshotPipelineID, snapshotJobID := buildTickOutput(projectRoot, "ses-no-pipeline", &session.Session{}, nil, nil)
 
-	assert.Equal(t, FormatNoPipeline([]WorkflowSummary{{ID: "release", Description: "Release workflow"}}), output)
+	expected, err := FormatNoPipeline([]WorkflowSummary{{ID: "release", Description: "Release workflow"}})
+	require.NoError(t, err)
+	assert.Equal(t, expected, output)
 	assert.Contains(t, logDetails, "active=0")
 	assert.Contains(t, logDetails, "warnings=0")
 	assert.Contains(t, logDetails, "scenario=no-pipeline")
@@ -369,7 +371,9 @@ jobs:
 	activePipelines, scanWarnings := loadTickActivePipelines(t, projectRoot)
 	output, logDetails, snapshotPipelineID, snapshotJobID := buildTickOutput(projectRoot, "ses-snoozed", &session.Session{SnoozedPipelines: []string{instanceID}}, activePipelines, scanWarnings)
 
-	assert.Equal(t, FormatSnoozed([]WorkflowSummary{{ID: "release", Description: "Release workflow"}}), output)
+	expected, err := FormatSnoozed([]WorkflowSummary{{ID: "release", Description: "Release workflow"}})
+	require.NoError(t, err)
+	assert.Equal(t, expected, output)
 	assert.Contains(t, logDetails, "scenario=snoozed")
 	assert.Empty(t, snapshotPipelineID)
 	assert.Empty(t, snapshotJobID)
@@ -488,14 +492,18 @@ jobs:
 	sess := &session.Session{}
 
 	fullOutput, fullLogDetails, snapshotPipelineID, snapshotJobID := buildTickOutput(projectRoot, "ses-state-change", sess, activePipelines, scanWarnings)
-	assert.Equal(t, FormatFullContext(instanceID, "release", "1/1", "run_tests", "Run tests with context", "test-skill", "ses-state-change"), fullOutput)
+	expectedFullOutput, err := FormatFullContext(instanceID, "release", "1/1", "run_tests", "Run tests with context", "test-skill", "ses-state-change")
+	require.NoError(t, err)
+	assert.Equal(t, expectedFullOutput, fullOutput)
 	assert.Contains(t, fullLogDetails, "scenario=full")
 	assert.Equal(t, instanceID, snapshotPipelineID)
 	assert.Equal(t, "run_tests", snapshotJobID)
 
 	sess.LastTick = &session.LastTickState{Pipeline: instanceID, Job: "run_tests"}
 	minimalOutput, minimalLogDetails, snapshotPipelineID, snapshotJobID := buildTickOutput(projectRoot, "ses-state-change", sess, activePipelines, scanWarnings)
-	assert.Equal(t, FormatMinimalSummary("release", "run_tests", "1/1"), minimalOutput)
+	expectedMinimalOutput, err := FormatMinimalSummary("release", "run_tests", "1/1")
+	require.NoError(t, err)
+	assert.Equal(t, expectedMinimalOutput, minimalOutput)
 	assert.Contains(t, minimalLogDetails, "scenario=minimal")
 	assert.Equal(t, instanceID, snapshotPipelineID)
 	assert.Equal(t, "run_tests", snapshotJobID)

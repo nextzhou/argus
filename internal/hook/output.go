@@ -1,11 +1,6 @@
 // Package hook provides hook command handlers for multi-agent integration.
 package hook
 
-import (
-	"fmt"
-	"strings"
-)
-
 // WorkflowSummary contains minimal workflow information for tick output.
 type WorkflowSummary struct {
 	ID          string
@@ -21,72 +16,80 @@ type InvariantFailure struct {
 
 // FormatNoPipeline returns Markdown text listing available workflows when no pipeline is active.
 // It includes the [Argus] marker, workflow list, and the start command.
-func FormatNoPipeline(workflows []WorkflowSummary) string {
-	var buf strings.Builder
-	fmt.Fprintf(&buf, "[Argus] No active pipeline.\n\n")
-	fmt.Fprintf(&buf, "Available workflows:\n")
-
-	if len(workflows) == 0 {
-		fmt.Fprintf(&buf, "  (none)\n")
-	} else {
-		for _, w := range workflows {
-			fmt.Fprintf(&buf, "  - %s: %s\n", w.ID, w.Description)
-		}
+func FormatNoPipeline(workflows []WorkflowSummary) (string, error) {
+	data := struct {
+		Workflows []WorkflowSummary
+	}{
+		Workflows: workflows,
 	}
 
-	fmt.Fprintf(&buf, "\nTo start: argus workflow start <workflow-id>\n")
-	return buf.String()
+	return renderTemplate("prompts/tick-no-pipeline.md.tmpl", data)
 }
 
 // FormatFullContext returns Markdown text with complete job context including all action commands.
 // It includes pipeline ID, workflow ID, progress, job ID, prompt, skill (if non-empty),
 // and action commands for job-done, snooze, and cancel.
-func FormatFullContext(pipelineID, workflowID, progress, jobID, prompt, skill, sessionID string) string {
-	var buf strings.Builder
-	fmt.Fprintf(&buf, "[Argus] Pipeline: %s | Workflow: %s | Progress: %s\n\n", pipelineID, workflowID, progress)
-	fmt.Fprintf(&buf, "Current Job: %s\n", jobID)
-
-	if skill != "" {
-		fmt.Fprintf(&buf, "Skill: %s\n", skill)
+func FormatFullContext(pipelineID, workflowID, progress, jobID, prompt, skill, sessionID string) (string, error) {
+	data := struct {
+		PipelineID string
+		WorkflowID string
+		Progress   string
+		JobID      string
+		Prompt     string
+		Skill      string
+		SessionID  string
+	}{
+		PipelineID: pipelineID,
+		WorkflowID: workflowID,
+		Progress:   progress,
+		JobID:      jobID,
+		Prompt:     prompt,
+		Skill:      skill,
+		SessionID:  sessionID,
 	}
 
-	fmt.Fprintf(&buf, "\n%s\n\n", prompt)
-	fmt.Fprintf(&buf, "When done: argus job-done [--message \"summary\"]\n")
-	fmt.Fprintf(&buf, "To snooze: argus workflow snooze --session %s\n", sessionID)
-	fmt.Fprintf(&buf, "To cancel: argus workflow cancel\n")
-
-	return buf.String()
+	return renderTemplate("prompts/tick-full-context.md.tmpl", data)
 }
 
 // FormatMinimalSummary returns a short Markdown reminder when pipeline state hasn't changed.
 // It includes workflow ID, job ID, progress, and the job-done command.
-func FormatMinimalSummary(workflowID, jobID, progress string) string {
-	return fmt.Sprintf("[Argus] %s | Job: %s | Progress: %s — When done: argus job-done\n", workflowID, jobID, progress)
+func FormatMinimalSummary(workflowID, jobID, progress string) (string, error) {
+	data := struct {
+		WorkflowID string
+		JobID      string
+		Progress   string
+	}{
+		WorkflowID: workflowID,
+		JobID:      jobID,
+		Progress:   progress,
+	}
+
+	return renderTemplate("prompts/tick-minimal.md.tmpl", data)
 }
 
 // FormatSnoozed returns Markdown text for a snoozed pipeline.
 // A snoozed pipeline is invisible to the user, so this returns the same output as FormatNoPipeline.
-func FormatSnoozed(workflows []WorkflowSummary) string {
+func FormatSnoozed(workflows []WorkflowSummary) (string, error) {
 	return FormatNoPipeline(workflows)
 }
 
 // AppendInvariantFailed appends an invariant failure section to the base output.
 // If failures is empty, the base output is returned unchanged.
 // The appended section includes the [Argus] marker and a list of failed invariants with suggestions.
-func AppendInvariantFailed(base string, failures []InvariantFailure) string {
+func AppendInvariantFailed(base string, failures []InvariantFailure) (string, error) {
 	if len(failures) == 0 {
-		return base
+		return base, nil
 	}
 
-	var buf strings.Builder
-	buf.WriteString(base)
-	buf.WriteString("\n---\n")
-	buf.WriteString("[Argus] Invariant check failed:\n")
-
-	for _, f := range failures {
-		fmt.Fprintf(&buf, "  - %s: %s\n", f.ID, f.Description)
-		fmt.Fprintf(&buf, "    Suggestion: %s\n", f.Suggestion)
+	data := struct {
+		Failures []InvariantFailure
+	}{
+		Failures: failures,
+	}
+	appendix, err := renderTemplate("prompts/tick-invariant-failed.md.tmpl", data)
+	if err != nil {
+		return "", err
 	}
 
-	return buf.String()
+	return base + "\n" + appendix, nil
 }

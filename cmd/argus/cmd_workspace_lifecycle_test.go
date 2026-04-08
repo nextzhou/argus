@@ -186,7 +186,9 @@ func TestWorkspaceLifecycle_Complete(t *testing.T) {
 
 	output, cmdErr = executeGlobalTickCmd(t, `{"session_id":"test-session"}`)
 	require.NoError(t, cmdErr)
-	assert.Empty(t, string(output))
+	assert.Contains(t, string(output), "[Argus] Workspace Guide")
+	assert.Contains(t, string(output), "Argus has been installed at the workspace level.")
+	assert.Contains(t, string(output), "claude-code")
 
 	output, cmdErr = executeWorkspaceUninstallCmd(t, workspaceDir)
 	require.NoError(t, cmdErr)

@@ -82,7 +82,12 @@ func HandleTick(agent string, global bool, stdin io.Reader, stdout io.Writer, pr
 	output, logDetails, snapshotPipelineID, snapshotJobID := buildTickOutput(root.Path, input.SessionID, sess, activePipelines, scanWarnings)
 
 	failures := runTickInvariants(root.Path, firstTick)
-	output = AppendInvariantFailed(output, failures)
+	outputWithInvariants, err := AppendInvariantFailed(output, failures)
+	if err != nil {
+		output = appendTickWarningText(output, fmt.Sprintf("format error: %v", err))
+	} else {
+		output = outputWithInvariants
+	}
 
 	session.UpdateLastTick(sess, snapshotPipelineID, snapshotJobID, time.Now())
 	if err := session.SaveSession(sessionBaseDir, input.SessionID, sess); err != nil {
@@ -110,18 +115,33 @@ func buildTickOutput(
 ) (output string, logDetails string, snapshotPipelineID string, snapshotJobID string) {
 	workflows := loadWorkflowSummaries(filepath.Join(projectRoot, ".argus", "workflows"))
 	logDetails = fmt.Sprintf("active=%d warnings=%d", len(activePipelines), len(scanWarnings))
+	formatErrorOutput := func(err error, pipelineID string, jobID string) (string, string, string, string) {
+		return appendTickWarningText("", fmt.Sprintf("format error: %v", err)), logDetails + " scenario=format-error", pipelineID, jobID
+	}
 
 	if len(activePipelines) == 0 {
-		return FormatNoPipeline(workflows), logDetails + " scenario=no-pipeline", "", ""
+		output, err := FormatNoPipeline(workflows)
+		if err != nil {
+			return formatErrorOutput(err, "", "")
+		}
+		return output, logDetails + " scenario=no-pipeline", "", ""
 	}
 
 	active := activePipelines[0]
 	if session.IsSnoozed(sess, active.InstanceID) {
-		return FormatSnoozed(workflows), logDetails + " scenario=snoozed", "", ""
+		output, err := FormatSnoozed(workflows)
+		if err != nil {
+			return formatErrorOutput(err, "", "")
+		}
+		return output, logDetails + " scenario=snoozed", "", ""
 	}
 
 	if active.Pipeline.CurrentJob == nil {
-		return appendTickWarningText(FormatNoPipeline(workflows), "active pipeline is missing current job state"), logDetails + " scenario=missing-current-job", active.InstanceID, ""
+		output, err := FormatNoPipeline(workflows)
+		if err != nil {
+			return formatErrorOutput(err, active.InstanceID, "")
+		}
+		return appendTickWarningText(output, "active pipeline is missing current job state"), logDetails + " scenario=missing-current-job", active.InstanceID, ""
 	}
 
 	currentJobID := *active.Pipeline.CurrentJob
@@ -132,22 +152,38 @@ func buildTickOutput(
 	wf, err := loadWorkflowForTick(filepath.Join(projectRoot, ".argus", "workflows"), workflowPath)
 	if err != nil {
 		warning := fmt.Sprintf("could not load workflow %s: %v", active.Pipeline.WorkflowID, err)
-		return appendTickWarningText(FormatNoPipeline(workflows), warning), logDetails + " scenario=workflow-load-error", snapshotPipelineID, snapshotJobID
+		output, formatErr := FormatNoPipeline(workflows)
+		if formatErr != nil {
+			return formatErrorOutput(formatErr, snapshotPipelineID, snapshotJobID)
+		}
+		return appendTickWarningText(output, warning), logDetails + " scenario=workflow-load-error", snapshotPipelineID, snapshotJobID
 	}
 
 	jobIndex, found := pipeline.FindJobIndex(wf, currentJobID)
 	if !found {
 		warning := fmt.Sprintf("current job %s was not found in workflow %s", currentJobID, active.Pipeline.WorkflowID)
-		return appendTickWarningText(FormatNoPipeline(workflows), warning), logDetails + " scenario=workflow-mismatch", snapshotPipelineID, snapshotJobID
+		output, err := FormatNoPipeline(workflows)
+		if err != nil {
+			return formatErrorOutput(err, snapshotPipelineID, snapshotJobID)
+		}
+		return appendTickWarningText(output, warning), logDetails + " scenario=workflow-mismatch", snapshotPipelineID, snapshotJobID
 	}
 
 	progress := fmt.Sprintf("%d/%d", jobIndex+1, len(wf.Jobs))
 	if session.HasStateChanged(sess, active.InstanceID, currentJobID) {
 		prompt, skill := renderTickJobPrompt(active.Pipeline, wf, jobIndex)
-		return FormatFullContext(active.InstanceID, active.Pipeline.WorkflowID, progress, currentJobID, prompt, skill, sessionID), logDetails + " scenario=full", snapshotPipelineID, snapshotJobID
+		output, err := FormatFullContext(active.InstanceID, active.Pipeline.WorkflowID, progress, currentJobID, prompt, skill, sessionID)
+		if err != nil {
+			return formatErrorOutput(err, snapshotPipelineID, snapshotJobID)
+		}
+		return output, logDetails + " scenario=full", snapshotPipelineID, snapshotJobID
 	}
 
-	return FormatMinimalSummary(active.Pipeline.WorkflowID, currentJobID, progress), logDetails + " scenario=minimal", snapshotPipelineID, snapshotJobID
+	output, err = FormatMinimalSummary(active.Pipeline.WorkflowID, currentJobID, progress)
+	if err != nil {
+		return formatErrorOutput(err, snapshotPipelineID, snapshotJobID)
+	}
+	return output, logDetails + " scenario=minimal", snapshotPipelineID, snapshotJobID
 }
 
 func loadWorkflowSummaries(workflowsDir string) []WorkflowSummary {
