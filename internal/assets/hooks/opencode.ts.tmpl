@@ -10,12 +10,14 @@ const plugin: Plugin = {
         const payload = JSON.stringify({
           sessionID: input.sessionID,
         });
-        const result =
-          await $`echo ${payload} | argus tick --agent opencode{{ if .Global }} --global{{ end }}`.quiet().nothrow();
+        const result = await $`echo ${payload} | argus tick --agent opencode{{ if .Global }} --global{{ end }}`
+          .quiet()
+          .nothrow();
         if (result.exitCode === 0 && result.text().trim()) {
           output.parts.push({
             type: "text",
             text: result.text(),
+            // biome-ignore lint/suspicious/noExplicitAny: required by OpenCode Plugin API type mismatch
           } as any);
         }
       } catch {
@@ -29,20 +31,20 @@ const plugin: Plugin = {
           tool: input.tool,
           args: output.args,
         });
-        const result =
-          await $`echo ${payload} | argus trap --agent opencode{{ if .Global }} --global{{ end }}`.quiet().nothrow();
+        const result = await $`echo ${payload} | argus trap --agent opencode{{ if .Global }} --global{{ end }}`
+          .quiet()
+          .nothrow();
         if (result.exitCode !== 0) {
           return;
         }
         const trapData = JSON.parse(result.text());
-        if (
-          trapData.hookSpecificOutput?.permissionDecision === "deny"
-        ) {
+        if (trapData.hookSpecificOutput?.permissionDecision === "deny") {
           throw new Error(
             trapData.hookSpecificOutput.permissionDecisionReason ??
               "[Argus] Operation denied",
           );
         }
+        // biome-ignore lint/suspicious/noExplicitAny: needed to access e.message
       } catch (e: any) {
         if (e.message.includes("[Argus]")) throw e;
         // Fail open: JSON parse failure or other error
