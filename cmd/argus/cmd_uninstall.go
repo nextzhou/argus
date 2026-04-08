@@ -39,7 +39,7 @@ func newUninstallCmd() *cobra.Command {
 				}
 
 				// Interactive: prompt user
-				_, _ = os.Stderr.WriteString("This will remove .argus/ and argus-* skills. Continue? [y/N] ")
+				_, _ = os.Stderr.WriteString("This will remove .argus/ and Argus-managed skills. Continue? [y/N] ")
 				var response string
 				_, _ = fmt.Fscanln(os.Stdin, &response)
 				if !strings.HasPrefix(strings.ToLower(response), "y") {
@@ -53,12 +53,13 @@ func newUninstallCmd() *cobra.Command {
 				return fmt.Errorf("removing .argus: %w", err)
 			}
 
-			// 2. Remove argus-* skills only (preserve non-argus user skills)
-			skillsDir := filepath.Join(cwd, ".agents", "skills")
-			if entries, err := os.ReadDir(skillsDir); err == nil {
-				for _, entry := range entries {
-					if entry.IsDir() && core.IsArgusReserved(entry.Name()) {
-						_ = os.RemoveAll(filepath.Join(skillsDir, entry.Name()))
+			for _, skillPath := range install.SkillPaths() {
+				skillsDir := filepath.Join(cwd, skillPath)
+				if entries, err := os.ReadDir(skillsDir); err == nil {
+					for _, entry := range entries {
+						if entry.IsDir() && core.IsArgusReserved(entry.Name()) {
+							_ = os.RemoveAll(filepath.Join(skillsDir, entry.Name()))
+						}
 					}
 				}
 			}

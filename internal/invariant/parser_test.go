@@ -127,8 +127,8 @@ check:
     description: "Rules dir exists"
   - shell: "test -f CLAUDE.md"
     description: "CLAUDE.md exists"
-  - shell: "test -f .agents/skills/argus-doctor/SKILL.md"
-    description: "Skills generated"
+  - shell: "test -f .agents/skills/argus-doctor/SKILL.md && test -f .claude/skills/argus-doctor/SKILL.md"
+    description: "Skills generated with Claude mirror"
 workflow: argus-init
 `,
 			wantID:     "full-check",

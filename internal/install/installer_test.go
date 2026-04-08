@@ -95,7 +95,9 @@ func TestInstallCreatesProjectStructureAndAssets(t *testing.T) {
 
 	assertReleasedAsset(t, projectRoot, "workflows/argus-init.yaml", ".argus/workflows/argus-init.yaml")
 	assertReleasedAsset(t, projectRoot, "invariants/argus-init.yaml", ".argus/invariants/argus-init.yaml")
-	assertReleasedAsset(t, projectRoot, "skills/argus-doctor/SKILL.md", ".agents/skills/argus-doctor/SKILL.md")
+	for _, skillPath := range SkillPaths() {
+		assertReleasedAsset(t, projectRoot, "skills/argus-doctor/SKILL.md", filepath.Join(skillPath, "argus-doctor", "SKILL.md"))
+	}
 
 	settings := readJSONFile(t, filepath.Join(projectRoot, ".claude", "settings.json"))
 	assert.Equal(t, []string{"argus tick --agent claude-code"}, hookCommandsForEvent(t, settings, "UserPromptSubmit"))
@@ -118,7 +120,9 @@ func TestInstallIsIdempotent(t *testing.T) {
 	assert.Equal(t, []string{"argus tick --agent claude-code"}, hookCommandsForEvent(t, settings, "UserPromptSubmit"))
 	assert.Equal(t, []string{"argus trap --agent claude-code"}, hookCommandsForEvent(t, settings, "PreToolUse"))
 
-	assertReleasedAsset(t, projectRoot, "skills/argus-install/SKILL.md", ".agents/skills/argus-install/SKILL.md")
+	for _, skillPath := range SkillPaths() {
+		assertReleasedAsset(t, projectRoot, "skills/argus-install/SKILL.md", filepath.Join(skillPath, "argus-install", "SKILL.md"))
+	}
 	assert.FileExists(t, filepath.Join(homeDir, ".codex", "config.toml"))
 }
 

@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/nextzhou/argus/internal/install"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -93,8 +94,10 @@ func TestInstallLifecycle(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, skillEntries, 9, "should have 9 argus-* skill directories")
 
-	_, err = os.Stat(filepath.Join(".agents", "skills", "argus-doctor", "SKILL.md"))
-	assert.NoError(t, err, "argus-doctor/SKILL.md should exist")
+	for _, skillPath := range install.SkillPaths() {
+		_, err = os.Stat(filepath.Join(skillPath, "argus-doctor", "SKILL.md"))
+		assert.NoError(t, err, "%s/argus-doctor/SKILL.md should exist", skillPath)
+	}
 
 	output, cmdErr = executeUninstallCmd(t, "--yes")
 	require.NoError(t, cmdErr)
@@ -105,8 +108,10 @@ func TestInstallLifecycle(t *testing.T) {
 	_, err = os.Stat(".argus")
 	assert.True(t, os.IsNotExist(err), ".argus/ should not exist after uninstall")
 
-	_, err = os.Stat(filepath.Join(".agents", "skills", "argus-doctor"))
-	assert.True(t, os.IsNotExist(err), "argus-doctor/ should not exist after uninstall")
+	for _, skillPath := range install.SkillPaths() {
+		_, err = os.Stat(filepath.Join(skillPath, "argus-doctor"))
+		assert.True(t, os.IsNotExist(err), "%s/argus-doctor should not exist after uninstall", skillPath)
+	}
 
 	output, cmdErr = executeInstallCmd(t, "--yes")
 	require.NoError(t, cmdErr)
@@ -214,14 +219,27 @@ func TestInstallEdgeCases(t *testing.T) {
 			0o644,
 		))
 
+		claudeCustomSkillDir := filepath.Join(".claude", "skills", "my-custom")
+		require.NoError(t, os.MkdirAll(claudeCustomSkillDir, 0o755))
+		require.NoError(t, os.WriteFile(
+			filepath.Join(claudeCustomSkillDir, "SKILL.md"),
+			[]byte("# My Claude Custom Skill\n"),
+			0o644,
+		))
+
 		_, cmdErr = executeUninstallCmd(t, "--yes")
 		require.NoError(t, cmdErr)
 
 		_, err := os.Stat(filepath.Join(".agents", "skills", "my-custom", "SKILL.md"))
 		assert.NoError(t, err, "non-argus skill should be preserved after uninstall")
 
-		_, err = os.Stat(filepath.Join(".agents", "skills", "argus-doctor"))
-		assert.True(t, os.IsNotExist(err), "argus-doctor/ should be removed after uninstall")
+		_, err = os.Stat(filepath.Join(".claude", "skills", "my-custom", "SKILL.md"))
+		assert.NoError(t, err, "non-argus Claude skill should be preserved after uninstall")
+
+		for _, skillPath := range install.SkillPaths() {
+			_, err = os.Stat(filepath.Join(skillPath, "argus-doctor"))
+			assert.True(t, os.IsNotExist(err), "%s/argus-doctor should be removed after uninstall", skillPath)
+		}
 	})
 
 	t.Run("hook preservation", func(t *testing.T) {

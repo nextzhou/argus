@@ -33,15 +33,17 @@ func Install(projectRoot string, _ bool) error {
 		}
 	}
 
-	releaseMap := map[string]string{
-		"workflows":  filepath.Join(".argus", "workflows"),
-		"invariants": filepath.Join(".argus", "invariants"),
-		"skills":     filepath.Join(".agents", "skills"),
+	releaseMap := map[string][]string{
+		"workflows":  {filepath.Join(".argus", "workflows")},
+		"invariants": {filepath.Join(".argus", "invariants")},
+		"skills":     SkillPaths(),
 	}
 
-	for srcDir, dstDir := range releaseMap {
-		if err := releaseAssets(projectRoot, srcDir, dstDir); err != nil {
-			return fmt.Errorf("releasing %s assets: %w", srcDir, err)
+	for srcDir, dstDirs := range releaseMap {
+		for _, dstDir := range dstDirs {
+			if err := releaseAssets(projectRoot, srcDir, dstDir); err != nil {
+				return fmt.Errorf("releasing %s assets to %s: %w", srcDir, dstDir, err)
+			}
 		}
 	}
 
