@@ -18,10 +18,12 @@ Argus is an AI Agent workflow orchestration tool. It provides a CLI binary (Go) 
   tmp/                           # Temporary data (local-only)
 .agents/skills/argus-*/SKILL.md  # Skills distributed via Agent Skills standard (git-tracked)
 assets/                          # Embedded assets in source code (Go embed)
+                                 # Physical path: internal/assets/ (go:embed only refs package subdir)
   skills/                        # Built-in skills (released on install)
   workflows/                     # Built-in workflow definitions (released on install)
   invariants/                    # Built-in invariant definitions (released on install)
   prompts/                       # Runtime output templates (not released, internal use only)
+  hooks/                         # Hook wrapper templates (not released, internal use only)
 ```
 
 ## Architecture Invariants
@@ -194,6 +196,9 @@ The following patterns are prohibited and enforced by golangci-lint:
 - **No ignored errors**: All error return values must be checked (`errcheck`)
 - **No `fmt.Print*` in production code**: Use `os.Stdout.WriteString` or `log/slog` (`forbidigo`)
 - **No raw `json.Marshal` for CLI output**: Use `core.OKEnvelope`/`core.ErrorEnvelope`/`core.WriteJSON` (they disable HTML escaping via `SetEscapeHTML(false)`; raw `json.Marshal` escapes `<>&` as `\uXXXX`)
+- **No string manipulation for structured data**: Use proper parsing libraries for JSON, YAML, TOML, XML, etc.
+  Never use regex, string split/replace, or line-level operations to read or modify structured formats.
+  Already available: `encoding/json`, `gopkg.in/yaml.v3`, `pelletier/go-toml/v2`.
 
 ### Package Organization and Dependency Direction
 
