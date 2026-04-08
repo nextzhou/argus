@@ -338,6 +338,25 @@ func TestJobDoneMarkdownFailedEarlyExit(t *testing.T) {
 	assert.Contains(t, output, "- 重新开始：argus workflow start release")
 }
 
+func TestJobDoneMarkdownEarlyExit(t *testing.T) {
+	t.Chdir(t.TempDir())
+	writeWorkflowFixture(t, "release", fiveJobWorkflow)
+	writePipelineFixture(t, testInstanceID, pipelineAtRunTests)
+
+	cmd := newJobDoneCmd()
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SilenceErrors = true
+	cmd.SilenceUsage = true
+	cmd.SetArgs([]string{"--end-pipeline", "--markdown"})
+
+	err := cmd.Execute()
+	require.NoError(t, err)
+
+	output := buf.String()
+	assert.Contains(t, output, "[Argus] Job run_tests 完成，Pipeline 提前结束 (2/5)。")
+}
+
 func TestJobDoneMarkdownNoPipeline(t *testing.T) {
 	t.Chdir(t.TempDir())
 	writeWorkflowFixture(t, "release", fiveJobWorkflow)

@@ -168,6 +168,34 @@ func TestStatus(t *testing.T) {
 				assert.Contains(t, hints[0].(string), "workflow 定义已变更")
 			},
 		},
+		{
+			name:         "corrupt workflow file returns error",
+			workflowYAML: corruptWorkflowYAML,
+			workflowID:   "release",
+			pipelineYAML: pipelineWithCorruptWorkflow,
+			instanceID:   testInstanceID,
+			wantErr:      true,
+			wantStatus:   "error",
+			checkJSON: func(t *testing.T, data map[string]any) {
+				msg, ok := data["message"].(string)
+				require.True(t, ok)
+				assert.Contains(t, msg, "parsing workflow")
+			},
+		},
+		{
+			name:         "missing shared workflow ref returns error",
+			workflowYAML: workflowWithRefs,
+			workflowID:   "release",
+			pipelineYAML: pipelineWithRefsAtStep2,
+			instanceID:   testInstanceID,
+			wantErr:      true,
+			wantStatus:   "error",
+			checkJSON: func(t *testing.T, data map[string]any) {
+				msg, ok := data["message"].(string)
+				require.True(t, ok)
+				assert.Contains(t, msg, "loading shared definitions")
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -488,3 +516,38 @@ func TestStatusMarkdownWithMessage(t *testing.T) {
 	output := buf.String()
 	assert.Contains(t, output, "[done] lint - lint passed cleanly")
 }
+
+const pipelineWithRefsAtStep2 = `version: v0.1.0
+workflow_id: release
+status: running
+current_job: step2
+started_at: "20240101T000000Z"
+jobs:
+  step1:
+    started_at: "20240101T000000Z"
+    ended_at: "20240101T000100Z"
+  step2:
+    started_at: "20240101T000100Z"
+`
+
+const corruptWorkflowYAML = `!!!invalid yaml content`
+
+const pipelineWithCorruptWorkflow = `version: v0.1.0
+workflow_id: release
+status: running
+current_job: step1
+started_at: "20240101T000000Z"
+jobs:
+  step1:
+    started_at: "20240101T000000Z"
+`
+
+const workflowWithRefs = `version: v0.1.0
+id: release
+description: Workflow with refs
+jobs:
+  - id: step1
+    prompt: "Step 1"
+  - id: step2
+    ref: "shared-job"
+`
