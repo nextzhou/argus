@@ -8,17 +8,45 @@ import (
 
 	"github.com/nextzhou/argus/internal/core"
 	"github.com/nextzhou/argus/internal/install"
+	workspacecfg "github.com/nextzhou/argus/internal/workspace"
 	"github.com/spf13/cobra"
 )
 
 // SEQUENCE-TEST: cmd_install_lifecycle_test.go
+// SEQUENCE-TEST: cmd_workspace_lifecycle_test.go
 func newInstallCmd() *cobra.Command {
 	var yesFlag bool
+	var workspacePath string
 
 	cmd := &cobra.Command{
 		Use:   "install",
 		Short: "Install Argus in the current project",
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			if cmd.Flags().Changed("workspace") {
+				if err := install.InstallWorkspace(workspacePath); err != nil {
+					writeEnvelope(core.ErrorEnvelope(err.Error()))
+					return err
+				}
+
+				normalizedPath, err := workspacecfg.NormalizePath(workspacePath)
+				if err != nil {
+					writeEnvelope(core.ErrorEnvelope(err.Error()))
+					return err
+				}
+
+				okBytes, err := core.OKEnvelope(map[string]string{
+					"message": "workspace registered",
+					"path":    normalizedPath,
+				})
+				if err != nil {
+					return fmt.Errorf("marshaling workspace install output: %w", err)
+				}
+
+				_, _ = os.Stdout.Write(okBytes)
+				_, _ = os.Stdout.WriteString("\n")
+				return nil
+			}
+
 			projectRoot, isSubdir, err := install.CheckInstallPreconditions()
 			if err != nil {
 				writeEnvelope(core.ErrorEnvelope(err.Error()))
@@ -58,6 +86,7 @@ func newInstallCmd() *cobra.Command {
 	}
 
 	cmd.Flags().BoolVar(&yesFlag, "yes", false, "Skip confirmation prompts")
+	cmd.Flags().StringVar(&workspacePath, "workspace", "", "Register a workspace path and install global hooks and skills")
 	return cmd
 }
 

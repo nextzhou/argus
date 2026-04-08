@@ -77,13 +77,16 @@ func uninstallHooksForAgent(projectRoot string, agent string) error {
 }
 
 func installClaudeCodeHooks(projectRoot string) error {
-	settingsPath := filepath.Join(projectRoot, claudeSettingsRelativePath)
+	return installClaudeCodeHooksAt(filepath.Join(projectRoot, claudeSettingsRelativePath), false)
+}
+
+func installClaudeCodeHooksAt(settingsPath string, global bool) error {
 	settings, err := loadJSONObject(settingsPath)
 	if err != nil {
 		return fmt.Errorf("parsing claude code settings: %w", err)
 	}
 
-	desiredEvents, err := loadTemplateHookEvents(agentClaudeCode)
+	desiredEvents, err := loadTemplateHookEvents(agentClaudeCode, global)
 	if err != nil {
 		return err
 	}
@@ -157,12 +160,15 @@ func uninstallClaudeCodeHooks(projectRoot string) error {
 }
 
 func installCodexHooks(projectRoot string) error {
-	rendered, err := RenderHookTemplate(agentCodex, false)
+	return installCodexHooksAt(filepath.Join(projectRoot, codexHooksRelativePath), false)
+}
+
+func installCodexHooksAt(hooksPath string, global bool) error {
+	rendered, err := RenderHookTemplate(agentCodex, global)
 	if err != nil {
 		return err
 	}
 
-	hooksPath := filepath.Join(projectRoot, codexHooksRelativePath)
 	if err := writeFile(hooksPath, rendered); err != nil {
 		return fmt.Errorf("writing codex hooks: %w", err)
 	}
@@ -175,12 +181,15 @@ func installCodexHooks(projectRoot string) error {
 }
 
 func installOpenCodeHooks(projectRoot string) error {
-	rendered, err := RenderHookTemplate(agentOpenCode, false)
+	return installOpenCodeHooksAt(filepath.Join(projectRoot, opencodePluginRelativePath), false)
+}
+
+func installOpenCodeHooksAt(pluginPath string, global bool) error {
+	rendered, err := RenderHookTemplate(agentOpenCode, global)
 	if err != nil {
 		return err
 	}
 
-	pluginPath := filepath.Join(projectRoot, opencodePluginRelativePath)
 	if err := writeFile(pluginPath, rendered); err != nil {
 		return fmt.Errorf("writing opencode plugin: %w", err)
 	}
@@ -220,8 +229,8 @@ func ensureCodexHooksEnabled() error {
 	return nil
 }
 
-func loadTemplateHookEvents(agent string) (map[string][]any, error) {
-	rendered, err := RenderHookTemplate(agent, false)
+func loadTemplateHookEvents(agent string, global bool) (map[string][]any, error) {
+	rendered, err := RenderHookTemplate(agent, global)
 	if err != nil {
 		return nil, err
 	}
