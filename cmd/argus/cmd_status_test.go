@@ -488,3 +488,13 @@ func TestStatusMarkdownWithMessage(t *testing.T) {
 	output := buf.String()
 	assert.Contains(t, output, "[done] lint - lint passed cleanly")
 }
+
+const workflowWithRefs = `version: v0.1.0
+id: release
+description: Workflow with refs
+jobs:
+  - id: step1
+    prompt: "Step 1"
+  - id: step2
+    ref: "shared-job"
+`
