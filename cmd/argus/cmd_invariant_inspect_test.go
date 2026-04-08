@@ -1,0 +1,399 @@
+package main
+
+import (
+	"bytes"
+	"encoding/json"
+	"io"
+	"os"
+	"path/filepath"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+// executeInvariantInspectCmd runs the invariant inspect command and captures stdout output.
+// Tests using this helper must NOT call t.Parallel since os.Stdout is redirected.
+func executeInvariantInspectCmd(t *testing.T, args ...string) ([]byte, error) {
+	t.Helper()
+
+	old := os.Stdout
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
+	os.Stdout = w
+
+	cmd := newInvariantInspectCmd()
+	cmd.SilenceErrors = true
+	cmd.SilenceUsage = true
+	cmd.SetArgs(args)
+	cmdErr := cmd.Execute()
+
+	require.NoError(t, w.Close())
+	os.Stdout = old
+
+	out, err := io.ReadAll(r)
+	require.NoError(t, err)
+	require.NoError(t, r.Close())
+
+	return out, cmdErr
+}
+
+const validInvariantForInspect = `version: v0.1.0
+id: my-check
+description: A valid invariant
+auto: always
+check:
+  - shell: "true"
+    description: "always passes"
+prompt: "Fix it"
+`
+
+const validInvariantWithWorkflow = `version: v0.1.0
+id: check-with-workflow
+description: Invariant referencing a workflow
+auto: always
+check:
+  - shell: "true"
+    description: "always passes"
+workflow: my-workflow
+prompt: "Run the workflow"
+`
+
+const validInvariantWithMissingWorkflow = `version: v0.1.0
+id: check-missing-workflow
+description: Invariant referencing a non-existent workflow
+auto: always
+check:
+  - shell: "true"
+    description: "always passes"
+workflow: nonexistent-workflow
+prompt: "Run the workflow"
+`
+
+const invalidInvariantYAMLForInspect = `not: valid: yaml: [broken`
+
+const validWorkflowForInspect = `version: v0.1.0
+id: my-workflow
+description: Test workflow
+jobs:
+  - id: build
+    prompt: "Build the project"
+`
+
+func TestInvariantInspect(t *testing.T) {
+	tests := []struct {
+		name       string
+		args       []string
+		setup      func(t *testing.T)
+		wantErr    bool
+		wantStatus string
+		checkJSON  func(t *testing.T, data map[string]any)
+	}{
+		{
+			name: "valid invariants produce ok report",
+			setup: func(t *testing.T) {
+				writeInvariantFixture(t, "my-check", validInvariantForInspect)
+			},
+			wantStatus: "ok",
+			checkJSON: func(t *testing.T, data map[string]any) {
+				assert.Equal(t, true, data["valid"])
+
+				files, ok := data["files"].(map[string]any)
+				require.True(t, ok, "files should be an object")
+				require.Contains(t, files, "my-check.yaml")
+
+				fr := files["my-check.yaml"].(map[string]any)
+				assert.Equal(t, true, fr["valid"])
+				assert.Equal(t, "my-check", fr["id"])
+			},
+		},
+		{
+			name: "invalid invariant YAML produces validation errors",
+			setup: func(t *testing.T) {
+				writeInvariantFixture(t, "bad-yaml", invalidInvariantYAMLForInspect)
+			},
+			wantStatus: "ok",
+			checkJSON: func(t *testing.T, data map[string]any) {
+				assert.Equal(t, false, data["valid"])
+
+				files := data["files"].(map[string]any)
+				fr := files["bad-yaml.yaml"].(map[string]any)
+				assert.Equal(t, false, fr["valid"])
+
+				errors, ok := fr["errors"].([]any)
+				require.True(t, ok, "errors should be an array")
+				assert.NotEmpty(t, errors)
+			},
+		},
+		{
+			name: "mixed valid and invalid invariants",
+			setup: func(t *testing.T) {
+				writeInvariantFixture(t, "good", validInvariantForInspect)
+				writeInvariantFixture(t, "bad", invalidInvariantYAMLForInspect)
+			},
+			wantStatus: "ok",
+			checkJSON: func(t *testing.T, data map[string]any) {
+				assert.Equal(t, false, data["valid"])
+
+				files := data["files"].(map[string]any)
+
+				goodFr := files["good.yaml"].(map[string]any)
+				assert.Equal(t, true, goodFr["valid"])
+
+				badFr := files["bad.yaml"].(map[string]any)
+				assert.Equal(t, false, badFr["valid"])
+				errors := badFr["errors"].([]any)
+				assert.NotEmpty(t, errors)
+			},
+		},
+		{
+			name:       "empty directory produces valid report",
+			wantStatus: "ok",
+			setup: func(t *testing.T) {
+				require.NoError(t, os.MkdirAll(filepath.Join(".argus", "invariants"), 0o755))
+			},
+			checkJSON: func(t *testing.T, data map[string]any) {
+				assert.Equal(t, true, data["valid"])
+
+				files := data["files"].(map[string]any)
+				assert.Empty(t, files)
+			},
+		},
+		{
+			name:       "directory not found returns error",
+			args:       []string{"/nonexistent/path/to/invariants"},
+			wantErr:    true,
+			wantStatus: "error",
+			checkJSON: func(t *testing.T, data map[string]any) {
+				msg, ok := data["message"].(string)
+				require.True(t, ok)
+				assert.Contains(t, msg, "reading invariant directory")
+			},
+		},
+		{
+			name: "invariant referencing existing workflow passes",
+			setup: func(t *testing.T) {
+				writeInvariantFixture(t, "check-with-workflow", validInvariantWithWorkflow)
+				writeWorkflowFixture(t, "my-workflow", validWorkflowForInspect)
+			},
+			wantStatus: "ok",
+			checkJSON: func(t *testing.T, data map[string]any) {
+				assert.Equal(t, true, data["valid"])
+
+				files := data["files"].(map[string]any)
+				fr := files["check-with-workflow.yaml"].(map[string]any)
+				assert.Equal(t, true, fr["valid"])
+			},
+		},
+		{
+			name: "invariant referencing non-existent workflow reports issue",
+			setup: func(t *testing.T) {
+				writeInvariantFixture(t, "check-missing-workflow", validInvariantWithMissingWorkflow)
+			},
+			wantStatus: "ok",
+			checkJSON: func(t *testing.T, data map[string]any) {
+				assert.Equal(t, false, data["valid"])
+
+				files := data["files"].(map[string]any)
+				fr := files["check-missing-workflow.yaml"].(map[string]any)
+				assert.Equal(t, false, fr["valid"])
+
+				errors := fr["errors"].([]any)
+				require.NotEmpty(t, errors)
+				foundWorkflowError := false
+				for _, e := range errors {
+					errMap := e.(map[string]any)
+					msg := errMap["message"].(string)
+					if msg == "referenced workflow \"nonexistent-workflow\" not found" {
+						foundWorkflowError = true
+					}
+				}
+				assert.True(t, foundWorkflowError, "should report missing workflow error")
+			},
+		},
+		{
+			name: "custom dir argument",
+			args: []string{"custom-invariants"},
+			setup: func(t *testing.T) {
+				require.NoError(t, os.MkdirAll("custom-invariants", 0o755))
+				require.NoError(t, os.WriteFile(
+					filepath.Join("custom-invariants", "my-check.yaml"),
+					[]byte(validInvariantForInspect), 0o644,
+				))
+			},
+			wantStatus: "ok",
+			checkJSON: func(t *testing.T, data map[string]any) {
+				assert.Equal(t, true, data["valid"])
+
+				files := data["files"].(map[string]any)
+				require.Contains(t, files, "my-check.yaml")
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Chdir(t.TempDir())
+
+			if tt.setup != nil {
+				tt.setup(t)
+			}
+
+			output, cmdErr := executeInvariantInspectCmd(t, tt.args...)
+
+			if tt.wantErr {
+				assert.Error(t, cmdErr)
+			} else {
+				require.NoError(t, cmdErr)
+			}
+
+			var data map[string]any
+			require.NoError(t, json.Unmarshal(output, &data), "output should be valid JSON: %s", string(output))
+			assert.Equal(t, tt.wantStatus, data["status"])
+
+			if tt.checkJSON != nil {
+				tt.checkJSON(t, data)
+			}
+		})
+	}
+}
+
+func TestInvariantInspectMarkdown(t *testing.T) {
+	tests := []struct {
+		name           string
+		setup          func(t *testing.T)
+		wantContains   []string
+		wantNoContains []string
+	}{
+		{
+			name: "all valid shows success message",
+			setup: func(t *testing.T) {
+				writeInvariantFixture(t, "my-check", validInvariantForInspect)
+			},
+			wantContains: []string{
+				"# Invariant Inspect",
+				"All invariants valid.",
+			},
+		},
+		{
+			name: "validation errors show error details with filenames",
+			setup: func(t *testing.T) {
+				writeInvariantFixture(t, "bad-yaml", invalidInvariantYAMLForInspect)
+			},
+			wantContains: []string{
+				"# Invariant Inspect",
+				"Validation errors found:",
+				"bad-yaml.yaml",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Chdir(t.TempDir())
+
+			if tt.setup != nil {
+				tt.setup(t)
+			}
+
+			var buf bytes.Buffer
+			cmd := newInvariantInspectCmd()
+			cmd.SetOut(&buf)
+			cmd.SilenceErrors = true
+			cmd.SilenceUsage = true
+			cmd.SetArgs([]string{"--markdown"})
+			err := cmd.Execute()
+			require.NoError(t, err)
+
+			output := buf.String()
+			for _, want := range tt.wantContains {
+				assert.Contains(t, output, want)
+			}
+			for _, notWant := range tt.wantNoContains {
+				assert.NotContains(t, output, notWant)
+			}
+		})
+	}
+}
+
+func TestBuildWorkflowChecker(t *testing.T) {
+	tests := []struct {
+		name     string
+		setup    func(t *testing.T) string
+		checkIDs map[string]bool
+	}{
+		{
+			name: "valid workflows dir with workflows",
+			setup: func(t *testing.T) string {
+				dir := filepath.Join(t.TempDir(), "workflows")
+				require.NoError(t, os.MkdirAll(dir, 0o755))
+				require.NoError(t, os.WriteFile(
+					filepath.Join(dir, "my-workflow.yaml"),
+					[]byte(validWorkflowForInspect), 0o644,
+				))
+				return dir
+			},
+			checkIDs: map[string]bool{
+				"my-workflow": true,
+				"unknown-wf":  false,
+			},
+		},
+		{
+			name: "nonexistent workflows dir returns false for all",
+			setup: func(t *testing.T) string {
+				return filepath.Join(t.TempDir(), "nonexistent")
+			},
+			checkIDs: map[string]bool{
+				"anything":    false,
+				"my-workflow": false,
+			},
+		},
+		{
+			name: "corrupt YAML is skipped but valid ones still findable",
+			setup: func(t *testing.T) string {
+				dir := filepath.Join(t.TempDir(), "workflows")
+				require.NoError(t, os.MkdirAll(dir, 0o755))
+				require.NoError(t, os.WriteFile(
+					filepath.Join(dir, "good.yaml"),
+					[]byte(validWorkflowForInspect), 0o644,
+				))
+				require.NoError(t, os.WriteFile(
+					filepath.Join(dir, "corrupt.yaml"),
+					[]byte("not: valid: yaml: [broken"), 0o644,
+				))
+				return dir
+			},
+			checkIDs: map[string]bool{
+				"my-workflow": true,
+				"corrupt":     false,
+			},
+		},
+		{
+			name: "shared yaml is skipped",
+			setup: func(t *testing.T) string {
+				dir := filepath.Join(t.TempDir(), "workflows")
+				require.NoError(t, os.MkdirAll(dir, 0o755))
+				require.NoError(t, os.WriteFile(
+					filepath.Join(dir, "_shared.yaml"),
+					[]byte(validWorkflowForInspect), 0o644,
+				))
+				return dir
+			},
+			checkIDs: map[string]bool{
+				"my-workflow": false,
+				"_shared":     false,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := tt.setup(t)
+			checker := buildWorkflowChecker(dir)
+
+			for id, want := range tt.checkIDs {
+				assert.Equal(t, want, checker(id), "checker(%q) should return %v", id, want)
+			}
+		})
+	}
+}
