@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/nextzhou/argus/internal/invariant"
 	"github.com/nextzhou/argus/internal/session"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -69,6 +70,46 @@ func TestHandleTick_NoProjectRoot(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, out.String(), "[Argus] Warning")
 	assert.Contains(t, out.String(), "not inside an Argus project")
+}
+
+func TestInvariantSuggestion(t *testing.T) {
+	tests := []struct {
+		name string
+		inv  *invariant.Invariant
+		want string
+	}{
+		{
+			name: "nil invariant falls back to generic guidance",
+			inv:  nil,
+			want: "Review the invariant definition and project state",
+		},
+		{
+			name: "workflow takes priority over prompt",
+			inv: &invariant.Invariant{
+				Workflow: "argus-init",
+				Prompt:   "<<<ARGUS_INIT_REQUIRED>>>",
+			},
+			want: "Run argus workflow start argus-init",
+		},
+		{
+			name: "prompt is used when workflow is absent",
+			inv: &invariant.Invariant{
+				Prompt: "<<<ARGUS_INIT_REQUIRED>>>",
+			},
+			want: "<<<ARGUS_INIT_REQUIRED>>>",
+		},
+		{
+			name: "empty invariant falls back to generic guidance",
+			inv:  &invariant.Invariant{},
+			want: "Review the invariant definition and project state",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, invariantSuggestion(tt.inv))
+		})
+	}
 }
 
 func writeTickWorkflowFixture(t *testing.T, projectRoot, workflowID, yamlContent string) {

@@ -209,6 +209,115 @@ func TestTickLifecycle_FirstTickInvariant(t *testing.T) {
 	assert.NotContains(t, output, "tick-session-start-inv")
 }
 
+func TestTickLifecycle_PromptOnlyInvariantSuggestion(t *testing.T) {
+	t.Chdir(t.TempDir())
+	writeWorkflowFixture(t, "tick-lifecycle", tickLifecycleWorkflow)
+	writeInvariantFixture(t, "tick-prompt-only-inv", `version: v0.1.0
+id: tick-prompt-only-inv
+description: Prompt-only invariant
+auto: always
+check:
+  - shell: "exit 1"
+    description: "always fails"
+prompt: "<<<ARGUS_INIT_REQUIRED>>> initialize argus first"
+`)
+
+	sessionID := "a0a0a0a0-0006-0006-0006-000000000006"
+	cleanupSessionFile(t, sessionID)
+	stdinJSON := fmt.Sprintf(`{"session_id":"%s"}`, sessionID)
+
+	out, err := executeTickCmd(t, stdinJSON, "--agent", "claude-code")
+	require.NoError(t, err)
+
+	output := string(out)
+	assert.Contains(t, output, "Invariant check failed")
+	assert.Contains(t, output, "tick-prompt-only-inv")
+	assert.Contains(t, output, "<<<ARGUS_INIT_REQUIRED>>> initialize argus first")
+	assert.NotContains(t, output, "Run argus workflow start tick-prompt-only-inv")
+}
+
+func TestTickLifecycle_WorkflowOnlyInvariantSuggestion(t *testing.T) {
+	t.Chdir(t.TempDir())
+	writeWorkflowFixture(t, "tick-lifecycle", tickLifecycleWorkflow)
+	writeInvariantFixture(t, "tick-workflow-only-inv", `version: v0.1.0
+id: tick-workflow-only-inv
+description: Workflow-only invariant
+auto: always
+check:
+  - shell: "exit 1"
+    description: "always fails"
+workflow: remediation-flow
+`)
+
+	sessionID := "a0a0a0a0-0008-0008-0008-000000000008"
+	cleanupSessionFile(t, sessionID)
+	stdinJSON := fmt.Sprintf(`{"session_id":"%s"}`, sessionID)
+
+	out, err := executeTickCmd(t, stdinJSON, "--agent", "claude-code")
+	require.NoError(t, err)
+
+	output := string(out)
+	assert.Contains(t, output, "Invariant check failed")
+	assert.Contains(t, output, "tick-workflow-only-inv")
+	assert.Contains(t, output, "Suggestion: Run argus workflow start remediation-flow")
+	assert.NotContains(t, output, "<<<ARGUS_INIT_REQUIRED>>>")
+}
+
+func TestTickLifecycle_WorkflowSuggestionTakesPriorityOverPrompt(t *testing.T) {
+	t.Chdir(t.TempDir())
+	writeWorkflowFixture(t, "tick-lifecycle", tickLifecycleWorkflow)
+	writeInvariantFixture(t, "tick-workflow-priority-inv", `version: v0.1.0
+id: tick-workflow-priority-inv
+description: Workflow priority invariant
+auto: always
+check:
+  - shell: "exit 1"
+    description: "always fails"
+workflow: preferred-remediation
+prompt: "<<<ARGUS_INIT_REQUIRED>>> initialize argus first"
+`)
+
+	sessionID := "a0a0a0a0-0009-0009-0009-000000000009"
+	cleanupSessionFile(t, sessionID)
+	stdinJSON := fmt.Sprintf(`{"session_id":"%s"}`, sessionID)
+
+	out, err := executeTickCmd(t, stdinJSON, "--agent", "claude-code")
+	require.NoError(t, err)
+
+	output := string(out)
+	assert.Contains(t, output, "Invariant check failed")
+	assert.Contains(t, output, "tick-workflow-priority-inv")
+	assert.Contains(t, output, "Suggestion: Run argus workflow start preferred-remediation")
+	assert.NotContains(t, output, "<<<ARGUS_INIT_REQUIRED>>> initialize argus first")
+}
+
+func TestTickLifecycle_PassingInvariantDoesNotAppendFailure(t *testing.T) {
+	t.Chdir(t.TempDir())
+	writeWorkflowFixture(t, "tick-lifecycle", tickLifecycleWorkflow)
+	writeInvariantFixture(t, "tick-pass-inv", `version: v0.1.0
+id: tick-pass-inv
+description: Passing invariant
+auto: always
+check:
+  - shell: "exit 0"
+    description: "always passes"
+prompt: "this prompt should never be injected"
+`)
+
+	sessionID := "a0a0a0a0-0007-0007-0007-000000000007"
+	cleanupSessionFile(t, sessionID)
+	stdinJSON := fmt.Sprintf(`{"session_id":"%s"}`, sessionID)
+
+	out, err := executeTickCmd(t, stdinJSON, "--agent", "claude-code")
+	require.NoError(t, err)
+
+	output := string(out)
+	assert.Contains(t, output, "No active pipeline")
+	assert.NotContains(t, output, "Invariant check failed")
+	assert.NotContains(t, output, "tick-pass-inv")
+	assert.NotContains(t, output, "this prompt should never be injected")
+}
+
 // TestTickLifecycle_SubAgentSkip verifies that sub-agent ticks produce
 // empty output even when an active pipeline exists.
 func TestTickLifecycle_SubAgentSkip(t *testing.T) {
