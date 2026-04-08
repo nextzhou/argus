@@ -7,6 +7,15 @@ const plugin: Plugin = {
   hooks: {
     "chat.message": async (input, output) => {
       try {
+        const which = await $`which argus`.quiet().nothrow();
+        if (which.exitCode !== 0) {
+          output.parts.push({
+            type: "text",
+            text: "[Argus] Please install Argus CLI. See project README for instructions.",
+            // biome-ignore lint/suspicious/noExplicitAny: required by OpenCode Plugin API type mismatch
+          } as any);
+          return;
+        }
         const payload = JSON.stringify({
           sessionID: input.sessionID,
         });
@@ -27,6 +36,10 @@ const plugin: Plugin = {
 
     "tool.execute.before": async (input, output) => {
       try {
+        const which = await $`which argus`.quiet().nothrow();
+        if (which.exitCode !== 0) {
+          return;
+        }
         const payload = JSON.stringify({
           tool: input.tool,
           args: output.args,

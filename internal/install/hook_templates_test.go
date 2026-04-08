@@ -47,6 +47,7 @@ func TestOpenCodePluginTemplate(t *testing.T) {
 	assert.Contains(t, content, "argus trap --agent opencode")
 	assert.Contains(t, content, "chat.message")
 	assert.Contains(t, content, "tool.execute.before")
+	assert.Contains(t, content, "which argus")
 }
 
 func TestHookTemplateGlobalFlag(t *testing.T) {
