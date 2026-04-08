@@ -11,8 +11,8 @@ Argus 遵循架构原则 #4：诊断工具只做诊断，不进行修复。`doct
 *   **退出码规范**：遵循 `git diff --exit-code` 风格。所有检查通过返回 0，发现任何异常项则返回 1。
 *   **双重入口**：
     *   `argus doctor`：CLI 命令行工具，作为主要的系统化诊断入口。
-    *   `/argus-doctor`：Agent Skill，主要用于 Argus 二进制文件损坏或未安装时的离线诊断。该 Skill 不依赖 Argus 二进制，通过读取文件系统状态进行判断。
-*   **二进制缺失时的降级**：`/argus-doctor` Skill 在 Argus 二进制不可用时，将依赖二进制的检查项（如 `argus version`、`workflow inspect`、`invariant inspect`、内置 Invariant 执行）标记为 **skipped**（附注"argus binary not found"），其余不依赖二进制的检查项（文件存在性、目录结构、Hook 配置、`.gitignore` 等）正常执行。最终报告汇总：N passed / M failed / K skipped。
+    *   `argus-doctor` Agent Skill：在 Claude Code 中通过 `/argus-doctor` 调用，在 Codex 中通过 `$argus-doctor` 或 `/use argus-doctor` 调用，在 OpenCode 中通过 `skill` 工具调用。该 Skill 主要用于 Argus 二进制文件损坏或未安装时的离线诊断。
+*   **二进制缺失时的降级**：`argus-doctor` Skill 在 Argus 二进制不可用时，将依赖二进制的检查项（如 `argus version`、`workflow inspect`、`invariant inspect`、内置 Invariant 执行）标记为 **skipped**（附注"argus binary not found"），其余不依赖二进制的检查项（文件存在性、目录结构、Hook 配置、`.gitignore` 等）正常执行。最终报告汇总：N passed / M failed / K skipped。
 
 ### 12.2 完整检查清单
 
@@ -41,7 +41,7 @@ Doctor 诊断涵盖以下 13 个维度的内容：
 *   注意：为了保持诊断的可预测性，`doctor` 不会运行用户自定义的 Invariant 检查。
 
 #### 6. Skill 文件完整性
-*   检查 `.agents/skills/argus-*/SKILL.md` 文件是否存在且路径符合规范。
+*   检查 Argus 管理的项目级 Skill 文件是否存在且路径符合规范：`.agents/skills/argus-*/SKILL.md` 与 `.claude/skills/argus-*/SKILL.md`（两者均由 Argus 写入）。
 
 #### 7. .gitignore 配置
 *   确认本地专用路径已正确列入 `.gitignore` 中。

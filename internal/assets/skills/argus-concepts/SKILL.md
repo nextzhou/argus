@@ -25,5 +25,8 @@ Argus is an orchestration layer. It does not execute commands or make decisions.
 ## Directory Structure
 
 - `.argus/` — Project-level Argus configuration
-- `.agents/skills/` — Skill files for all Agents
+- `.agents/skills/` — Project-level skill files written by Argus for Codex and OpenCode discovery
+- `.claude/skills/` — The same project-level skills mirrored for Claude Code; OpenCode also scans this path
+- `.opencode/skills/` — Optional OpenCode-native skill path; Argus project install does not write here
+- If the same skill name exists in multiple OpenCode-scanned paths, OpenCode keeps the first copy it discovers and ignores later duplicates
 - `.claude/`, `.codex/`, `.opencode/` — Agent-specific hook configurations

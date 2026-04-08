@@ -147,8 +147,8 @@ graph TD
 Argus 采用 [Agent Skills](https://agentskills.io) 开放标准进行 Skill 的定义与分发。
 
 *   **标准格式**：`<name>/SKILL.md`，包含 YAML frontmatter 和 Markdown 指令。
-*   **共享发现路径**：`.agents/skills/<name>/SKILL.md`。这是 Claude Code、OpenCode 和 Codex 三个 Agent 共同支持的唯一路径。
-*   **决策**：项目级安装（`argus install`）将 Skill 写入项目根目录的 `.agents/skills/`；全局安装（`argus install --workspace`）将 Skill 写入各 Agent 的全局 Skill 目录（见 §11.5 全局安装路径表）。两种路径均遵循 Agent Skills 标准格式。
+*   **项目级发现路径**：Codex 扫描 `.agents/skills/<name>/SKILL.md`；Claude Code 扫描 `.claude/skills/<name>/SKILL.md`。OpenCode 按顺序扫描 `.opencode/skills/<name>/SKILL.md`、`.claude/skills/<name>/SKILL.md`、`.agents/skills/<name>/SKILL.md`；同名 Skill 仅保留首次发现的副本。
+*   **决策**：项目级安装（`argus install`）将 Skill 写入项目根目录的 `.agents/skills/`，并同步镜像到 `.claude/skills/`。Argus 不额外生成 `.opencode/skills/`，因为 OpenCode 已可通过兼容路径发现这些 Skill。全局安装（`argus install --workspace`）将 Skill 写入各 Agent 的全局 Skill 目录（见 §11.5 全局安装路径表）。这些路径均遵循 Agent Skills 标准格式。
 
 ### 11.1.1 排除的方案
 
@@ -187,9 +187,9 @@ Argus 提供一系列内置 Skill，分为独立型、依赖型和参考型。
 *   **目录一致性**：Skill 所在的目录名必须与 `SKILL.md` 中的 `name` 字段严格一致。
 *   **命名空间**：`argus-` 前缀由官方保留，用于内置 Skill。
 *   **调用方式**：
-    *   Claude Code: `/argus-doctor`
-    *   Codex: `$argus-doctor`
-    *   OpenCode: 通过 `skill` 工具调用。
+    *   Claude Code: `/argus-doctor`（`name` 自动映射为 slash command）
+    *   Codex: `$argus-doctor`，或 `/use argus-doctor`
+    *   OpenCode: 通过 `skill` 工具调用；Skill 不会自动变成 slash command
 
 ### 11.4 Skill 版本管理
 
@@ -202,7 +202,8 @@ Skill 的生命周期与项目配置紧密相关：
 ### 11.5 全局与项目级路径
 
 #### 项目级路径
-- **Skill**：`.agents/skills/argus-*/SKILL.md`（随代码库分发，团队共享）
+- **Skill**：`.agents/skills/argus-*/SKILL.md`（Argus 写入的共享项目级路径，Codex 原生读取，OpenCode 兼容扫描）、`.claude/skills/argus-*/SKILL.md`（Argus 写入的 Claude Code 项目级路径，OpenCode 也会扫描，内容与 `.agents/skills/` 保持一致）
+- **说明**：OpenCode 额外还会扫描 `.opencode/skills/argus-*/SKILL.md`，但 Argus 的项目级 `install` 不额外生成第三份副本。
 - **Hook**：各 Agent 项目级配置文件（如 `.claude/settings.json`、`.codex/hooks.json`、`.opencode/plugins/argus.ts`）
 
 #### 全局路径（由 `install --workspace` 写入）
@@ -223,5 +224,7 @@ Skill 的生命周期与项目配置紧密相关：
 | Codex | `~/.agents/skills/argus-*/` |
 | OpenCode | `~/.config/opencode/skills/argus-*/` |
 
+**OpenCode 兼容说明**：除原生的 `~/.config/opencode/skills/` 外，OpenCode 还会兼容扫描 `~/.claude/skills/` 与 `~/.agents/skills/`。若同名 Skill 在多个全局路径同时存在，OpenCode 仅保留首次发现的副本。
+
 #### 共存策略
-项目级与全局 Skill 共存时不会产生冲突。由于内容一致，Agent 会自动识别并加载，确保在任何目录下 Argus 的基础工具都处于可用状态。
+项目级与全局 Skill 共存时，Agent 会按各自支持的路径自动识别并加载，确保在任何目录下 Argus 的基础工具都处于可用状态。需要注意：OpenCode 在多个扫描路径里遇到同名 Skill 时采用 first-found-wins，后发现的重复副本会被静默忽略。Argus 将 `.agents/skills/` 与 `.claude/skills/` 保持为相同内容，因此 OpenCode 的 shadowing 不会改变行为，但两份文件不应发生漂移。Codex 与 OpenCode 会发现 Skill，但不会自动把 Skill 暴露为 slash command。

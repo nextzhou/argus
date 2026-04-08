@@ -72,7 +72,8 @@ Argus 的设计遵循以下 7 个核心原则：
   logs/              # Hook 执行日志 (Local-only, 忽略)
   data/              # 通用数据目录，如时效性检查的时间戳标记 (Git 跟踪)
   tmp/               # 其它临时数据 (Local-only, 忽略)
-.agents/skills/argus-*/SKILL.md  # 随项目分发的 Skills (Git 跟踪)
+.agents/skills/argus-*/SKILL.md  # Argus 写入的共享项目级 Skill 路径 (Git 跟踪)
+.claude/skills/argus-*/SKILL.md  # Argus 写入的 Claude Code 项目级 Skill 路径 (Git 跟踪)
 ```
 
 ### 2.2 状态清单 (State Inventory)
@@ -86,7 +87,7 @@ Argus 严格区分受 Git 跟踪的共享状态和仅本机有效的本地状态
 | 共享 Job 定义 | `.argus/workflows/_shared.yaml` | 用户或 Agent 创建 |
 | Invariant 定义 | `.argus/invariants/*.yaml` | `install` 生成内置 + 用户创建 |
 | 项目规则 | `.argus/rules/` | Agent 生成 (由 Init Workflow 驱动) |
-| Skills | `.agents/skills/argus-*/SKILL.md` | `install` 生成 |
+| Skills | `.agents/skills/argus-*/SKILL.md`, `.claude/skills/argus-*/SKILL.md` | `install` 生成 |
 | Agent 原生 Rules | `CLAUDE.md`, `AGENTS.md` 等 | Agent 生成 |
 | Hook 配置文件 | 如 `.claude/settings.json`, `.codex/hooks.json` | `install` 生成 |
 | Git Hooks | `.husky/pre-commit` 或其他框架配置 | Agent 配置（Hook 框架配置 Git-tracked；`.git/hooks/*` 本身是 local-only 不可提交，仅作为无框架时的 fallback。团队项目应优先使用 husky 等 Git-tracked 框架） |
@@ -127,7 +128,7 @@ var Assets embed.FS
 
 **使用方式**：
 - `assets/workflows/`、`assets/invariants/`：`argus install`（项目级）时释出到项目目录 `.argus/workflows/`、`.argus/invariants/`。
-- `assets/skills/`：`argus install`（项目级）时释出到 `.agents/skills/`；`argus install --workspace` 时释出到各 Agent 的全局 Skill 目录（详见 workspace §11.5）。
+- `assets/skills/`：`argus install`（项目级）时释出到 `.agents/skills/` 和 `.claude/skills/`；OpenCode 可通过兼容扫描发现这两份文件，因此不额外生成 `.opencode/skills/`。`argus install --workspace` 时释出到各 Agent 的全局 Skill 目录（详见 workspace §11.5）。
 - `assets/prompts/`：仅在运行时由 argus 内部读取，用于 tick 注入、job-done 输出、错误引导等场景的文本模板渲染（Go `text/template`）。不释出到文件系统。
 
 ### 2.4 安装层级

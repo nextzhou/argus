@@ -1281,12 +1281,12 @@ make lint
 - 注册 `argus uninstall [--yes]`。
 - 提供交互确认与 `--yes` 跳过逻辑。
 - 删除 `.argus/` 目录。
-- 删除 `.agents/skills/argus-*`，保留非 `argus-` 用户自定义 skills。
+- 删除 `.agents/skills/argus-*` 与 `.claude/skills/argus-*`，保留非 `argus-` 用户自定义 skills。
 - 调用 Hook 卸载逻辑移除项目级 Agent 配置。
 
 **测试要求**:
 - 先写确认拒绝与 `--yes` 直接执行测试。
-- 覆盖仅删除 `argus-*` skills 的选择性清理。
+- 覆盖仅删除 `argus-*` skills 的选择性清理（含 `.agents/skills/` 与 `.claude/skills/`）。
 - 验证 uninstall 后再次 install 仍能恢复到正确状态。
 
 ---
@@ -1299,6 +1299,7 @@ cd /tmp && mkdir test-project && cd test-project && git init
 test -d .argus/workflows
 test -d .argus/invariants
 test -f .agents/skills/argus-doctor/SKILL.md
+test -f .claude/skills/argus-doctor/SKILL.md
 /path/to/argus/bin/argus uninstall --yes
 test ! -d .argus
 go test ./internal/install/...

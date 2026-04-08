@@ -20,11 +20,12 @@ Remove Argus from a project.
 ## What Uninstall Does
 
 1. Removes `.argus/` directory
-2. Removes `argus-*` prefixed skills from `.agents/skills/`
+2. Removes `argus-*` prefixed skills from the project-level `.agents/skills/` and `.claude/skills/` paths
 3. Removes Agent hook configurations
 4. Preserves non-argus user skills
 
 ## Notes
 
 - Git-tracked files can be restored via `git checkout`
+- Project-level uninstall does not remove future workspace/global skill roots
 - Codex `config.toml` hook flag is preserved to avoid breaking other hooks

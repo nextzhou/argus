@@ -115,8 +115,8 @@ auto: always
 check:
   - shell: "test -d .argus/rules"
     description: "Rules 目录存在"
-  - shell: "test -f .agents/skills/argus-doctor/SKILL.md"
-    description: "Skills 已生成"
+  - shell: "test -f .agents/skills/argus-doctor/SKILL.md && test -f .claude/skills/argus-doctor/SKILL.md"
+    description: "Skills 已生成（含 Claude Code 项目级镜像）"
 
 workflow: argus-init
 ```
@@ -273,8 +273,8 @@ check:
     description: "项目规则已生成"
   - shell: "test -f CLAUDE.md || test -f AGENTS.md"
     description: "Agent 原生 rules 文件存在"
-  - shell: "test -f .agents/skills/argus-doctor/SKILL.md"
-    description: "内置 Skills 已生成"
+  - shell: "test -f .agents/skills/argus-doctor/SKILL.md && test -f .claude/skills/argus-doctor/SKILL.md"
+    description: "内置 Skills 已生成（两个项目级路径均存在）"
   - shell: "test -f .git/hooks/pre-commit || test -f .husky/pre-commit || test -f .lefthook.yml || test -f .pre-commit-config.yaml"
     description: "Git pre-commit hook 已配置（支持 .git/hooks、husky、lefthook、pre-commit 框架）"
   - shell: "grep -q '.argus/pipelines' .gitignore && grep -q '.argus/logs' .gitignore && grep -q '.argus/tmp' .gitignore"

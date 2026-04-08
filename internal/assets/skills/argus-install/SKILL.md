@@ -23,7 +23,7 @@ Install and initialize Argus in a project.
 
 1. Creates `.argus/` directory structure (workflows, invariants, rules, pipelines, logs, data, tmp)
 2. Releases built-in workflows and invariants to `.argus/workflows/` and `.argus/invariants/`
-3. Releases built-in skills to `.agents/skills/argus-*/`
+3. Releases built-in project-level skills to `.agents/skills/argus-*/` and mirrors them to `.claude/skills/argus-*/`; OpenCode discovers from these compatibility paths, so project install does not create `.opencode/skills/`
 4. Configures Agent hooks (Claude Code, Codex, OpenCode)
 
 ## Prerequisites
