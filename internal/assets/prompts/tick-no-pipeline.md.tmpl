@@ -1,0 +1,12 @@
+[Argus] No active pipeline.
+
+Available workflows:
+{{- if not .Workflows}}
+  (none)
+{{- else}}
+{{- range .Workflows}}
+  - {{.ID}}: {{.Description}}
+{{- end}}
+{{- end}}
+
+To start: argus workflow start <workflow-id>

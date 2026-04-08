@@ -1,17 +1,23 @@
 package assets
 
 import (
+	"bytes"
 	"io/fs"
+	"strings"
 	"testing"
+	"text/template"
 
+	"github.com/nextzhou/argus/internal/core"
+	"github.com/nextzhou/argus/internal/invariant"
+	"github.com/nextzhou/argus/internal/workflow"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestReadAsset(t *testing.T) {
-	data, err := ReadAsset("skills/README.md")
+	data, err := ReadAsset("skills/argus-install/SKILL.md")
 	require.NoError(t, err)
-	assert.Contains(t, string(data), "Built-in skill definitions")
+	assert.Contains(t, string(data), "argus-install")
 }
 
 func TestReadAssetNotFound(t *testing.T) {
@@ -20,11 +26,53 @@ func TestReadAssetNotFound(t *testing.T) {
 	assert.ErrorContains(t, err, "reading asset")
 }
 
-func TestListAssets(t *testing.T) {
+func TestListSkills(t *testing.T) {
 	names, err := ListAssets("skills")
 	require.NoError(t, err)
+	assert.Len(t, names, 9)
+
+	expected := []string{
+		"argus-concepts",
+		"argus-doctor",
+		"argus-generate-rules",
+		"argus-install",
+		"argus-invariant-check",
+		"argus-status",
+		"argus-uninstall",
+		"argus-workflow",
+		"argus-workflow-syntax",
+	}
+	assert.Equal(t, expected, names)
+}
+
+func TestSkillFrontmatter(t *testing.T) {
+	names, err := ListAssets("skills")
+	require.NoError(t, err)
+
+	for _, name := range names {
+		t.Run(name, func(t *testing.T) {
+			require.NoError(t, core.ValidateSkillName(name))
+			assert.True(t, core.IsArgusReserved(name))
+
+			data, err := ReadAsset("skills/" + name + "/SKILL.md")
+			require.NoError(t, err)
+
+			content := string(data)
+			assert.True(t, strings.HasPrefix(content, "---\n"), "must start with frontmatter")
+			assert.Contains(t, content, "name: "+name)
+			assert.Contains(t, content, "description:")
+			assert.Contains(t, content, "version:")
+			lines := strings.Count(content, "\n")
+			assert.LessOrEqual(t, lines, 100, "SKILL.md must be under 100 lines")
+		})
+	}
+}
+
+func TestListAssets(t *testing.T) {
+	names, err := ListAssets("workflows")
+	require.NoError(t, err)
 	assert.GreaterOrEqual(t, len(names), 1)
-	assert.Contains(t, names, "README.md")
+	assert.Contains(t, names, "argus-init.yaml")
 }
 
 func TestWalkAssets(t *testing.T) {
@@ -37,5 +85,110 @@ func TestWalkAssets(t *testing.T) {
 		return nil
 	})
 	require.NoError(t, err)
-	assert.GreaterOrEqual(t, count, 1)
+	assert.Equal(t, 19, count)
+}
+
+func TestBuiltinWorkflow(t *testing.T) {
+	data, err := ReadAsset("workflows/argus-init.yaml")
+	require.NoError(t, err)
+
+	w, err := workflow.ParseWorkflow(bytes.NewReader(data))
+	require.NoError(t, err)
+
+	assert.Equal(t, "argus-init", w.ID)
+	assert.Equal(t, "v0.1.0", w.Version)
+	assert.Len(t, w.Jobs, 5)
+	assert.Equal(t, "generate_rules", w.Jobs[0].ID)
+	assert.Equal(t, "generate_invariant_examples", w.Jobs[4].ID)
+}
+
+func TestBuiltinInvariant(t *testing.T) {
+	data, err := ReadAsset("invariants/argus-init.yaml")
+	require.NoError(t, err)
+
+	inv, err := invariant.ParseInvariant(bytes.NewReader(data))
+	require.NoError(t, err)
+
+	assert.Equal(t, "argus-init", inv.ID)
+	assert.Equal(t, "v0.1.0", inv.Version)
+	assert.Equal(t, "always", inv.Auto)
+	assert.Equal(t, "argus-init", inv.Workflow)
+	assert.Len(t, inv.Check, 7)
+}
+
+func TestPromptTemplates(t *testing.T) {
+	templates := []string{
+		"prompts/tick-no-pipeline.md.tmpl",
+		"prompts/tick-full-context.md.tmpl",
+		"prompts/tick-minimal.md.tmpl",
+		"prompts/tick-invariant-failed.md.tmpl",
+		"prompts/workspace-guide.md.tmpl",
+	}
+
+	for _, name := range templates {
+		t.Run(name, func(t *testing.T) {
+			data, err := ReadAsset(name)
+			require.NoError(t, err)
+
+			_, err = template.New(name).Parse(string(data))
+			require.NoError(t, err, "template must parse without error")
+		})
+	}
+}
+
+func TestPromptTemplatesRender(t *testing.T) {
+	// Test tick-no-pipeline renders with sample data
+	data, err := ReadAsset("prompts/tick-no-pipeline.md.tmpl")
+	require.NoError(t, err)
+
+	tmpl, err := template.New("test").Parse(string(data))
+	require.NoError(t, err)
+
+	type WF struct {
+		ID          string
+		Description string
+	}
+	var buf strings.Builder
+	err = tmpl.Execute(&buf, map[string]any{
+		"Workflows": []WF{
+			{ID: "release", Description: "Release workflow"},
+		},
+	})
+	require.NoError(t, err)
+	output := buf.String()
+	assert.Contains(t, output, "[Argus]")
+	assert.Contains(t, output, "Available workflows")
+	assert.Contains(t, output, "release: Release workflow")
+}
+
+func TestPromptTemplatesEmptyData(t *testing.T) {
+	templates := []struct {
+		name string
+		data any
+	}{
+		{"prompts/tick-no-pipeline.md.tmpl", map[string]any{"Workflows": nil}},
+		{"prompts/tick-full-context.md.tmpl", map[string]any{
+			"PipelineID": "", "WorkflowID": "", "Progress": "",
+			"JobID": "", "Prompt": "", "Skill": "", "SessionID": "",
+		}},
+		{"prompts/tick-minimal.md.tmpl", map[string]any{
+			"WorkflowID": "", "JobID": "", "Progress": "",
+		}},
+		{"prompts/tick-invariant-failed.md.tmpl", map[string]any{"Failures": nil}},
+		{"prompts/workspace-guide.md.tmpl", map[string]any{"Agents": nil}},
+	}
+
+	for _, tt := range templates {
+		t.Run(tt.name, func(t *testing.T) {
+			data, err := ReadAsset(tt.name)
+			require.NoError(t, err)
+
+			tmpl, err := template.New(tt.name).Parse(string(data))
+			require.NoError(t, err)
+
+			var buf strings.Builder
+			err = tmpl.Execute(&buf, tt.data)
+			assert.NoError(t, err, "rendering with empty data must not panic")
+		})
+	}
 }

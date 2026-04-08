@@ -1,0 +1,22 @@
+version: v0.1.0
+id: argus-init
+description: "项目已完成 Argus 初始化"
+auto: always
+
+check:
+  - shell: 'test -d .argus/rules && test "$(ls .argus/rules/)"'
+    description: "项目规则已生成"
+  - shell: "test -f CLAUDE.md || test -f AGENTS.md"
+    description: "Agent 原生 rules 文件存在"
+  - shell: "test -f .agents/skills/argus-doctor/SKILL.md"
+    description: "内置 Skills 已生成"
+  - shell: "test -f .git/hooks/pre-commit || test -f .husky/pre-commit || test -f .lefthook.yml || test -f .pre-commit-config.yaml"
+    description: "Git pre-commit hook 已配置（支持 .git/hooks、husky、lefthook、pre-commit 框架）"
+  - shell: "grep -q '.argus/pipelines' .gitignore && grep -q '.argus/logs' .gitignore && grep -q '.argus/tmp' .gitignore"
+    description: ".gitignore 包含 Argus 临时文件（pipelines/、logs/、tmp/）"
+  - shell: "test -f .argus/data/init_workflows_generated"
+    description: "项目 workflow 已生成（mark 文件）"
+  - shell: 'test "$(ls .argus/invariants/*.yaml 2>/dev/null | grep -v argus-)"'
+    description: "自定义 invariant 示例已生成"
+
+workflow: argus-init

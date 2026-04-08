@@ -1,0 +1,6 @@
+---
+[Argus] Invariant check failed:
+{{- range .Failures}}
+  - {{.ID}}: {{.Description}}
+    Suggestion: {{.Suggestion}}
+{{- end}}

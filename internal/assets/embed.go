@@ -7,7 +7,7 @@ import (
 	"io/fs"
 )
 
-//go:embed skills workflows invariants prompts hooks
+//go:embed skills workflows invariants prompts
 var embedded embed.FS
 
 // ReadAsset reads a single embedded asset file by path (relative to assets root).

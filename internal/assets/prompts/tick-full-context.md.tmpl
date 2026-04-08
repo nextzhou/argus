@@ -1,0 +1,12 @@
+[Argus] Pipeline: {{.PipelineID}} | Workflow: {{.WorkflowID}} | Progress: {{.Progress}}
+
+Current Job: {{.JobID}}
+{{- if .Skill}}
+Skill: {{.Skill}}
+{{- end}}
+
+{{.Prompt}}
+
+When done: argus job-done [--message "summary"]
+To snooze: argus workflow snooze --session {{.SessionID}}
+To cancel: argus workflow cancel
