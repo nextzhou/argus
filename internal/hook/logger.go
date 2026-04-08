@@ -24,7 +24,7 @@ import (
 //
 // Parent directories are auto-created if they don't exist.
 // File is opened in append mode.
-func LogHookExecution(projectRoot string, command string, success bool, details string) error {
+func LogHookExecution(projectRoot string, command string, success bool, details string) (err error) {
 	// Determine log file path
 	var logPath string
 	if projectRoot != "" {
@@ -66,8 +66,8 @@ func LogHookExecution(projectRoot string, command string, success bool, details 
 	}()
 
 	// Write entry
-	if _, err := f.WriteString(entry); err != nil {
-		return fmt.Errorf("writing to log file: %w", err)
+	if _, writeErr := f.WriteString(entry); writeErr != nil {
+		return fmt.Errorf("writing to log file: %w", writeErr)
 	}
 
 	return nil

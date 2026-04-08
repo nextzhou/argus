@@ -24,7 +24,7 @@ func newTickCmd() *cobra.Command {
 			}
 
 			global, _ := cmd.Flags().GetBool("global")
-			if err := hook.HandleTick(agentFlag, global, cmd.InOrStdin(), os.Stdout, cwd); err != nil {
+			if err := hook.HandleTick(agentFlag, global, cmd.InOrStdin(), os.Stdout, cwd, "/tmp/argus"); err != nil {
 				_, _ = fmt.Fprintf(os.Stdout, "[Argus] Warning: internal error: %v\n", err)
 			}
 			return nil

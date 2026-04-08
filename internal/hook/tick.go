@@ -19,12 +19,10 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-var tickSessionBaseDir = "/tmp/argus"
-
 // HandleTick orchestrates the tick command logic.
 // It reads stdin, determines project state, and writes context output.
 // It always succeeds (errors become warning text) to maintain fail-open behavior.
-func HandleTick(agent string, global bool, stdin io.Reader, stdout io.Writer, projectRoot string) error {
+func HandleTick(agent string, global bool, stdin io.Reader, stdout io.Writer, projectRoot string, sessionBaseDir string) error {
 	_ = global
 
 	input, err := ParseInput(stdin, agent)
@@ -58,7 +56,7 @@ func HandleTick(agent string, global bool, stdin io.Reader, stdout io.Writer, pr
 		return nil
 	}
 
-	sess, err := session.LoadSession(tickSessionBaseDir, input.SessionID)
+	sess, err := session.LoadSession(sessionBaseDir, input.SessionID)
 	if err != nil {
 		if !errors.Is(err, fs.ErrNotExist) {
 			writeTickWarning(stdout, "could not load session state: %v", err)
@@ -67,7 +65,7 @@ func HandleTick(agent string, global bool, stdin io.Reader, stdout io.Writer, pr
 		sess = &session.Session{}
 	}
 
-	firstTick := session.IsFirstTick(tickSessionBaseDir, input.SessionID)
+	firstTick := session.IsFirstTick(sessionBaseDir, input.SessionID)
 
 	output, logDetails, snapshotPipelineID, snapshotJobID := buildTickOutput(root.Path, input.SessionID, sess, activePipelines, scanWarnings)
 
@@ -75,7 +73,7 @@ func HandleTick(agent string, global bool, stdin io.Reader, stdout io.Writer, pr
 	output = AppendInvariantFailed(output, failures)
 
 	session.UpdateLastTick(sess, snapshotPipelineID, snapshotJobID, time.Now())
-	if err := session.SaveSession(tickSessionBaseDir, input.SessionID, sess); err != nil {
+	if err := session.SaveSession(sessionBaseDir, input.SessionID, sess); err != nil {
 		writeTickWarning(stdout, "could not save session state: %v", err)
 		return nil
 	}
@@ -174,6 +172,9 @@ func renderTickJobPrompt(p *pipeline.Pipeline, wf *workflow.Workflow, jobIndex i
 
 	templateJobs := buildPipelineJobDataMap(p)
 	tmplCtx := workflow.BuildContext(templateJobs, wf, jobIndex)
+	// RenderPrompt returns (rendered, warnings) where warnings is []string of
+	// unresolved template placeholders — not an error. In tick's fail-open context,
+	// partial template rendering is acceptable, so warnings are intentionally discarded.
 	renderedPrompt, _ := workflow.RenderPrompt(wf.Jobs[jobIndex].Prompt, tmplCtx)
 	return renderedPrompt, wf.Jobs[jobIndex].Skill
 }

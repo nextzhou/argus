@@ -89,7 +89,9 @@ func ParseInput(r io.Reader, agent string) (*AgentInput, error) {
 		}
 
 	default:
-		// Unknown agent: try fallback mapping with snake_case
+		// Graceful fallback for unknown agent types: attempt snake_case field mapping.
+		// This avoids hard-failing on future agents that follow similar JSON conventions,
+		// while still enforcing session_id as a required field.
 		if sessionID, ok := raw["session_id"].(string); ok {
 			input.SessionID = sessionID
 		}

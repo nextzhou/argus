@@ -21,9 +21,7 @@ jobs:
     prompt: "Run tests"
 `)
 
-	oldSessionBaseDir := tickSessionBaseDir
-	tickSessionBaseDir = t.TempDir()
-	defer func() { tickSessionBaseDir = oldSessionBaseDir }()
+	sessionBaseDir := t.TempDir()
 
 	var out bytes.Buffer
 	err := HandleTick(
@@ -32,6 +30,7 @@ jobs:
 		bytes.NewBufferString(`{"session_id":"ses-no-pipeline","cwd":"`+projectRoot+`"}`),
 		&out,
 		projectRoot,
+		sessionBaseDir,
 	)
 	require.NoError(t, err)
 
@@ -40,7 +39,7 @@ jobs:
 	assert.Contains(t, output, "No active pipeline")
 	assert.Contains(t, output, "release")
 	assert.Contains(t, output, "argus workflow start")
-	assert.True(t, session.Exists(tickSessionBaseDir, "ses-no-pipeline"))
+	assert.True(t, session.Exists(sessionBaseDir, "ses-no-pipeline"))
 }
 
 func TestHandleTick_SubAgent(t *testing.T) {
@@ -50,6 +49,7 @@ func TestHandleTick_SubAgent(t *testing.T) {
 		false,
 		bytes.NewBufferString(`{"session_id":"ses-sub-agent","agent_id":"worker-1"}`),
 		&out,
+		t.TempDir(),
 		t.TempDir(),
 	)
 	require.NoError(t, err)
@@ -63,6 +63,7 @@ func TestHandleTick_NoProjectRoot(t *testing.T) {
 		false,
 		bytes.NewBufferString(`{"session_id":"ses-no-root"}`),
 		&out,
+		t.TempDir(),
 		t.TempDir(),
 	)
 	require.NoError(t, err)
