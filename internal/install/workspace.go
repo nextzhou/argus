@@ -9,6 +9,7 @@ import (
 	"slices"
 
 	"github.com/nextzhou/argus/internal/assets"
+	"github.com/nextzhou/argus/internal/core"
 	workspacecfg "github.com/nextzhou/argus/internal/workspace"
 )
 
@@ -96,6 +97,91 @@ func InstallGlobalSkills() error {
 	return nil
 }
 
+// UninstallWorkspace removes a workspace registration and cleans up global resources
+// if no workspaces remain.
+func UninstallWorkspace(path string) error {
+	normalizedPath, err := workspacecfg.NormalizePath(path)
+	if err != nil {
+		return fmt.Errorf("normalizing workspace path: %w", err)
+	}
+
+	homeDir, err := resolveUserHomeDir()
+	if err != nil {
+		return err
+	}
+
+	configPath := userConfigPathForHome(homeDir)
+	config, err := loadWorkspaceConfig(configPath)
+	if err != nil {
+		return err
+	}
+
+	idx := slices.Index(config.Workspaces, normalizedPath)
+	if idx < 0 {
+		return fmt.Errorf("workspace %q is not registered", normalizedPath)
+	}
+
+	config.Workspaces = slices.Delete(config.Workspaces, idx, idx+1)
+	if err := workspacecfg.SaveConfig(configPath, config); err != nil {
+		return fmt.Errorf("saving workspace config: %w", err)
+	}
+
+	if len(config.Workspaces) == 0 {
+		if err := UninstallGlobalHooks(supportedAgents); err != nil {
+			return fmt.Errorf("uninstalling global hooks: %w", err)
+		}
+		if err := UninstallGlobalSkills(); err != nil {
+			return fmt.Errorf("uninstalling global skills: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// UninstallGlobalHooks removes global Argus hook files for the requested agents.
+func UninstallGlobalHooks(agents []string) error {
+	homeDir, err := resolveUserHomeDir()
+	if err != nil {
+		return err
+	}
+
+	for _, agent := range agents {
+		if err := uninstallGlobalHooksForAgent(homeDir, agent); err != nil {
+			return fmt.Errorf("uninstalling %s global hooks: %w", agent, err)
+		}
+	}
+
+	return nil
+}
+
+// UninstallGlobalSkills removes argus-* skill directories from all global Agent skill paths.
+func UninstallGlobalSkills() error {
+	homeDir, err := resolveUserHomeDir()
+	if err != nil {
+		return err
+	}
+
+	for _, skillPath := range globalSkillPathsForHome(homeDir) {
+		entries, err := os.ReadDir(skillPath)
+		if err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				continue
+			}
+			return fmt.Errorf("reading skill directory %s: %w", skillPath, err)
+		}
+
+		for _, entry := range entries {
+			if entry.IsDir() && core.IsArgusReserved(entry.Name()) {
+				if err := os.RemoveAll(filepath.Join(skillPath, entry.Name())); err != nil {
+					return fmt.Errorf("removing skill %s: %w", entry.Name(), err)
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
 // GlobalSkillNames returns the built-in skills that are safe for global distribution.
 func GlobalSkillNames() []string {
 	return []string{"argus-install", "argus-uninstall", "argus-doctor"}
@@ -165,6 +251,64 @@ func installGlobalHooksForAgent(homeDir, agent string) error {
 		_, err := RenderHookTemplate(agent, true)
 		return err
 	}
+}
+
+func uninstallGlobalHooksForAgent(homeDir, agent string) error {
+	switch agent {
+	case agentClaudeCode:
+		return uninstallClaudeCodeHooksAt(filepath.Join(homeDir, claudeSettingsRelativePath))
+	case agentCodex:
+		return removeIfExists(filepath.Join(homeDir, codexHooksRelativePath))
+	case agentOpenCode:
+		return removeIfExists(globalOpenCodePluginPathForHome(homeDir))
+	default:
+		return nil
+	}
+}
+
+func uninstallClaudeCodeHooksAt(settingsPath string) error {
+	settings, err := loadJSONObjectIfExists(settingsPath)
+	if err != nil {
+		return fmt.Errorf("parsing claude code settings: %w", err)
+	}
+	if settings == nil {
+		return nil
+	}
+
+	hooksValue, ok := settings["hooks"]
+	if !ok {
+		return nil
+	}
+
+	hooks, ok := hooksValue.(map[string]any)
+	if !ok {
+		return fmt.Errorf("reading claude code hooks: hooks must be an object")
+	}
+
+	for _, event := range claudeCodeHookEvents {
+		existingEntries, err := getArray(hooks, event)
+		if err != nil {
+			return fmt.Errorf("reading claude code %s hooks: %w", event, err)
+		}
+
+		cleanedEntries, err := removeArgusEntries(existingEntries)
+		if err != nil {
+			return fmt.Errorf("cleaning claude code %s hooks: %w", event, err)
+		}
+
+		if len(cleanedEntries) == 0 {
+			delete(hooks, event)
+			continue
+		}
+
+		hooks[event] = cleanedEntries
+	}
+
+	if len(hooks) == 0 {
+		delete(settings, "hooks")
+	}
+
+	return writeJSONObject(settingsPath, settings)
 }
 
 func releaseGlobalSkill(skillName string, targetRoots []string) error {
