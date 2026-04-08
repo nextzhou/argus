@@ -103,6 +103,22 @@ For guidance, use the argus-install Skill.
 			},
 		},
 		{
+			name:  "installed in workspace",
+			stdin: `{"session_id":"ses-installed-ws"}`,
+			setup: func(t *testing.T, homeDir string) string {
+				t.Helper()
+
+				workspaceDir := filepath.Join(homeDir, "work", "company")
+				storedWorkspace := normalizeWorkspacePath(t, workspaceDir)
+				writeWorkspaceConfig(t, homeDir, &workspace.Config{Workspaces: []string{storedWorkspace}})
+
+				projectDir := filepath.Join(workspaceDir, "installed-project")
+				createGitProject(t, projectDir, true)
+				return projectDir
+			},
+			want: "[Argus] Workspace Guide\n\nArgus has been installed at the workspace level.\n\nConfigured Agents:\n  - claude-code\n\nGlobal skills installed to Agent-specific directories.\nRun `argus install` in individual projects to add project-level configuration.\n",
+		},
+		{
 			name:  "empty workspace list",
 			stdin: `{"session_id":"ses-empty-workspaces"}`,
 			setup: func(t *testing.T, homeDir string) string {

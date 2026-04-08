@@ -5,19 +5,12 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"log/slog"
 	"os"
 	"path/filepath"
 
 	"github.com/nextzhou/argus/internal/workspace"
 )
-
-const globalTickInstallGuidance = `[Argus] This project is inside a registered workspace but Argus is not installed.
-
-To install Argus in this project, run:
-  argus install --yes
-
-For guidance, use the argus-install Skill.
-`
 
 // HandleGlobalTick evaluates the global tick decision tree before project-level
 // tick logic runs. Callers should invoke it only for global hook executions and
@@ -39,18 +32,19 @@ func HandleGlobalTick(cwd string, stdin io.Reader, agent string) (string, error)
 	if root == nil {
 		return "", nil
 	}
-	if root.HasArgus {
-		return "", nil
-	}
 
 	configPath := globalTickConfigPath()
 	if configPath == "" {
+		if root.HasArgus {
+			return "", nil
+		}
 		return "", errors.New("determining workspace config path: home directory unavailable")
 	}
 
 	config, err := workspace.LoadConfig(configPath)
 	if err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
+		// Fail-open for installed projects or missing config files.
+		if root.HasArgus || errors.Is(err, fs.ErrNotExist) {
 			return "", nil
 		}
 		return "", fmt.Errorf("loading workspace config: %w", err)
@@ -65,7 +59,35 @@ func HandleGlobalTick(cwd string, stdin io.Reader, agent string) (string, error)
 		return "", nil
 	}
 
-	return globalTickInstallGuidance, nil
+	if root.HasArgus {
+		return renderWorkspaceGuide(agent)
+	}
+	return renderInstallGuidance()
+}
+
+// renderInstallGuidance renders the install guidance template for projects in a
+// workspace that do not have Argus installed. Returns empty string on render
+// failure (fail-open).
+func renderInstallGuidance() (string, error) {
+	result, err := renderTemplate("prompts/global-tick-install.md.tmpl", nil)
+	if err != nil {
+		slog.Warn("rendering install guidance template", "error", err)
+		return "", nil
+	}
+	return result, nil
+}
+
+// renderWorkspaceGuide renders the workspace guide template for installed
+// projects inside a registered workspace. Returns empty string on render
+// failure (fail-open).
+func renderWorkspaceGuide(agent string) (string, error) {
+	data := struct{ Agents []string }{Agents: []string{agent}}
+	result, err := renderTemplate("prompts/workspace-guide.md.tmpl", data)
+	if err != nil {
+		slog.Warn("rendering workspace guide template", "error", err)
+		return "", nil
+	}
+	return result, nil
 }
 
 func globalTickConfigPath() string {
