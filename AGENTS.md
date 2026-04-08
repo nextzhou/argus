@@ -260,6 +260,16 @@ Sequence tests verify that state produced by one CLI command is correctly consum
 - `t.Parallel()` is prohibited (os.Stdout capture is incompatible)
 - Source files whose output participates in sequence tests must carry a `// SEQUENCE-TEST:` comment above the relevant command constructor, referencing the test file
 
+#### Test Patterns and Conventions
+
+The following patterns emerged from the test coverage backfill effort and should be followed for new tests:
+
+- **Two output capture patterns**: Use `executeXxxCmd` with `os.Pipe` for JSON output (which redirects `os.Stdout` globally), and `cmd.SetOut(buf)` with `bytes.Buffer` for markdown or plain text output. Do not mix these: `os.Pipe` captures all writes to `os.Stdout`, while `SetOut` only captures output sent through cobra's `cmd.OutOrStdout()`.
+- **Fixture helper reuse**: Fixture helpers (e.g., `writeWorkflowFixture`, `writePipelineFixture`, `writeInvariantFixture`) defined in any `_test.go` file within a package are accessible to all other test files in that same package. Do not redeclare these helpers.
+- **Untestable patterns to avoid**: Functions reading from `os.Stdin` directly are difficult to test; use an `io.Reader` parameter or `cmd.InOrStdin()` instead. Similarly, cobra commands using `Run` with `os.Exit` cannot be tested for error paths; use `RunE` for all new commands to allow returning errors to the test runner.
+- **Test directory context**: Tests in `internal/hook/` typically use an explicit `projectRoot := t.TempDir()` and pass it to fixtures and functions. CLI tests in `cmd/argus/` prefer `t.Chdir(t.TempDir())` to establish an implicit directory context for the duration of the test.
+- **t.Parallel() prohibition**: In addition to sequence tests, any test using the `os.Pipe` pattern to capture `os.Stdout` MUST NOT call `t.Parallel()`, as `os.Stdout` is a process-global resource.
+
 ### Commit Convention
 
 Format: `type(scope): description`
