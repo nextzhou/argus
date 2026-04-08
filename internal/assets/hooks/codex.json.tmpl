@@ -1,0 +1,29 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "argus tick --agent codex{{ if .Global }} --global{{ end }}",
+            "timeout": 10,
+            "statusMessage": "Argus"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "argus trap --agent codex{{ if .Global }} --global{{ end }}",
+            "timeout": 10,
+            "statusMessage": "Argus"
+          }
+        ]
+      }
+    ]
+  }
+}
