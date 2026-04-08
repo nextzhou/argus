@@ -15,10 +15,6 @@ import (
 )
 
 func TestConfirmSubdirectoryInstall(t *testing.T) {
-	origCheckStdinIsTTY := checkStdinIsTTY
-	checkStdinIsTTY = func() bool { return true }
-	t.Cleanup(func() { checkStdinIsTTY = origCheckStdinIsTTY })
-
 	tests := []struct {
 		name  string
 		input string
@@ -36,7 +32,7 @@ func TestConfirmSubdirectoryInstall(t *testing.T) {
 			var buf bytes.Buffer
 			cmd.SetOut(&buf)
 
-			got, err := confirmSubdirectoryInstall(cmd, "/fake/root", strings.NewReader(tt.input))
+			got, err := confirmSubdirectoryInstall(cmd, "/fake/root", strings.NewReader(tt.input), true)
 
 			require.NoError(t, err)
 			assert.Equal(t, tt.want, got)
@@ -45,12 +41,8 @@ func TestConfirmSubdirectoryInstall(t *testing.T) {
 }
 
 func TestConfirmSubdirectoryInstall_NonTTY(t *testing.T) {
-	origCheckStdinIsTTY := checkStdinIsTTY
-	checkStdinIsTTY = func() bool { return false }
-	t.Cleanup(func() { checkStdinIsTTY = origCheckStdinIsTTY })
-
 	cmd := &cobra.Command{}
-	got, err := confirmSubdirectoryInstall(cmd, "/fake/root", strings.NewReader("y\n"))
+	got, err := confirmSubdirectoryInstall(cmd, "/fake/root", strings.NewReader("y\n"), false)
 
 	assert.False(t, got)
 	require.Error(t, err)

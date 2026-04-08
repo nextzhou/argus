@@ -13,9 +13,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// checkStdinIsTTY wraps stdinIsTTY so tests can override the TTY guard.
-var checkStdinIsTTY = stdinIsTTY
-
 // SEQUENCE-TEST: cmd_install_lifecycle_test.go
 // SEQUENCE-TEST: cmd_workspace_lifecycle_test.go
 func newInstallCmd() *cobra.Command {
@@ -58,7 +55,7 @@ func newInstallCmd() *cobra.Command {
 			}
 
 			if isSubdir && !yesFlag {
-				confirmed, confirmErr := confirmSubdirectoryInstall(cmd, projectRoot, os.Stdin)
+				confirmed, confirmErr := confirmSubdirectoryInstall(cmd, projectRoot, os.Stdin, stdinIsTTY())
 				if confirmErr != nil {
 					writeEnvelope(core.ErrorEnvelope(confirmErr.Error()))
 					return confirmErr
@@ -94,8 +91,8 @@ func newInstallCmd() *cobra.Command {
 	return cmd
 }
 
-func confirmSubdirectoryInstall(cmd *cobra.Command, projectRoot string, stdinReader io.Reader) (bool, error) {
-	if !checkStdinIsTTY() {
+func confirmSubdirectoryInstall(cmd *cobra.Command, projectRoot string, stdinReader io.Reader, isTTY bool) (bool, error) {
+	if !isTTY {
 		return false, fmt.Errorf("current directory is not the Git root — use --yes to install here anyway")
 	}
 
