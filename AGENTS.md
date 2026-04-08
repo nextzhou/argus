@@ -179,7 +179,7 @@ For every implementation task:
 - Define interfaces at the point of use, not at the point of implementation
 - Accept interfaces, return concrete types
 
-**Go 1.24 Features**:
+**Go 1.26 Features**:
 - Use `slices` and `maps` standard library packages where applicable
 - Prefer `errors.Is` and `errors.As` for error inspection
 

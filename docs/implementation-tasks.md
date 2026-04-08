@@ -11,7 +11,7 @@
 
 | 决策项 | 选择 |
 |--------|------|
-| Go 版本 | 1.24 (latest) |
+| Go 版本 | 1.26.2 (latest) |
 | Module Path | `github.com/nextzhou/argus` |
 | CLI 框架 | cobra |
 | 测试库 | testify/assert + require |
@@ -143,7 +143,7 @@ Critical Path: M0 → M1 → M2 → M3 → M4 → M5 → M6 → M7 → M8
 
 **实现内容**:
 - 创建严格模式 `.golangci.yml`。
-- Go 版本固定为 1.24。
+- Go 版本固定为 1.26.2。
 - 启用 `goimports`, `errcheck`, `govet`, `staticcheck`, `ineffassign`, `gocritic`, `revive`, `misspell`, `nolintlint`, `unconvert`, `unparam`, `gochecknoinits`, `forbidigo`。
 - 对测试文件放宽必要规则，但不能掩盖错误处理与命名问题。
 - 明确禁止 `init()` 和滥用 `fmt.Print*` 等不符合长期维护要求的写法。
@@ -214,7 +214,7 @@ Critical Path: M0 → M1 → M2 → M3 → M4 → M5 → M6 → M7 → M8
 **实现内容**:
 - 只追加新板块 `## Development Guidelines`，不得修改既有内容。
 - 汇总标准工作流：读任务、读对应技术章节、先测试、后实现、再重构、最后提交。
-- 写明 Go best practices：sentinel + custom error + `%w`、`slog`、table-driven tests、小接口、Go 1.24 能力。
+- 写明 Go best practices：sentinel + custom error + `%w`、`slog`、table-driven tests、小接口、Go 1.26.2 能力。
 - 写明反模式：禁止 `init()`、禁止全局可变状态、禁止业务逻辑中 `panic`、禁止滥用 `any`、禁止忽略 error。
 - 写明包组织与依赖方向：`cmd -> internal/*`，并强调避免循环依赖。
 - 写明测试和 commit 规范，给出 scope 示例。
@@ -1113,11 +1113,11 @@ make lint
 |------|------|
 | 依赖 | M1-T1, M1-T2, M1-T3, M1-T4, M1-T5, M1-T6, M1-T7 |
 | 参考 | `technical-overview.md §2.3` |
-| 产出 | `assets/skills/`, `assets/workflows/`, `assets/invariants/`, `assets/prompts/`, `assets/hooks/`, `internal/assets/embed.go` |
+| 产出 | `internal/assets/skills/`, `internal/assets/workflows/`, `internal/assets/invariants/`, `internal/assets/prompts/`, `internal/assets/hooks/`, `internal/assets/embed.go` |
 | Commit | `build(assets): add embedded assets directory with go:embed configuration` |
 
 **实现内容**:
-- 建立 `assets/` 目录结构。
+- 建立 `internal/assets/` 目录结构。
 - 在 `internal/assets/embed.go` 中配置 `//go:embed`。
 - 提供 `ReadAsset` 与 `ListAssets` 等辅助函数。
 - 统一内置资源读取入口，避免 install 模块直接拼 embed 路径。
@@ -1136,7 +1136,7 @@ make lint
 |------|------|
 | 依赖 | M6-T1 |
 | 参考 | `technical-invariant.md §4.8` |
-| 产出 | `assets/workflows/argus-init.yaml`, `assets/invariants/argus-init.yaml` |
+| 产出 | `internal/assets/workflows/argus-init.yaml`, `internal/assets/invariants/argus-init.yaml` |
 | Commit | `feat(assets): add argus-init built-in workflow and invariant definitions` |
 
 **实现内容**:
@@ -1159,7 +1159,7 @@ make lint
 |------|------|
 | 依赖 | M6-T1 |
 | 参考 | `technical-workspace.md §11.2-§11.4` |
-| 产出 | `assets/skills/argus-install/SKILL.md`, `assets/skills/argus-uninstall/SKILL.md`, `assets/skills/argus-doctor/SKILL.md`, `assets/skills/argus-status/SKILL.md`, `assets/skills/argus-workflow/SKILL.md`, `assets/skills/argus-invariant-check/SKILL.md`, `assets/skills/argus-generate-rules/SKILL.md`, `assets/skills/argus-concepts/SKILL.md`, `assets/skills/argus-workflow-syntax/SKILL.md` |
+| 产出 | `internal/assets/skills/argus-install/SKILL.md`, `internal/assets/skills/argus-uninstall/SKILL.md`, `internal/assets/skills/argus-doctor/SKILL.md`, `internal/assets/skills/argus-status/SKILL.md`, `internal/assets/skills/argus-workflow/SKILL.md`, `internal/assets/skills/argus-invariant-check/SKILL.md`, `internal/assets/skills/argus-generate-rules/SKILL.md`, `internal/assets/skills/argus-concepts/SKILL.md`, `internal/assets/skills/argus-workflow-syntax/SKILL.md` |
 | Commit | `feat(assets): add 9 built-in skill SKILL.md files` |
 
 **实现内容**:
@@ -1182,7 +1182,7 @@ make lint
 |------|------|
 | 依赖 | M6-T1 |
 | 参考 | `technical-cli.md §8.1`；`technical-workspace.md §10.4` |
-| 产出 | `assets/prompts/tick-no-pipeline.md.tmpl`, `assets/prompts/tick-full-context.md.tmpl`, `assets/prompts/tick-minimal.md.tmpl`, `assets/prompts/tick-invariant-failed.md.tmpl`, `assets/prompts/workspace-guide.md.tmpl` |
+| 产出 | `internal/assets/prompts/tick-no-pipeline.md.tmpl`, `internal/assets/prompts/tick-full-context.md.tmpl`, `internal/assets/prompts/tick-minimal.md.tmpl`, `internal/assets/prompts/tick-invariant-failed.md.tmpl`, `internal/assets/prompts/workspace-guide.md.tmpl` |
 | Commit | `feat(assets): add tick and workspace prompt templates` |
 
 **实现内容**:

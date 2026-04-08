@@ -104,10 +104,10 @@ Argus 严格区分受 Git 跟踪的共享状态和仅本机有效的本地状态
 
 ### 2.3 源码内嵌资源 (Embedded Assets)
 
-Argus 二进制通过 Go `//go:embed` 内嵌多种资源文件，统一存放在源码的 `assets/` 目录下：
+Argus 二进制通过 Go `//go:embed` 内嵌多种资源文件，统一存放在源码的 `internal/assets/` 目录下：
 
 ```text
-assets/
+internal/assets/
   skills/                        # 内置 Skills（install 时释出）
     argus-doctor/SKILL.md
     argus-install/SKILL.md
@@ -122,14 +122,14 @@ assets/
 ```
 
 ```go
-//go:embed assets/*
-var Assets embed.FS
+//go:embed skills workflows invariants prompts hooks
+var embedded embed.FS
 ```
 
 **使用方式**：
-- `assets/workflows/`、`assets/invariants/`：`argus install`（项目级）时释出到项目目录 `.argus/workflows/`、`.argus/invariants/`。
-- `assets/skills/`：`argus install`（项目级）时释出到 `.agents/skills/` 和 `.claude/skills/`；OpenCode 可通过兼容扫描发现这两份文件，因此不额外生成 `.opencode/skills/`。`argus install --workspace` 时释出到各 Agent 的全局 Skill 目录（详见 workspace §11.5）。
-- `assets/prompts/`：仅在运行时由 argus 内部读取，用于 tick 注入、job-done 输出、错误引导等场景的文本模板渲染（Go `text/template`）。不释出到文件系统。
+- `internal/assets/workflows/`、`internal/assets/invariants/`：`argus install`（项目级）时释出到项目目录 `.argus/workflows/`、`.argus/invariants/`。
+- `internal/assets/skills/`：`argus install`（项目级）时释出到 `.agents/skills/` 和 `.claude/skills/`；OpenCode 可通过兼容扫描发现这两份文件，因此不额外生成 `.opencode/skills/`。`argus install --workspace` 时释出到各 Agent 的全局 Skill 目录（详见 workspace §11.5）。
+- `internal/assets/prompts/`：仅在运行时由 argus 内部读取，用于 tick 注入、job-done 输出、错误引导等场景的文本模板渲染（Go `text/template`）。不释出到文件系统。
 
 ### 2.4 安装层级
 1. **全局二进制**：Argus CLI 二进制文件安装在用户全局路径（如 `~/.local/bin/argus`）。

@@ -1,6 +1,6 @@
 module github.com/nextzhou/argus
 
-go 1.25.0
+go 1.26.2
 
 require (
 	github.com/itchyny/gojq v0.12.19
