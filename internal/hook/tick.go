@@ -23,7 +23,19 @@ import (
 // It reads stdin, determines project state, and writes context output.
 // It always succeeds (errors become warning text) to maintain fail-open behavior.
 func HandleTick(agent string, global bool, stdin io.Reader, stdout io.Writer, projectRoot string, sessionBaseDir string) error {
-	_ = global
+	if global {
+		output, err := HandleGlobalTick(projectRoot, stdin, agent)
+		if err != nil {
+			writeTickWarning(stdout, "global tick error: %v", err)
+			_ = LogHookExecution("", "tick", false, "global: "+err.Error())
+			return nil
+		}
+		if output != "" {
+			_, _ = io.WriteString(stdout, output)
+		}
+		_ = LogHookExecution("", "tick", true, "global")
+		return nil
+	}
 
 	input, err := ParseInput(stdin, agent)
 	if err != nil {

@@ -33,7 +33,7 @@ func newTickCmd() *cobra.Command {
 
 	cmd.Flags().StringVar(&agentFlag, "agent", "", "AI agent type (claude-code, codex, opencode)")
 	_ = cmd.MarkFlagRequired("agent")
-	cmd.Flags().Bool("global", false, "Run in global mode (stub, M7)")
+	cmd.Flags().Bool("global", false, "Run in global mode")
 
 	return cmd
 }
