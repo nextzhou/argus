@@ -9,6 +9,7 @@ import (
 )
 
 // SEQUENCE-TEST: cmd_tick_lifecycle_test.go
+// SEQUENCE-TEST: cmd_workspace_lifecycle_test.go
 func newTickCmd() *cobra.Command {
 	var agentFlag string
 
