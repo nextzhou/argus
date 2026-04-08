@@ -14,6 +14,10 @@ func LoadSession(baseDir, sessionID string) (*Session, error) {
 	safeID := core.SessionIDToSafeID(sessionID)
 	path := filepath.Join(baseDir, safeID+".yaml")
 
+	if err := core.ValidatePath(baseDir, path); err != nil {
+		return nil, fmt.Errorf("validating session path: %w", err)
+	}
+
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("opening session file %q: %w", sessionID, err)
@@ -40,6 +44,10 @@ func SaveSession(baseDir, sessionID string, s *Session) error {
 	safeID := core.SessionIDToSafeID(sessionID)
 	path := filepath.Join(baseDir, safeID+".yaml")
 
+	if err := core.ValidatePath(baseDir, path); err != nil {
+		return fmt.Errorf("validating session path: %w", err)
+	}
+
 	data, err := yaml.Marshal(s)
 	if err != nil {
 		return fmt.Errorf("marshaling session %q: %w", sessionID, err)
@@ -56,6 +64,10 @@ func SaveSession(baseDir, sessionID string, s *Session) error {
 func Exists(baseDir, sessionID string) bool {
 	safeID := core.SessionIDToSafeID(sessionID)
 	path := filepath.Join(baseDir, safeID+".yaml")
+
+	if err := core.ValidatePath(baseDir, path); err != nil {
+		return false
+	}
 
 	_, err := os.Stat(path)
 	return err == nil

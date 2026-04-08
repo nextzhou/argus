@@ -165,3 +165,21 @@ func TestExistsReturnsFalseOnError(t *testing.T) {
 	// Using an invalid path that will cause os.Stat to fail
 	assert.False(t, Exists("", "any-session"))
 }
+
+func TestValidatePathDefenseInDepth(t *testing.T) {
+	baseDir := t.TempDir()
+	sessionID := "test-session"
+
+	s := &Session{
+		SnoozedPipelines: []string{"test"},
+	}
+
+	err := SaveSession(baseDir, sessionID, s)
+	require.NoError(t, err)
+
+	loaded, err := LoadSession(baseDir, sessionID)
+	require.NoError(t, err)
+	assert.Equal(t, s.SnoozedPipelines, loaded.SnoozedPipelines)
+
+	assert.True(t, Exists(baseDir, sessionID))
+}
