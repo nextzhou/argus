@@ -46,17 +46,6 @@ func NewRootCmd(version string) *cobra.Command {
 	return rootCmd
 }
 
-// newInstallCmd creates the install command (stub).
-func newInstallCmd() *cobra.Command {
-	return &cobra.Command{
-		Use:   "install",
-		Short: "Install Argus",
-		RunE: func(_ *cobra.Command, _ []string) error {
-			return nil
-		},
-	}
-}
-
 // newUninstallCmd creates the uninstall command (stub).
 func newUninstallCmd() *cobra.Command {
 	return &cobra.Command{
