@@ -85,6 +85,15 @@ Argus is designed so the repository can be made public at any time without a cle
 - Default logs, examples, fixtures, and templates must not assume internal context or include sensitive data.
 - Any outbound data transfer, telemetry, or auto-update behavior must be explicit, documented, and not required for core local use.
 
+### 9. Scopes change configuration, not orchestration semantics
+
+Different Argus scopes (for example, project scope and user/workspace scope) are different configuration roots of the same orchestration model, not separate product modes.
+
+- Prefer one shared orchestration mechanism across scopes. If behavior differs by scope, first ask whether the difference can be expressed by loading different invariants, workflows, prompts, or state roots.
+- Scope-specific policy belongs in artifacts, not in hardcoded hook branches. Install guidance, skip/remind decisions, and remediation flows should normally be modeled as invariants plus workflows.
+- Hardcoded scope logic is acceptable only for bootstrap concerns that artifacts cannot decide by themselves, such as input parsing, sub-agent suppression, project/scope discovery, and fail-open handling when no scope applies.
+- When a shortcut would create a second mental model for `tick`, `job-done`, or other orchestration entry points, treat that shortcut as design debt even if it is simpler to ship.
+
 ## Naming Conventions
 
 ### Namespace reservation
@@ -140,6 +149,7 @@ No `confirm` / `auto` fields. Write confirmation requirements directly in job pr
 - To restore context quickly, read `AGENTS.md` first, then `docs/technical-overview.md`; read other `docs/technical-*.md` on demand.
 - When a function's correct usage depends on a specific call sequence (timing contract), document the sequence in the function's godoc comment. Callers should be able to understand usage constraints without reading architecture documents.
 - If a reviewer (including automated review) misreads code and files a false positive, treat it as a signal that the code's intent is not clear enough. Add comments, rename symbols, or restructure to eliminate the ambiguity — even though the behavior is already correct.
+- When a local simplification conflicts with architectural consistency, prefer the design that preserves one reusable mechanism and artifact-driven policy. In this early stage, do not preserve bespoke behavior only because it already exists.
 
 ## Development Guidelines
 
