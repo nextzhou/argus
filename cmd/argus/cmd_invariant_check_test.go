@@ -181,6 +181,9 @@ func TestInvariantCheck(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Chdir(t.TempDir())
 
+			// Scope resolution requires .argus/ to exist
+			require.NoError(t, os.MkdirAll(".argus", 0o755))
+
 			if tt.setup != nil {
 				tt.setup(t)
 			}

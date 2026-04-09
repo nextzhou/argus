@@ -1,16 +1,13 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"io"
-	"io/fs"
 	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 
-	"github.com/nextzhou/argus/internal/workflow"
+	"github.com/nextzhou/argus/internal/scope"
 	"github.com/spf13/cobra"
 )
 
@@ -32,40 +29,29 @@ func newWorkflowListCmd() *cobra.Command {
 		Short: "List available workflows",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			workflowsDir := filepath.Join(".argus", "workflows")
-
-			entries, err := os.ReadDir(workflowsDir)
+			cwd, err := os.Getwd()
 			if err != nil {
-				if errors.Is(err, fs.ErrNotExist) {
-					return writeListOutput(cmd, nil, jsonFlag)
-				}
-				return fmt.Errorf("reading workflows directory: %w", err)
+				return fmt.Errorf("getting working directory: %w", err)
+			}
+			s, err := scope.ResolveScope(cwd)
+			if err != nil {
+				return fmt.Errorf("resolving scope: %w", err)
+			}
+			if s == nil {
+				return fmt.Errorf("not inside an Argus project or registered workspace")
 			}
 
-			var result []workflowListEntry
-			for _, entry := range entries {
-				if entry.IsDir() {
-					continue
-				}
-				name := entry.Name()
-				if !strings.HasSuffix(name, ".yaml") && !strings.HasSuffix(name, ".yml") {
-					continue
-				}
-				if name == "_shared.yaml" || name == "_shared.yml" {
-					continue
-				}
+			summaries, err := s.LoadWorkflowSummaries()
+			if err != nil {
+				return fmt.Errorf("loading workflow summaries: %w", err)
+			}
 
-				fullPath := filepath.Join(workflowsDir, name)
-				w, parseErr := workflow.ParseWorkflowFile(fullPath)
-				if parseErr != nil {
-					_, _ = fmt.Fprintf(os.Stderr, "Argus warning: skipping %s: %s\n", name, parseErr)
-					continue
-				}
-
+			result := make([]workflowListEntry, 0, len(summaries))
+			for _, ws := range summaries {
 				result = append(result, workflowListEntry{
-					ID:          w.ID,
-					Description: w.Description,
-					Jobs:        len(w.Jobs),
+					ID:          ws.ID,
+					Description: ws.Description,
+					Jobs:        ws.Jobs,
 				})
 			}
 

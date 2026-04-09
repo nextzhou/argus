@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -76,6 +77,9 @@ func TestInvariantList(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Chdir(t.TempDir())
+
+			// Scope resolution requires .argus/ to exist
+			require.NoError(t, os.MkdirAll(".argus", 0o755))
 
 			if tt.setup != nil {
 				tt.setup(t)

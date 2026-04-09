@@ -113,6 +113,9 @@ jobs:
 		t.Run(tt.name, func(t *testing.T) {
 			t.Chdir(t.TempDir())
 
+			// Create .argus/ for scope resolution
+			require.NoError(t, os.MkdirAll(".argus", 0o755))
+
 			if tt.setupFiles != nil {
 				workflowsDir := filepath.Join(".argus", "workflows")
 				require.NoError(t, os.MkdirAll(workflowsDir, 0o755))

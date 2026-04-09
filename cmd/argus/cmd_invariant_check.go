@@ -1,16 +1,14 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"io"
-	"io/fs"
 	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 
 	"github.com/nextzhou/argus/internal/invariant"
+	"github.com/nextzhou/argus/internal/scope"
 	"github.com/spf13/cobra"
 )
 
@@ -46,12 +44,22 @@ func newInvariantCheckCmd() *cobra.Command {
 		Short: "Run invariant checks",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			invariantsDir := filepath.Join(".argus", "invariants")
+			cwd, err := os.Getwd()
+			if err != nil {
+				return fmt.Errorf("getting working directory: %w", err)
+			}
+			s, err := scope.ResolveScope(cwd)
+			if err != nil {
+				return fmt.Errorf("resolving scope: %w", err)
+			}
+			if s == nil {
+				return fmt.Errorf("not inside an Argus project or registered workspace")
+			}
 
 			if len(args) == 1 {
-				return runSingleCheck(cmd, jsonFlag, args[0], invariantsDir)
+				return runSingleCheck(cmd, jsonFlag, args[0], s)
 			}
-			return runAllChecks(cmd, jsonFlag, invariantsDir)
+			return runAllChecks(cmd, jsonFlag, s)
 		},
 	}
 
@@ -59,47 +67,40 @@ func newInvariantCheckCmd() *cobra.Command {
 	return cmd
 }
 
-func runSingleCheck(cmd *cobra.Command, jsonOutput bool, id, invariantsDir string) error {
-	filePath := filepath.Join(invariantsDir, id+".yaml")
-	inv, err := invariant.ParseInvariantFile(filePath)
+func runSingleCheck(cmd *cobra.Command, jsonOutput bool, id string, s scope.Scope) error {
+	invariants, err := s.LoadInvariants()
 	if err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
-			writeCommandError(cmd, jsonOutput, "invariant not found")
-			return fmt.Errorf("invariant check failed: invariant %q not found", id)
-		}
 		writeCommandError(cmd, jsonOutput, err.Error())
 		return fmt.Errorf("invariant check failed: %w", err)
 	}
 
-	result := invariant.RunCheck(cmd.Context(), inv, ".")
+	var inv *invariant.Invariant
+	for _, candidate := range invariants {
+		if candidate.ID == id {
+			inv = candidate
+			break
+		}
+	}
+	if inv == nil {
+		writeCommandError(cmd, jsonOutput, "invariant not found")
+		return fmt.Errorf("invariant check failed: invariant %q not found", id)
+	}
+
+	result := invariant.RunCheck(cmd.Context(), inv, s.ProjectRoot())
 	output := buildCheckOutput(inv, result)
 
 	return writeCheckOutput(cmd, jsonOutput, []checkResultOutput{output})
 }
 
-func runAllChecks(cmd *cobra.Command, jsonOutput bool, invariantsDir string) error {
-	entries, err := os.ReadDir(invariantsDir)
+func runAllChecks(cmd *cobra.Command, jsonOutput bool, s scope.Scope) error {
+	invariants, err := s.LoadInvariants()
 	if err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
-			return writeCheckOutput(cmd, jsonOutput, nil)
-		}
-		return fmt.Errorf("reading invariants directory: %w", err)
+		return fmt.Errorf("loading invariants: %w", err)
 	}
 
-	var results []checkResultOutput
-	for _, entry := range entries {
-		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".yaml") {
-			continue
-		}
-
-		fullPath := filepath.Join(invariantsDir, entry.Name())
-		inv, parseErr := invariant.ParseInvariantFile(fullPath)
-		if parseErr != nil {
-			_, _ = fmt.Fprintf(os.Stderr, "Argus warning: skipping %s: %s\n", entry.Name(), parseErr)
-			continue
-		}
-
-		result := invariant.RunCheck(cmd.Context(), inv, ".")
+	results := make([]checkResultOutput, 0, len(invariants))
+	for _, inv := range invariants {
+		result := invariant.RunCheck(cmd.Context(), inv, s.ProjectRoot())
 		results = append(results, buildCheckOutput(inv, result))
 	}
 

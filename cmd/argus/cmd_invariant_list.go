@@ -1,16 +1,13 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"io"
-	"io/fs"
 	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 
-	"github.com/nextzhou/argus/internal/invariant"
+	"github.com/nextzhou/argus/internal/scope"
 	"github.com/spf13/cobra"
 )
 
@@ -33,29 +30,25 @@ func newInvariantListCmd() *cobra.Command {
 		Short: "List available invariants",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			invariantsDir := filepath.Join(".argus", "invariants")
-
-			entries, err := os.ReadDir(invariantsDir)
+			cwd, err := os.Getwd()
 			if err != nil {
-				if errors.Is(err, fs.ErrNotExist) {
-					return writeInvariantListOutput(cmd, nil, jsonFlag)
-				}
-				return fmt.Errorf("reading invariants directory: %w", err)
+				return fmt.Errorf("getting working directory: %w", err)
+			}
+			s, err := scope.ResolveScope(cwd)
+			if err != nil {
+				return fmt.Errorf("resolving scope: %w", err)
+			}
+			if s == nil {
+				return fmt.Errorf("not inside an Argus project or registered workspace")
 			}
 
-			var result []invariantListEntry
-			for _, entry := range entries {
-				if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".yaml") {
-					continue
-				}
+			invariants, err := s.LoadInvariants()
+			if err != nil {
+				return fmt.Errorf("loading invariants: %w", err)
+			}
 
-				fullPath := filepath.Join(invariantsDir, entry.Name())
-				inv, parseErr := invariant.ParseInvariantFile(fullPath)
-				if parseErr != nil {
-					_, _ = fmt.Fprintf(os.Stderr, "Argus warning: skipping %s: %s\n", entry.Name(), parseErr)
-					continue
-				}
-
+			result := make([]invariantListEntry, 0, len(invariants))
+			for _, inv := range invariants {
 				result = append(result, invariantListEntry{
 					ID:          inv.ID,
 					Description: invariantDescription(inv),
