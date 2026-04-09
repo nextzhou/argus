@@ -1,5 +1,7 @@
 pre-commit:
   commands:
+    staged-file-guards:
+      run: bash scripts/check-staged-files.sh
     lint:
       run: make lint || { echo 'Lint failed. Run `make fix` and retry commit.' >&2; exit 1; }
     test:

@@ -4,6 +4,8 @@ docs/drafts/
 
 # Go build artifacts
 bin/
+/argus
+/cmd/argus/argus
 *.exe
 *.test
 *.out
