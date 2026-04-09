@@ -91,8 +91,8 @@ func TestLoadTickWorkflowSummaries_LoadError(t *testing.T) {
 
 func TestRunTickInvariants_LoadError(t *testing.T) {
 	logs := captureDebugLogs(t, func() {
-		failures := runTickInvariants(errorLoadingScope{invariantErr: errors.New("boom")}, true)
-		assert.Nil(t, failures)
+		failure := runTickInvariants(errorLoadingScope{invariantErr: errors.New("boom")}, true)
+		assert.Nil(t, failure)
 	})
 
 	assert.Contains(t, logs, "tick: could not load invariants")
@@ -350,7 +350,7 @@ func TestBuildPipelineJobDataMap(t *testing.T) {
 	}
 }
 
-func TestBuildTickOutput_NoActivePipeline(t *testing.T) {
+func TestBuildNoActivePipelineOutput_ShowsWorkflowsWhenAvailable(t *testing.T) {
 	projectRoot := t.TempDir()
 	writeTickWorkflowFixture(t, projectRoot, "release", `version: v0.1.0
 id: release
@@ -360,19 +360,53 @@ jobs:
     prompt: "Run tests"
 `)
 
-	output, logDetails, snapshotPipelineID, snapshotJobID := buildTickOutput(scope.NewProjectScope(projectRoot), "ses-no-pipeline", &session.Session{}, nil, nil)
+	output, logDetails := buildNoActivePipelineOutput(scope.NewProjectScope(projectRoot), false)
 
 	expected, err := FormatNoPipeline([]WorkflowSummary{{ID: "release", Description: "Release workflow"}})
 	require.NoError(t, err)
 	assert.Equal(t, expected, output)
 	assert.Contains(t, logDetails, "active=0")
-	assert.Contains(t, logDetails, "warnings=0")
 	assert.Contains(t, logDetails, "scenario=no-pipeline")
-	assert.Empty(t, snapshotPipelineID)
-	assert.Empty(t, snapshotJobID)
 }
 
-func TestBuildTickOutput_SnoozedPipeline(t *testing.T) {
+func TestBuildNoActivePipelineOutput_InvariantFailureIsExclusive(t *testing.T) {
+	projectRoot := t.TempDir()
+	writeTickWorkflowFixture(t, projectRoot, "release", `version: v0.1.0
+id: release
+description: Release workflow
+jobs:
+  - id: run_tests
+    prompt: "Run tests"
+`)
+	writeTickInvariantFixture(t, projectRoot, "argus-init", `version: v0.1.0
+id: argus-init
+description: Project not initialized
+auto: always
+check:
+  - shell: "exit 1"
+prompt: "Initialize the project first"
+`)
+
+	output, logDetails := buildNoActivePipelineOutput(scope.NewProjectScope(projectRoot), false)
+
+	assertHookSafeTickText(t, output)
+	assert.Contains(t, output, "Argus: Invariant check failed:")
+	assert.Contains(t, output, "argus-init")
+	assert.Contains(t, output, "Initialize the project first")
+	assert.NotContains(t, output, "No active pipeline")
+	assert.NotContains(t, output, "release")
+	assert.Contains(t, logDetails, "scenario=invariant-failed")
+}
+
+func TestBuildNoActivePipelineOutput_NoWorkflowsReturnsEmpty(t *testing.T) {
+	output, logDetails := buildNoActivePipelineOutput(scope.NewProjectScope(t.TempDir()), false)
+
+	assert.Empty(t, output)
+	assert.Contains(t, logDetails, "active=0")
+	assert.Contains(t, logDetails, "scenario=no-output")
+}
+
+func TestBuildActivePipelineOutput_SnoozedPipeline(t *testing.T) {
 	projectRoot := t.TempDir()
 	instanceID := "release-20240115T103000Z"
 	writeTickWorkflowFixture(t, projectRoot, "release", `version: v0.1.0
@@ -393,7 +427,7 @@ jobs:
 `)
 
 	activePipelines, scanWarnings := loadTickActivePipelines(t, projectRoot)
-	output, logDetails, snapshotPipelineID, snapshotJobID := buildTickOutput(scope.NewProjectScope(projectRoot), "ses-snoozed", &session.Session{SnoozedPipelines: []string{instanceID}}, activePipelines, scanWarnings)
+	output, logDetails, snapshotPipelineID, snapshotJobID := buildActivePipelineOutput(scope.NewProjectScope(projectRoot), "ses-snoozed", &session.Session{SnoozedPipelines: []string{instanceID}}, activePipelines, scanWarnings)
 
 	expected, err := FormatSnoozed([]WorkflowSummary{{ID: "release", Description: "Release workflow"}})
 	require.NoError(t, err)
@@ -403,7 +437,7 @@ jobs:
 	assert.Empty(t, snapshotJobID)
 }
 
-func TestBuildTickOutput_MissingCurrentJob(t *testing.T) {
+func TestBuildActivePipelineOutput_MissingCurrentJob(t *testing.T) {
 	projectRoot := t.TempDir()
 	instanceID := "release-20240115T103000Z"
 	writeTickWorkflowFixture(t, projectRoot, "release", `version: v0.1.0
@@ -422,7 +456,7 @@ jobs: {}
 `)
 
 	activePipelines, scanWarnings := loadTickActivePipelines(t, projectRoot)
-	output, logDetails, snapshotPipelineID, snapshotJobID := buildTickOutput(scope.NewProjectScope(projectRoot), "ses-missing-job", &session.Session{}, activePipelines, scanWarnings)
+	output, logDetails, snapshotPipelineID, snapshotJobID := buildActivePipelineOutput(scope.NewProjectScope(projectRoot), "ses-missing-job", &session.Session{}, activePipelines, scanWarnings)
 
 	assertHookSafeTickText(t, output)
 	assert.Contains(t, output, "Argus: No active pipeline.")
@@ -432,7 +466,7 @@ jobs: {}
 	assert.Empty(t, snapshotJobID)
 }
 
-func TestBuildTickOutput_WorkflowLoadFailure(t *testing.T) {
+func TestBuildActivePipelineOutput_WorkflowLoadFailure(t *testing.T) {
 	projectRoot := t.TempDir()
 	instanceID := "missing-20240115T103000Z"
 	writeTickWorkflowFixture(t, projectRoot, "available", `version: v0.1.0
@@ -453,7 +487,7 @@ jobs:
 `)
 
 	activePipelines, scanWarnings := loadTickActivePipelines(t, projectRoot)
-	output, logDetails, snapshotPipelineID, snapshotJobID := buildTickOutput(scope.NewProjectScope(projectRoot), "ses-missing-workflow", &session.Session{}, activePipelines, scanWarnings)
+	output, logDetails, snapshotPipelineID, snapshotJobID := buildActivePipelineOutput(scope.NewProjectScope(projectRoot), "ses-missing-workflow", &session.Session{}, activePipelines, scanWarnings)
 
 	assertHookSafeTickText(t, output)
 	assert.Contains(t, output, "Argus: No active pipeline.")
@@ -463,7 +497,7 @@ jobs:
 	assert.Equal(t, "run_tests", snapshotJobID)
 }
 
-func TestBuildTickOutput_JobNotFoundInWorkflow(t *testing.T) {
+func TestBuildActivePipelineOutput_JobNotFoundInWorkflow(t *testing.T) {
 	projectRoot := t.TempDir()
 	instanceID := "release-20240115T103000Z"
 	writeTickWorkflowFixture(t, projectRoot, "release", `version: v0.1.0
@@ -484,7 +518,7 @@ jobs:
 `)
 
 	activePipelines, scanWarnings := loadTickActivePipelines(t, projectRoot)
-	output, logDetails, snapshotPipelineID, snapshotJobID := buildTickOutput(scope.NewProjectScope(projectRoot), "ses-workflow-mismatch", &session.Session{}, activePipelines, scanWarnings)
+	output, logDetails, snapshotPipelineID, snapshotJobID := buildActivePipelineOutput(scope.NewProjectScope(projectRoot), "ses-workflow-mismatch", &session.Session{}, activePipelines, scanWarnings)
 
 	assertHookSafeTickText(t, output)
 	assert.Contains(t, output, "Argus: No active pipeline.")
@@ -494,7 +528,7 @@ jobs:
 	assert.Equal(t, "deploy", snapshotJobID)
 }
 
-func TestBuildTickOutput_StateChangeDetection(t *testing.T) {
+func TestBuildActivePipelineOutput_StateChangeDetection(t *testing.T) {
 	projectRoot := t.TempDir()
 	instanceID := "release-20240115T103000Z"
 	writeTickWorkflowFixture(t, projectRoot, "release", `version: v0.1.0
@@ -518,7 +552,7 @@ jobs:
 	activePipelines, scanWarnings := loadTickActivePipelines(t, projectRoot)
 	sess := &session.Session{}
 
-	fullOutput, fullLogDetails, snapshotPipelineID, snapshotJobID := buildTickOutput(scope.NewProjectScope(projectRoot), "ses-state-change", sess, activePipelines, scanWarnings)
+	fullOutput, fullLogDetails, snapshotPipelineID, snapshotJobID := buildActivePipelineOutput(scope.NewProjectScope(projectRoot), "ses-state-change", sess, activePipelines, scanWarnings)
 	expectedFullOutput, err := FormatFullContext(instanceID, "release", "1/1", "run_tests", "Run tests with context", "test-skill", "ses-state-change")
 	require.NoError(t, err)
 	assert.Equal(t, expectedFullOutput, fullOutput)
@@ -527,7 +561,7 @@ jobs:
 	assert.Equal(t, "run_tests", snapshotJobID)
 
 	sess.LastTick = &session.LastTickState{Pipeline: instanceID, Job: "run_tests"}
-	minimalOutput, minimalLogDetails, snapshotPipelineID, snapshotJobID := buildTickOutput(scope.NewProjectScope(projectRoot), "ses-state-change", sess, activePipelines, scanWarnings)
+	minimalOutput, minimalLogDetails, snapshotPipelineID, snapshotJobID := buildActivePipelineOutput(scope.NewProjectScope(projectRoot), "ses-state-change", sess, activePipelines, scanWarnings)
 	expectedMinimalOutput, err := FormatMinimalSummary("release", "run_tests", "1/1")
 	require.NoError(t, err)
 	assert.Equal(t, expectedMinimalOutput, minimalOutput)
@@ -609,41 +643,26 @@ func TestRenderTickJobPrompt(t *testing.T) {
 
 func TestRunTickInvariants(t *testing.T) {
 	tests := []struct {
-		name         string
-		firstTick    bool
-		wantIDs      []string
-		wantByID     map[string]InvariantFailure
-		wantFailures int
+		name        string
+		firstTick   bool
+		wantFailure *InvariantFailure
 	}{
 		{
-			name:         "first tick runs always and session start invariants",
-			firstTick:    true,
-			wantIDs:      []string{"fail-always", "fail-session-start"},
-			wantFailures: 2,
-			wantByID: map[string]InvariantFailure{
-				"fail-always": {
-					ID:          "fail-always",
-					Description: "Always failing invariant",
-					Suggestion:  "Fix the always invariant",
-				},
-				"fail-session-start": {
-					ID:          "fail-session-start",
-					Description: "exit 1",
-					Suggestion:  "Fix the session-start invariant",
-				},
+			name:      "first tick returns first failing invariant",
+			firstTick: true,
+			wantFailure: &InvariantFailure{
+				ID:          "fail-always",
+				Description: "Always failing invariant",
+				Suggestion:  "Fix the always invariant",
 			},
 		},
 		{
-			name:         "later ticks run only always invariants",
-			firstTick:    false,
-			wantIDs:      []string{"fail-always"},
-			wantFailures: 1,
-			wantByID: map[string]InvariantFailure{
-				"fail-always": {
-					ID:          "fail-always",
-					Description: "Always failing invariant",
-					Suggestion:  "Fix the always invariant",
-				},
+			name:      "later ticks still return always invariant",
+			firstTick: false,
+			wantFailure: &InvariantFailure{
+				ID:          "fail-always",
+				Description: "Always failing invariant",
+				Suggestion:  "Fix the always invariant",
 			},
 		},
 	}
@@ -686,23 +705,9 @@ check:
   - shell: [not valid yaml
 `)
 
-			failures := runTickInvariants(scope.NewProjectScope(projectRoot), tt.firstTick)
-			require.Len(t, failures, tt.wantFailures)
-
-			gotIDs := make([]string, 0, len(failures))
-			gotByID := make(map[string]InvariantFailure, len(failures))
-			for _, failure := range failures {
-				gotIDs = append(gotIDs, failure.ID)
-				gotByID[failure.ID] = failure
-			}
-
-			assert.ElementsMatch(t, tt.wantIDs, gotIDs)
-			for id, want := range tt.wantByID {
-				assert.Equal(t, want, gotByID[id])
-			}
-			assert.NotContains(t, gotByID, "pass-always")
-			assert.NotContains(t, gotByID, "fail-never")
-			assert.NotContains(t, gotByID, "broken")
+			failure := runTickInvariants(scope.NewProjectScope(projectRoot), tt.firstTick)
+			require.NotNil(t, failure)
+			assert.Equal(t, *tt.wantFailure, *failure)
 		})
 	}
 }

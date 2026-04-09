@@ -8,7 +8,7 @@ This document describes the Argus workspace model and the rules for distributing
 
 A workspace is Argus’s **scope discovery mechanism**.
 
-- **Purpose**: enable a shared orchestration engine for repositories that have not yet installed project-level Argus, and guide them toward initialization
+- **Purpose**: enable a shared orchestration engine for repositories that have not yet installed project-level Argus, and guide them toward initialization when a global invariant fails
 - **Uniformity**: a workspace is no longer a special “bootstrap-only” layer. Once a scope is identified, global scope and project scope share the same orchestration semantics, state model, and context-injection logic
 - **Principle**: “scopes change configuration, not orchestration semantics.” Workspaces provide different artifact roots to the same engine
 
@@ -104,8 +104,8 @@ graph TD
     C --> D{Valid scope found?}
     D -- No --> E[Silent skip, exit 0]
     D -- Yes --> F[Run shared orchestration engine]
-    F --> G[Load invariants and workflows from that scope]
-    G --> H[Perform state checks and inject context]
+    F --> G[Check active pipelines first]
+    G --> H[If no active pipeline, run invariants then workflows]
 ```
 
 #### Key Design Changes
@@ -113,6 +113,11 @@ graph TD
 1. **Shared engine**: global scope no longer uses a hardcoded bootstrap branch. It now runs real invariant checks and pipeline orchestration
 2. **Bootstrap as artifact**: installation guidance is now modeled as a global invariant (`argus-project-init`) with a `prompt` field. Project-level remediation workflows such as `argus-init` exist only in project scope
 3. **State persistence**: pipeline state under global scope is stored under `~/.config/argus/pipelines/`, keyed by a hash of the project path
+
+Because global scope intentionally ships no workflows by default, a workspace tick will normally do one of two things:
+
+- surface the first failing global invariant, such as `argus-project-init`
+- return no output when no global invariant needs attention
 
 ### 10.5 Relationship to Project-Level Install
 

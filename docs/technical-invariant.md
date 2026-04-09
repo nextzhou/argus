@@ -172,7 +172,7 @@ workflow: update-agents-md
 
 ### Automatic Check Execution
 
-During each `tick`, Argus decides whether to run an invariant based on `auto`:
+During `tick`, Argus only considers automatic invariants when no active pipeline is currently being surfaced. On that path, it decides whether to run an invariant based on `auto`:
 
 - **`always`**: run on every tick
 - **`session_start`**: run only on the first tick of a session
@@ -205,7 +205,7 @@ Each check step runs in an isolated Bash process:
 
 ### Failure Handling
 
-When an automatic check fails, Argus does not auto-start a repair workflow. Instead, it injects failure information and suggestions into the agent context. The agent explains the issue to the user and guides the next decision.
+When an automatic check fails, Argus does not auto-start a repair workflow. Instead, it stops at the first failing invariant and injects that failure's remediation guidance as the exclusive tick output. The agent explains the issue to the user and guides the next decision.
 
 ### Three-State Step Output
 

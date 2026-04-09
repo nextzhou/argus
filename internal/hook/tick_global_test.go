@@ -75,11 +75,11 @@ func TestHandleTick_Global(t *testing.T) {
 			assert: func(t *testing.T, output string, sessionBaseDir string) {
 				t.Helper()
 				assertHookSafeTickText(t, output)
-				assert.Contains(t, output, "Argus: No active pipeline.")
 				assert.Contains(t, output, "Argus: Invariant check failed:")
 				assert.Contains(t, output, "argus-project-init")
 				assert.Contains(t, output, "Project has Argus installed")
 				assert.Contains(t, output, "Run `argus install --yes` to install")
+				assert.NotContains(t, output, "No active pipeline")
 				assert.True(t, session.Exists(sessionBaseDir, "ses-workspace"))
 			},
 		},

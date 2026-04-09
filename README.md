@@ -98,7 +98,7 @@ Argus does not execute these commands — it injects them as context to the agen
 
 ### Invariant
 
-An **invariant** defines a condition that should always be true about your project. Checks are pure shell commands (no LLM involvement), executed by Argus during `tick`. How often each invariant is checked depends on its `auto` field: `always` (every tick), `session_start` (once per session), or `never` (manual only). When all checks pass, the user sees nothing.
+An **invariant** defines a condition that should always be true about your project. Checks are pure shell commands (no LLM involvement), executed by Argus during `tick` when no pipeline is actively being surfaced. How often each invariant is checked depends on its `auto` field: `always` (every tick on that path), `session_start` (once per session), or `never` (manual only).
 
 ```yaml
 # .argus/invariants/lint-clean.yaml
@@ -149,12 +149,13 @@ Each agent's hook configuration is different (Claude Code uses `.claude/settings
 
 ### tick — Context Injection
 
-Every time the user submits a message, the agent's hook calls `argus tick`. Argus checks the current pipeline state, evaluates applicable invariant checks (based on each invariant's `auto` setting), and injects relevant context into the agent's conversation.
+Every time the user submits a message, the agent's hook calls `argus tick`. Argus follows a single precedence order and injects exactly one kind of context into the agent's conversation.
 
 - **State changed** (new job or new pipeline): full context with prompt, skill, and guidance.
 - **State unchanged** (ongoing conversation): minimal one-line reminder to prevent the agent from forgetting the active workflow.
-- **No active pipeline**: lists available workflows the agent can start.
-- **Invariant failures**: appended after pipeline context, with remediation suggestions.
+- **No active pipeline + first failing invariant**: invariant-only remediation guidance.
+- **No active pipeline + invariants pass + workflows available**: lists available workflows the agent can start.
+- **No active pipeline + invariants pass + no workflows available**: injects nothing.
 
 ### trap — Operation Gating (Future)
 
@@ -195,8 +196,8 @@ Here's what happens during a typical workflow session:
 6. Agent performs review, then calls job-done again
    → ...and so on until the pipeline completes
 
-7. Meanwhile, on every user message, `argus tick` runs invariant checks.
-   If any fail, the agent sees a warning alongside the current job context.
+7. Meanwhile, on every user message, `argus tick` checks for an active pipeline first.
+   If none is running, it evaluates auto invariants and surfaces the first failure as exclusive guidance.
 ```
 
 ## Project Structure

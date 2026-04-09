@@ -209,10 +209,12 @@ To avoid repeating identical instructions on every conversation turn, Argus stor
 
 | Condition | Interpretation | Injection behavior |
 |----------|----------------|--------------------|
-| No active pipeline | — | Show available workflows and how to start one |
 | Active pipeline, `last_tick` missing | First tick in session or newly started pipeline | Inject full job context and guidance |
 | Active pipeline, state differs from `last_tick` | Job advanced | Inject the new job’s full context |
 | Active pipeline, state matches `last_tick` | No change | Inject only a minimal reminder |
+| No active pipeline, first failing auto invariant | No workflow is currently running | Inject only that invariant’s remediation guidance and stop checking later invariants |
+| No active pipeline, auto invariants passed, workflows available | No workflow is currently running | Show available workflows and how to start one |
+| No active pipeline, auto invariants passed, no workflows available | Nothing needs immediate guidance | Inject nothing |
 
 ---
 
@@ -277,17 +279,21 @@ extract session_id from hook input
 check whether /tmp/argus/<safe-id>.yaml exists
   ↓
 ┌────────── missing (first tick) ──────────┐
-│ 1. Run all auto: session_start checks    │
+│ 1. If no active pipeline exists, run     │
+│    auto invariants including             │
+│    session_start until the first failure │
 │ 2. Create the session data file          │
-│ 3. Inject first-session guidance         │
+│ 3. Inject pipeline, invariant, workflow, │
+│    or no output based on precedence      │
 └──────────────────────────────────────────┘
   ↓
 ┌────────── present (later tick) ──────────┐
 │ 1. Skip session_start checks             │
-│ 2. Inject normal pipeline context        │
+│ 2. Inject pipeline, invariant, workflow, │
+│    or no output based on precedence      │
 └──────────────────────────────────────────┘
 ```
 
 ### Safety Detail
 
-The session file is created **after** invariant checks finish, whether they pass or fail. If the process is interrupted during checking, the next tick will run the full first-session logic again. This avoids accidentally skipping first-session checks because a previous attempt was cut off midway.
+The session file is created **after** any required invariant checks finish, or immediately on the active-pipeline path where no invariant checks are needed. If the process is interrupted during no-pipeline checking, the next tick will run the full first-session logic again. This avoids accidentally skipping first-session checks because a previous attempt was cut off midway.

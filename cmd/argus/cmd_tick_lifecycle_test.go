@@ -184,8 +184,8 @@ func TestTickLifecycle_Snooze(t *testing.T) {
 	assert.NotContains(t, output, "Current Job:")
 }
 
-// TestTickLifecycle_FirstTickInvariant verifies that the first tick runs both
-// session_start and always invariants, while subsequent ticks only run always.
+// TestTickLifecycle_FirstTickInvariant verifies that no-pipeline invariant checks
+// stop at the first failure and therefore produce invariant-only output.
 func TestTickLifecycle_FirstTickInvariant(t *testing.T) {
 	t.Chdir(t.TempDir())
 	writeWorkflowFixture(t, "tick-lifecycle", tickLifecycleWorkflow)
@@ -196,15 +196,16 @@ func TestTickLifecycle_FirstTickInvariant(t *testing.T) {
 	cleanupSessionFile(t, sessionID)
 	stdinJSON := fmt.Sprintf(`{"session_id":"%s"}`, sessionID)
 
-	// First tick — both session_start and always invariants run and fail
+	// First tick — stop at the first failing invariant.
 	out, err := executeTickCmd(t, stdinJSON, "--agent", "claude-code")
 	require.NoError(t, err)
 	output := string(out)
-	assert.Contains(t, output, "tick-session-start-inv")
 	assert.Contains(t, output, "tick-always-inv")
 	assert.Contains(t, output, "Invariant check failed")
+	assert.NotContains(t, output, "tick-session-start-inv")
+	assert.NotContains(t, output, "No active pipeline")
 
-	// Second tick — only always invariant runs (session_start skipped)
+	// Second tick — session_start remains skipped and always invariant still fails first.
 	out, err = executeTickCmd(t, stdinJSON, "--agent", "claude-code")
 	require.NoError(t, err)
 	output = string(out)
@@ -319,6 +320,58 @@ prompt: "this prompt should never be injected"
 	assert.NotContains(t, output, "Invariant check failed")
 	assert.NotContains(t, output, "tick-pass-inv")
 	assert.NotContains(t, output, "this prompt should never be injected")
+}
+
+func TestTickLifecycle_ActivePipelineSkipsInvariantChecks(t *testing.T) {
+	t.Chdir(t.TempDir())
+	writeWorkflowFixture(t, "tick-lifecycle", tickLifecycleWorkflow)
+	writeInvariantFixture(t, "tick-active-pipeline-inv", `version: v0.1.0
+id: tick-active-pipeline-inv
+description: Should be skipped while pipeline is active
+auto: always
+check:
+  - shell: "exit 1"
+    description: "always fails"
+prompt: "do not show this while a pipeline is active"
+`)
+
+	sessionID := "a0a0a0a0-0010-0010-0010-000000000010"
+	cleanupSessionFile(t, sessionID)
+	stdinJSON := fmt.Sprintf(`{"session_id":"%s"}`, sessionID)
+
+	_, err := executeStartCmd(t, "tick-lifecycle")
+	require.NoError(t, err)
+
+	out, err := executeTickCmd(t, stdinJSON, "--agent", "claude-code")
+	require.NoError(t, err)
+
+	output := string(out)
+	assert.Contains(t, output, "Current Job:")
+	assert.Contains(t, output, "step_one")
+	assert.NotContains(t, output, "Invariant check failed")
+	assert.NotContains(t, output, "tick-active-pipeline-inv")
+	assert.NotContains(t, output, "do not show this while a pipeline is active")
+}
+
+func TestTickLifecycle_NoWorkflowAndPassingInvariantReturnsEmpty(t *testing.T) {
+	t.Chdir(t.TempDir())
+	writeInvariantFixture(t, "tick-pass-inv", `version: v0.1.0
+id: tick-pass-inv
+description: Passing invariant
+auto: always
+check:
+  - shell: "exit 0"
+    description: "always passes"
+prompt: "this prompt should never be injected"
+`)
+
+	sessionID := "a0a0a0a0-0011-0011-0011-000000000011"
+	cleanupSessionFile(t, sessionID)
+	stdinJSON := fmt.Sprintf(`{"session_id":"%s"}`, sessionID)
+
+	out, err := executeTickCmd(t, stdinJSON, "--agent", "claude-code")
+	require.NoError(t, err)
+	assert.Empty(t, string(out))
 }
 
 // TestTickLifecycle_SubAgentSkip verifies that sub-agent ticks produce

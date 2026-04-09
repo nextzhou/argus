@@ -156,13 +156,13 @@ Specific commands define their own inner fields (see §8.2 `workflow start`, §8
 
 # 8. Output Formats
 
-## 8.1 `tick` Output (Five Scenarios)
+## 8.1 `tick` Output (Six Scenarios)
 
 `argus tick --agent <name>` returns plain text. Wrappers then inject that text into each host agent’s own context mechanism.
 
 **Compatibility rule**: the first non-whitespace character must not be `[` or `{`. Current Codex may interpret those prefixes as JSON candidates and reject otherwise valid text output.
 
-### Scenario 1: No Active Pipeline
+### Scenario 1: No Active Pipeline, Invariants Passed, Workflows Available
 
 ```markdown
 Argus: No active pipeline.
@@ -197,17 +197,21 @@ Argus: release | Job: run_tests | Progress: 2/5 — When done: argus job-done
 
 ### Scenario 4: Snoozed
 
-If the current pipeline has been snoozed in the current session, output becomes equivalent to the “No active pipeline” case.
+If the current pipeline has been snoozed in the current session, output becomes equivalent to the no-pipeline workflow-list case when workflows are available. If no workflows are available, output is empty.
 
-### Scenario 5: First Tick Plus Failed Invariant
+### Scenario 5: No Active Pipeline, First Failing Invariant
 
-Append invariant failure information after the base scenario output:
+When no active pipeline exists, `tick` evaluates auto invariants and stops at the first failing one. The invariant failure becomes the only output:
 
 ```markdown
 Argus: Invariant check failed:
   - argus-init: The project has completed Argus initialization
     Suggestion: Run argus workflow start argus-init
 ```
+
+### Scenario 6: No Active Pipeline, Invariants Passed, No Workflows Available
+
+`tick` emits no output.
 
 ## 8.2 `workflow start` Output
 

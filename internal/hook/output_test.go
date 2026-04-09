@@ -127,58 +127,19 @@ func TestFormatSnoozed(t *testing.T) {
 	assert.Equal(t, expected, output)
 }
 
-func TestAppendInvariantFailed(t *testing.T) {
-	base := "Argus: Some base output"
-	failures := []InvariantFailure{
-		{
-			ID:          "argus-init",
-			Description: "Project not initialized",
-			Suggestion:  "Run argus-init workflow",
-		},
-	}
-
-	output, err := AppendInvariantFailed(base, failures)
+func TestFormatInvariantFailure(t *testing.T) {
+	output, err := FormatInvariantFailure(InvariantFailure{
+		ID:          "argus-init",
+		Description: "Project not initialized",
+		Suggestion:  "Run argus-init workflow",
+	})
 
 	require.NoError(t, err)
 	assertHookSafeTickText(t, output)
-	assert.Contains(t, output, base)
-	assert.Contains(t, output, "---")
 	assert.Contains(t, output, "Argus: Invariant check failed:")
 	assert.Contains(t, output, "argus-init")
 	assert.Contains(t, output, "Project not initialized")
 	assert.Contains(t, output, "Suggestion: Run argus-init workflow")
-}
-
-func TestAppendInvariantFailed_Empty(t *testing.T) {
-	base := "Argus: Some base output"
-
-	output, err := AppendInvariantFailed(base, []InvariantFailure{})
-
-	require.NoError(t, err)
-	assert.Equal(t, base, output)
-}
-
-func TestAppendInvariantFailed_Multiple(t *testing.T) {
-	base := "Argus: Base"
-	failures := []InvariantFailure{
-		{
-			ID:          "check-1",
-			Description: "First check failed",
-			Suggestion:  "Fix first",
-		},
-		{
-			ID:          "check-2",
-			Description: "Second check failed",
-			Suggestion:  "Fix second",
-		},
-	}
-
-	output, err := AppendInvariantFailed(base, failures)
-
-	require.NoError(t, err)
-	assertHookSafeTickText(t, output)
-	assert.Contains(t, output, "check-1")
-	assert.Contains(t, output, "check-2")
-	assert.Contains(t, output, "First check failed")
-	assert.Contains(t, output, "Second check failed")
+	assert.NotContains(t, output, "No active pipeline")
+	assert.NotContains(t, output, "---")
 }

@@ -75,24 +75,14 @@ func FormatSnoozed(workflows []WorkflowSummary) (string, error) {
 	return FormatNoPipeline(workflows)
 }
 
-// AppendInvariantFailed appends an invariant failure section to the base output.
-// If failures is empty, the base output is returned unchanged.
-// The appended section preserves the same hook-safe "Argus:" text prefix and
-// lists failed invariants with suggestions.
-func AppendInvariantFailed(base string, failures []InvariantFailure) (string, error) {
-	if len(failures) == 0 {
-		return base, nil
-	}
-
+// FormatInvariantFailure returns readable text for a failed invariant when no
+// active pipeline is running. Invariant failures are a mutually exclusive tick
+// outcome and do not append to other output.
+func FormatInvariantFailure(failure InvariantFailure) (string, error) {
 	data := struct {
-		Failures []InvariantFailure
+		Failure InvariantFailure
 	}{
-		Failures: failures,
+		Failure: failure,
 	}
-	appendix, err := renderTemplate("prompts/tick-invariant-failed.md.tmpl", data)
-	if err != nil {
-		return "", err
-	}
-
-	return base + "\n" + appendix, nil
+	return renderTemplate("prompts/tick-invariant-failed.md.tmpl", data)
 }

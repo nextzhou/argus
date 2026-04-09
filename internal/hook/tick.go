@@ -80,14 +80,22 @@ func HandleTick(agent string, global bool, stdin io.Reader, stdout io.Writer, pr
 
 	firstTick := session.IsFirstTick(sessionBaseDir, input.SessionID)
 
-	output, logDetails, snapshotPipelineID, snapshotJobID := buildTickOutput(s, input.SessionID, sess, activePipelines, scanWarnings)
-
-	failures := runTickInvariants(s, firstTick)
-	outputWithInvariants, err := AppendInvariantFailed(output, failures)
-	if err != nil {
-		output = appendTickWarningText(output, fmt.Sprintf("format error: %v", err))
+	var (
+		output             string
+		logDetails         string
+		snapshotPipelineID string
+		snapshotJobID      string
+	)
+	if len(activePipelines) == 0 {
+		output, logDetails = buildNoActivePipelineOutput(s, firstTick)
 	} else {
-		output = outputWithInvariants
+		output, logDetails, snapshotPipelineID, snapshotJobID = buildActivePipelineOutput(
+			s,
+			input.SessionID,
+			sess,
+			activePipelines,
+			scanWarnings,
+		)
 	}
 
 	session.UpdateLastTick(sess, snapshotPipelineID, snapshotJobID, time.Now())
@@ -107,29 +115,24 @@ func HandleTick(agent string, global bool, stdin io.Reader, stdout io.Writer, pr
 	return nil
 }
 
-func buildTickOutput(
+func buildActivePipelineOutput(
 	s scope.Scope,
 	sessionID string,
 	sess *session.Session,
 	activePipelines []pipeline.ActivePipeline,
 	scanWarnings []pipeline.ScanWarning,
 ) (output string, logDetails string, snapshotPipelineID string, snapshotJobID string) {
-	workflows := loadTickWorkflowSummaries(s)
 	logDetails = fmt.Sprintf("active=%d warnings=%d", len(activePipelines), len(scanWarnings))
 	formatErrorOutput := func(err error, pipelineID string, jobID string) (string, string, string, string) {
 		return appendTickWarningText("", fmt.Sprintf("format error: %v", err)), logDetails + " scenario=format-error", pipelineID, jobID
 	}
 
-	if len(activePipelines) == 0 {
-		output, err := FormatNoPipeline(workflows)
-		if err != nil {
-			return formatErrorOutput(err, "", "")
-		}
-		return output, logDetails + " scenario=no-pipeline", "", ""
-	}
-
 	active := activePipelines[0]
 	if session.IsSnoozed(sess, active.InstanceID) {
+		workflows := loadTickWorkflowSummaries(s)
+		if len(workflows) == 0 {
+			return "", logDetails + " scenario=snoozed-no-output", "", ""
+		}
 		output, err := FormatSnoozed(workflows)
 		if err != nil {
 			return formatErrorOutput(err, "", "")
@@ -138,6 +141,7 @@ func buildTickOutput(
 	}
 
 	if active.Pipeline.CurrentJob == nil {
+		workflows := loadTickWorkflowSummaries(s)
 		output, err := FormatNoPipeline(workflows)
 		if err != nil {
 			return formatErrorOutput(err, active.InstanceID, "")
@@ -152,6 +156,7 @@ func buildTickOutput(
 	wf, err := s.LoadWorkflow(active.Pipeline.WorkflowID)
 	if err != nil {
 		warning := fmt.Sprintf("could not load workflow %s: %v", active.Pipeline.WorkflowID, err)
+		workflows := loadTickWorkflowSummaries(s)
 		output, formatErr := FormatNoPipeline(workflows)
 		if formatErr != nil {
 			return formatErrorOutput(formatErr, snapshotPipelineID, snapshotJobID)
@@ -162,6 +167,7 @@ func buildTickOutput(
 	jobIndex, found := pipeline.FindJobIndex(wf, currentJobID)
 	if !found {
 		warning := fmt.Sprintf("current job %s was not found in workflow %s", currentJobID, active.Pipeline.WorkflowID)
+		workflows := loadTickWorkflowSummaries(s)
 		output, err := FormatNoPipeline(workflows)
 		if err != nil {
 			return formatErrorOutput(err, snapshotPipelineID, snapshotJobID)
@@ -184,6 +190,29 @@ func buildTickOutput(
 		return formatErrorOutput(err, snapshotPipelineID, snapshotJobID)
 	}
 	return output, logDetails + " scenario=minimal", snapshotPipelineID, snapshotJobID
+}
+
+func buildNoActivePipelineOutput(s scope.Scope, firstTick bool) (output string, logDetails string) {
+	logDetails = "active=0 warnings=0"
+	failure := runTickInvariants(s, firstTick)
+	if failure != nil {
+		output, err := FormatInvariantFailure(*failure)
+		if err != nil {
+			return appendTickWarningText("", fmt.Sprintf("format error: %v", err)), logDetails + " scenario=format-error"
+		}
+		return output, logDetails + " scenario=invariant-failed invariant=" + failure.ID
+	}
+
+	workflows := loadTickWorkflowSummaries(s)
+	if len(workflows) == 0 {
+		return "", logDetails + " scenario=no-output"
+	}
+
+	output, err := FormatNoPipeline(workflows)
+	if err != nil {
+		return appendTickWarningText("", fmt.Sprintf("format error: %v", err)), logDetails + " scenario=format-error"
+	}
+	return output, logDetails + " scenario=no-pipeline"
 }
 
 func loadTickWorkflowSummaries(s scope.Scope) []WorkflowSummary {
@@ -249,7 +278,7 @@ func buildPipelineJobDataMap(p *pipeline.Pipeline) map[string]*workflow.Pipeline
 	return templateJobs
 }
 
-func runTickInvariants(s scope.Scope, firstTick bool) []InvariantFailure {
+func runTickInvariants(s scope.Scope, firstTick bool) *InvariantFailure {
 	if s == nil {
 		return nil
 	}
@@ -263,7 +292,6 @@ func runTickInvariants(s scope.Scope, firstTick bool) []InvariantFailure {
 		return nil
 	}
 
-	failures := make([]InvariantFailure, 0)
 	ctx := context.Background()
 	for _, inv := range invariants {
 		if !shouldRunInvariantAuto(inv, firstTick) {
@@ -275,14 +303,15 @@ func runTickInvariants(s scope.Scope, firstTick bool) []InvariantFailure {
 			continue
 		}
 
-		failures = append(failures, InvariantFailure{
+		failure := InvariantFailure{
 			ID:          inv.ID,
 			Description: describeInvariant(inv),
 			Suggestion:  invariantSuggestion(inv),
-		})
+		}
+		return &failure
 	}
 
-	return failures
+	return nil
 }
 
 func shouldRunInvariantAuto(inv *invariant.Invariant, firstTick bool) bool {
