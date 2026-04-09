@@ -2,7 +2,10 @@
 package scope
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -72,7 +75,10 @@ func (s *fsScope) LoadInvariants() ([]*invariant.Invariant, error) {
 	invariantsDir := filepath.Join(s.root, "invariants")
 	entries, err := os.ReadDir(invariantsDir)
 	if err != nil {
-		return nil, nil
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("reading invariants directory: %w", err)
 	}
 
 	invariants := make([]*invariant.Invariant, 0, len(entries))
@@ -84,6 +90,7 @@ func (s *fsScope) LoadInvariants() ([]*invariant.Invariant, error) {
 
 		inv, err := invariant.ParseInvariantFile(filepath.Join(invariantsDir, name))
 		if err != nil {
+			slog.Warn("skipping unparseable invariant file", "file", name, "error", err)
 			continue
 		}
 
@@ -119,7 +126,10 @@ func (s *fsScope) LoadWorkflow(id string) (*workflow.Workflow, error) {
 func (s *fsScope) LoadWorkflowSummaries() ([]WorkflowSummary, error) {
 	entries, err := os.ReadDir(s.workflowsDir)
 	if err != nil {
-		return nil, nil
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("reading workflows directory: %w", err)
 	}
 
 	summaries := make([]WorkflowSummary, 0, len(entries))
@@ -131,6 +141,7 @@ func (s *fsScope) LoadWorkflowSummaries() ([]WorkflowSummary, error) {
 
 		wf, err := workflow.ParseWorkflowFile(filepath.Join(s.workflowsDir, name))
 		if err != nil {
+			slog.Warn("skipping unparseable workflow file", "file", name, "error", err)
 			continue
 		}
 

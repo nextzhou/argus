@@ -78,6 +78,26 @@ prompt: "ignored"
 	assert.Equal(t, "always", invariants[0].Auto)
 }
 
+func TestLoadInvariants_MissingDir(t *testing.T) {
+	projectRoot := t.TempDir()
+	artifactScope := NewProjectScope(projectRoot)
+
+	invariants, err := artifactScope.LoadInvariants()
+	require.NoError(t, err)
+	assert.Nil(t, invariants)
+}
+
+func TestLoadInvariants_ReadDirError(t *testing.T) {
+	projectRoot := t.TempDir()
+	artifactScope := NewProjectScope(projectRoot)
+	writeScopeTestFile(t, filepath.Join(projectRoot, ".argus", "invariants"), "not a directory")
+
+	invariants, err := artifactScope.LoadInvariants()
+	require.Error(t, err)
+	assert.Nil(t, invariants)
+	assert.ErrorContains(t, err, "reading invariants directory")
+}
+
 func TestScanActivePipelines(t *testing.T) {
 	projectRoot := t.TempDir()
 	artifactScope := NewProjectScope(projectRoot)
@@ -183,6 +203,26 @@ jobs:
 
 	assert.Equal(t, WorkflowSummary{ID: "build", Description: "Build workflow", Jobs: 1}, summaryByID["build"])
 	assert.Equal(t, WorkflowSummary{ID: "release", Description: "Release workflow", Jobs: 2}, summaryByID["release"])
+}
+
+func TestLoadWorkflowSummaries_MissingDir(t *testing.T) {
+	projectRoot := t.TempDir()
+	artifactScope := NewProjectScope(projectRoot)
+
+	summaries, err := artifactScope.LoadWorkflowSummaries()
+	require.NoError(t, err)
+	assert.Nil(t, summaries)
+}
+
+func TestLoadWorkflowSummaries_ReadDirError(t *testing.T) {
+	projectRoot := t.TempDir()
+	artifactScope := NewProjectScope(projectRoot)
+	writeScopeTestFile(t, filepath.Join(projectRoot, ".argus", "workflows"), "not a directory")
+
+	summaries, err := artifactScope.LoadWorkflowSummaries()
+	require.Error(t, err)
+	assert.Nil(t, summaries)
+	assert.ErrorContains(t, err, "reading workflows directory")
 }
 
 func TestInterfaceSatisfaction(t *testing.T) {

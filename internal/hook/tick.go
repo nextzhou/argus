@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -192,6 +193,7 @@ func loadTickWorkflowSummaries(s scope.Scope) []WorkflowSummary {
 
 	summaries, err := s.LoadWorkflowSummaries()
 	if err != nil {
+		slog.Debug("tick: could not load workflow summaries", "error", err)
 		return nil
 	}
 	return toHookWorkflowSummaries(summaries)
@@ -253,7 +255,11 @@ func runTickInvariants(s scope.Scope, firstTick bool) []InvariantFailure {
 	}
 
 	invariants, err := s.LoadInvariants()
-	if err != nil || len(invariants) == 0 {
+	if err != nil {
+		slog.Debug("tick: could not load invariants", "error", err)
+		return nil
+	}
+	if len(invariants) == 0 {
 		return nil
 	}
 

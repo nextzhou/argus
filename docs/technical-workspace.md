@@ -97,7 +97,7 @@ graph TD
 **关键设计变更**：
 
 1. **共享引擎**：全局作用域不再使用硬编码的引导分支，而是运行真实的 Invariant 检查和 Pipeline 编排。
-2. **引导即 Artifact**：原来的"引导安装"逻辑现在由全局不变量（如 `argus-project-init`）和修复工作流（如 `argus-init`）实现。
+2. **引导即 Artifact**：原来的"引导安装"逻辑现在由全局不变量 `argus-project-init` 实现，其 `prompt` 字段包含安装引导信息。项目级修复工作流（如 `argus-init`）仅在项目作用域内可用。
 3. **状态持久化**：全局作用域下的 Pipeline 状态存储在全局路径 `~/.config/argus/pipelines/` 下，并以项目路径的哈希作为标识。
 
 ### 10.5 与项目级 install 的关系

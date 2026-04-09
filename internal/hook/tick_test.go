@@ -2,6 +2,8 @@ package hook
 
 import (
 	"bytes"
+	"errors"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"testing"
@@ -75,6 +77,26 @@ func TestHandleTick_NoProjectRoot(t *testing.T) {
 	assertHookSafeTickText(t, out.String())
 	assert.Contains(t, out.String(), "Argus warning")
 	assert.Contains(t, out.String(), "not inside an Argus project")
+}
+
+func TestLoadTickWorkflowSummaries_LoadError(t *testing.T) {
+	logs := captureDebugLogs(t, func() {
+		summaries := loadTickWorkflowSummaries(errorLoadingScope{workflowErr: errors.New("boom")})
+		assert.Nil(t, summaries)
+	})
+
+	assert.Contains(t, logs, "tick: could not load workflow summaries")
+	assert.Contains(t, logs, "boom")
+}
+
+func TestRunTickInvariants_LoadError(t *testing.T) {
+	logs := captureDebugLogs(t, func() {
+		failures := runTickInvariants(errorLoadingScope{invariantErr: errors.New("boom")}, true)
+		assert.Nil(t, failures)
+	})
+
+	assert.Contains(t, logs, "tick: could not load invariants")
+	assert.Contains(t, logs, "boom")
 }
 
 func TestInvariantSuggestion(t *testing.T) {
@@ -711,4 +733,53 @@ func loadTickActivePipelines(t *testing.T, projectRoot string) ([]pipeline.Activ
 	activePipelines, scanWarnings, err := pipeline.ScanActivePipelines(filepath.Join(projectRoot, ".argus", "pipelines"))
 	require.NoError(t, err)
 	return activePipelines, scanWarnings
+}
+
+type errorLoadingScope struct {
+	workflowErr  error
+	invariantErr error
+}
+
+func (s errorLoadingScope) LoadInvariants() ([]*invariant.Invariant, error) {
+	return nil, s.invariantErr
+}
+
+func (s errorLoadingScope) ScanActivePipelines() ([]pipeline.ActivePipeline, []pipeline.ScanWarning, error) {
+	return nil, nil, nil
+}
+
+func (s errorLoadingScope) LoadWorkflow(string) (*workflow.Workflow, error) {
+	return nil, nil
+}
+
+func (s errorLoadingScope) LoadWorkflowSummaries() ([]scope.WorkflowSummary, error) {
+	return nil, s.workflowErr
+}
+
+func (s errorLoadingScope) ProjectRoot() string {
+	return ""
+}
+
+func (s errorLoadingScope) PipelinesDir() string {
+	return ""
+}
+
+func (s errorLoadingScope) WorkflowsDir() string {
+	return ""
+}
+
+func (s errorLoadingScope) LogsDir() string {
+	return ""
+}
+
+func captureDebugLogs(t *testing.T, fn func()) string {
+	t.Helper()
+
+	var buf bytes.Buffer
+	oldDefault := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug})))
+	defer slog.SetDefault(oldDefault)
+
+	fn()
+	return buf.String()
 }
