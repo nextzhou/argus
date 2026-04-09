@@ -10,7 +10,6 @@ import (
 )
 
 // LogHookExecution writes a single log entry for a hook execution.
-// projectRoot is the project root path (empty string triggers global fallback).
 // command is the hook command name (e.g. "tick", "trap").
 // success indicates whether the hook execution was successful.
 // details provides additional context for the log entry.
@@ -18,17 +17,13 @@ import (
 // Log format: {COMPACT_UTC} [{COMMAND}] {OK|ERROR} {DETAILS}
 // Example: 20260408T071500Z [tick] OK pipeline: release
 //
-// File path logic:
-// - Primary path: <projectRoot>/.argus/logs/hook.log (when projectRoot is non-empty)
-// - Fallback path: ~/.config/argus/logs/hook.log (when projectRoot is empty string)
-//
 // Parent directories are auto-created if they don't exist.
 // File is opened in append mode.
-func LogHookExecution(projectRoot string, command string, success bool, details string) (err error) {
+func LogHookExecution(logsDir string, command string, success bool, details string) (err error) {
 	// Determine log file path
 	var logPath string
-	if projectRoot != "" {
-		logPath = filepath.Join(projectRoot, ".argus", "logs", "hook.log")
+	if logsDir != "" {
+		logPath = filepath.Join(logsDir, "hook.log")
 	} else {
 		// Fallback to global user-level directory
 		homeDir, err := os.UserHomeDir()

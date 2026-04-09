@@ -6,37 +6,21 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/nextzhou/argus/internal/invariant"
 	"github.com/nextzhou/argus/internal/pipeline"
+	"github.com/nextzhou/argus/internal/scope"
 	"github.com/nextzhou/argus/internal/session"
 	"github.com/nextzhou/argus/internal/workflow"
 	"github.com/nextzhou/argus/internal/workspace"
-	"gopkg.in/yaml.v3"
 )
 
 // HandleTick orchestrates the tick command logic.
 // It reads stdin, determines project state, and writes context output.
 // It always succeeds (errors become warning text) to maintain fail-open behavior.
 func HandleTick(agent string, global bool, stdin io.Reader, stdout io.Writer, projectRoot string, sessionBaseDir string) error {
-	if global {
-		output, err := HandleGlobalTick(projectRoot, stdin, agent)
-		if err != nil {
-			writeTickWarning(stdout, "global tick error: %v", err)
-			_ = LogHookExecution("", "tick", false, "global: "+err.Error())
-			return nil
-		}
-		if output != "" {
-			_, _ = io.WriteString(stdout, output)
-		}
-		_ = LogHookExecution("", "tick", true, "global")
-		return nil
-	}
-
 	input, err := ParseInput(stdin, agent)
 	if err != nil {
 		writeTickWarning(stdout, "could not parse hook input: %v", err)
@@ -53,12 +37,28 @@ func HandleTick(agent string, global bool, stdin io.Reader, stdout io.Writer, pr
 		return nil
 	}
 	if root == nil {
-		writeTickWarning(stdout, "not inside an Argus project")
+		if !global {
+			writeTickWarning(stdout, "not inside an Argus project")
+		}
 		return nil
 	}
 
-	pipelinesDir := filepath.Join(root.Path, ".argus", "pipelines")
-	activePipelines, scanWarnings, err := pipeline.ScanActivePipelines(pipelinesDir)
+	s, err := scope.ResolveScopeForTick(root, global)
+	if err != nil {
+		writeTickWarning(stdout, "scope resolution error: %v", err)
+		_ = LogHookExecution("", "tick", false, "scope: "+err.Error())
+		return nil
+	}
+	if s == nil {
+		if !global {
+			writeTickWarning(stdout, "not inside an Argus project")
+		} else {
+			_ = LogHookExecution("", "tick", true, "no-scope")
+		}
+		return nil
+	}
+
+	activePipelines, scanWarnings, err := s.ScanActivePipelines()
 	if err != nil {
 		writeTickWarning(stdout, "could not scan active pipelines: %v", err)
 		return nil
@@ -79,9 +79,9 @@ func HandleTick(agent string, global bool, stdin io.Reader, stdout io.Writer, pr
 
 	firstTick := session.IsFirstTick(sessionBaseDir, input.SessionID)
 
-	output, logDetails, snapshotPipelineID, snapshotJobID := buildTickOutput(root.Path, input.SessionID, sess, activePipelines, scanWarnings)
+	output, logDetails, snapshotPipelineID, snapshotJobID := buildTickOutput(s, input.SessionID, sess, activePipelines, scanWarnings)
 
-	failures := runTickInvariants(root.Path, firstTick)
+	failures := runTickInvariants(s, firstTick)
 	outputWithInvariants, err := AppendInvariantFailed(output, failures)
 	if err != nil {
 		output = appendTickWarningText(output, fmt.Sprintf("format error: %v", err))
@@ -95,7 +95,7 @@ func HandleTick(agent string, global bool, stdin io.Reader, stdout io.Writer, pr
 		return nil
 	}
 
-	if err := LogHookExecution(root.Path, "tick", true, logDetails); err != nil {
+	if err := LogHookExecution(s.LogsDir(), "tick", true, logDetails); err != nil {
 		output = appendTickWarningText(output, fmt.Sprintf("could not write hook log: %v", err))
 	}
 
@@ -107,13 +107,13 @@ func HandleTick(agent string, global bool, stdin io.Reader, stdout io.Writer, pr
 }
 
 func buildTickOutput(
-	projectRoot string,
+	s scope.Scope,
 	sessionID string,
 	sess *session.Session,
 	activePipelines []pipeline.ActivePipeline,
 	scanWarnings []pipeline.ScanWarning,
 ) (output string, logDetails string, snapshotPipelineID string, snapshotJobID string) {
-	workflows := loadWorkflowSummaries(filepath.Join(projectRoot, ".argus", "workflows"))
+	workflows := loadTickWorkflowSummaries(s)
 	logDetails = fmt.Sprintf("active=%d warnings=%d", len(activePipelines), len(scanWarnings))
 	formatErrorOutput := func(err error, pipelineID string, jobID string) (string, string, string, string) {
 		return appendTickWarningText("", fmt.Sprintf("format error: %v", err)), logDetails + " scenario=format-error", pipelineID, jobID
@@ -148,8 +148,7 @@ func buildTickOutput(
 	snapshotPipelineID = active.InstanceID
 	snapshotJobID = currentJobID
 
-	workflowPath := filepath.Join(projectRoot, ".argus", "workflows", active.Pipeline.WorkflowID+".yaml")
-	wf, err := loadWorkflowForTick(filepath.Join(projectRoot, ".argus", "workflows"), workflowPath)
+	wf, err := s.LoadWorkflow(active.Pipeline.WorkflowID)
 	if err != nil {
 		warning := fmt.Sprintf("could not load workflow %s: %v", active.Pipeline.WorkflowID, err)
 		output, formatErr := FormatNoPipeline(workflows)
@@ -186,28 +185,29 @@ func buildTickOutput(
 	return output, logDetails + " scenario=minimal", snapshotPipelineID, snapshotJobID
 }
 
-func loadWorkflowSummaries(workflowsDir string) []WorkflowSummary {
-	entries, err := os.ReadDir(workflowsDir)
-	if err != nil {
+func loadTickWorkflowSummaries(s scope.Scope) []WorkflowSummary {
+	if s == nil {
 		return nil
 	}
 
-	summaries := make([]WorkflowSummary, 0, len(entries))
-	for _, entry := range entries {
-		name := entry.Name()
-		if entry.IsDir() || !strings.HasSuffix(name, ".yaml") || strings.HasPrefix(name, "_") {
-			continue
-		}
+	summaries, err := s.LoadWorkflowSummaries()
+	if err != nil {
+		return nil
+	}
+	return toHookWorkflowSummaries(summaries)
+}
 
-		wf, err := workflow.ParseWorkflowFile(filepath.Join(workflowsDir, name))
-		if err != nil {
-			continue
-		}
+func toHookWorkflowSummaries(scopeSummaries []scope.WorkflowSummary) []WorkflowSummary {
+	if len(scopeSummaries) == 0 {
+		return nil
+	}
 
-		summaries = append(summaries, WorkflowSummary{
-			ID:          wf.ID,
-			Description: wf.Description,
-		})
+	summaries := make([]WorkflowSummary, len(scopeSummaries))
+	for index, summary := range scopeSummaries {
+		summaries[index] = WorkflowSummary{
+			ID:          summary.ID,
+			Description: summary.Description,
+		}
 	}
 
 	return summaries
@@ -247,27 +247,24 @@ func buildPipelineJobDataMap(p *pipeline.Pipeline) map[string]*workflow.Pipeline
 	return templateJobs
 }
 
-func runTickInvariants(projectRoot string, firstTick bool) []InvariantFailure {
-	invariantsDir := filepath.Join(projectRoot, ".argus", "invariants")
-	entries, err := os.ReadDir(invariantsDir)
-	if err != nil {
+func runTickInvariants(s scope.Scope, firstTick bool) []InvariantFailure {
+	if s == nil {
+		return nil
+	}
+
+	invariants, err := s.LoadInvariants()
+	if err != nil || len(invariants) == 0 {
 		return nil
 	}
 
 	failures := make([]InvariantFailure, 0)
 	ctx := context.Background()
-	for _, entry := range entries {
-		name := entry.Name()
-		if entry.IsDir() || !strings.HasSuffix(name, ".yaml") || strings.HasPrefix(name, "_") {
+	for _, inv := range invariants {
+		if !shouldRunInvariantAuto(inv, firstTick) {
 			continue
 		}
 
-		inv, err := invariant.ParseInvariantFile(filepath.Join(invariantsDir, name))
-		if err != nil || !shouldRunInvariantAuto(inv, firstTick) {
-			continue
-		}
-
-		result := invariant.RunCheck(ctx, inv, projectRoot)
+		result := invariant.RunCheck(ctx, inv, s.ProjectRoot())
 		if result.Passed {
 			continue
 		}
@@ -320,93 +317,6 @@ func invariantSuggestion(inv *invariant.Invariant) string {
 		return inv.Prompt
 	}
 	return "Review the invariant definition and project state"
-}
-
-func loadWorkflowForTick(workflowsDir, workflowPath string) (*workflow.Workflow, error) {
-	wf, err := workflow.ParseWorkflowFile(workflowPath)
-	if err != nil {
-		return nil, err
-	}
-
-	resolved, err := resolveTickWorkflowRefs(workflowsDir, workflowPath, wf)
-	if err != nil {
-		return nil, err
-	}
-
-	return resolved, nil
-}
-
-func resolveTickWorkflowRefs(workflowsDir, workflowPath string, wf *workflow.Workflow) (*workflow.Workflow, error) {
-	if wf == nil {
-		return nil, fmt.Errorf("workflow is nil")
-	}
-
-	hasRefs := false
-	for _, job := range wf.Jobs {
-		if job.Ref != "" {
-			hasRefs = true
-			break
-		}
-	}
-	if !hasRefs {
-		return wf, nil
-	}
-
-	shared, err := workflow.LoadShared(filepath.Join(workflowsDir, "_shared.yaml"))
-	if err != nil {
-		return nil, fmt.Errorf("loading shared definitions: %w", err)
-	}
-
-	data, err := os.ReadFile(workflowPath)
-	if err != nil {
-		return nil, fmt.Errorf("re-reading workflow for ref resolution: %w", err)
-	}
-
-	var doc yaml.Node
-	if err := yaml.Unmarshal(data, &doc); err != nil {
-		return nil, fmt.Errorf("parsing workflow nodes: %w", err)
-	}
-
-	jobNodes := findTickJobNodes(&doc)
-	resolved := *wf
-	resolved.Jobs = append([]workflow.Job(nil), wf.Jobs...)
-	for index, job := range resolved.Jobs {
-		if job.Ref == "" || index >= len(jobNodes) {
-			continue
-		}
-
-		resolvedJob, err := workflow.ResolveRef(jobNodes[index], shared)
-		if err != nil {
-			return nil, fmt.Errorf("resolving ref for job[%d]: %w", index, err)
-		}
-		resolved.Jobs[index] = *resolvedJob
-	}
-
-	return &resolved, nil
-}
-
-func findTickJobNodes(doc *yaml.Node) []*yaml.Node {
-	if doc.Kind != yaml.DocumentNode || len(doc.Content) == 0 {
-		return nil
-	}
-	root := doc.Content[0]
-	if root.Kind != yaml.MappingNode {
-		return nil
-	}
-
-	for index := 0; index < len(root.Content)-1; index += 2 {
-		if root.Content[index].Value != "jobs" {
-			continue
-		}
-
-		jobsNode := root.Content[index+1]
-		if jobsNode.Kind != yaml.SequenceNode {
-			return nil
-		}
-		return jobsNode.Content
-	}
-
-	return nil
 }
 
 func writeTickWarning(stdout io.Writer, format string, args ...any) {

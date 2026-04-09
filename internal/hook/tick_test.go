@@ -8,11 +8,11 @@ import (
 
 	"github.com/nextzhou/argus/internal/invariant"
 	"github.com/nextzhou/argus/internal/pipeline"
+	"github.com/nextzhou/argus/internal/scope"
 	"github.com/nextzhou/argus/internal/session"
 	"github.com/nextzhou/argus/internal/workflow"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v3"
 )
 
 func TestHandleTick_NoPipeline(t *testing.T) {
@@ -338,7 +338,7 @@ jobs:
     prompt: "Run tests"
 `)
 
-	output, logDetails, snapshotPipelineID, snapshotJobID := buildTickOutput(projectRoot, "ses-no-pipeline", &session.Session{}, nil, nil)
+	output, logDetails, snapshotPipelineID, snapshotJobID := buildTickOutput(scope.NewProjectScope(projectRoot), "ses-no-pipeline", &session.Session{}, nil, nil)
 
 	expected, err := FormatNoPipeline([]WorkflowSummary{{ID: "release", Description: "Release workflow"}})
 	require.NoError(t, err)
@@ -371,7 +371,7 @@ jobs:
 `)
 
 	activePipelines, scanWarnings := loadTickActivePipelines(t, projectRoot)
-	output, logDetails, snapshotPipelineID, snapshotJobID := buildTickOutput(projectRoot, "ses-snoozed", &session.Session{SnoozedPipelines: []string{instanceID}}, activePipelines, scanWarnings)
+	output, logDetails, snapshotPipelineID, snapshotJobID := buildTickOutput(scope.NewProjectScope(projectRoot), "ses-snoozed", &session.Session{SnoozedPipelines: []string{instanceID}}, activePipelines, scanWarnings)
 
 	expected, err := FormatSnoozed([]WorkflowSummary{{ID: "release", Description: "Release workflow"}})
 	require.NoError(t, err)
@@ -400,7 +400,7 @@ jobs: {}
 `)
 
 	activePipelines, scanWarnings := loadTickActivePipelines(t, projectRoot)
-	output, logDetails, snapshotPipelineID, snapshotJobID := buildTickOutput(projectRoot, "ses-missing-job", &session.Session{}, activePipelines, scanWarnings)
+	output, logDetails, snapshotPipelineID, snapshotJobID := buildTickOutput(scope.NewProjectScope(projectRoot), "ses-missing-job", &session.Session{}, activePipelines, scanWarnings)
 
 	assertHookSafeTickText(t, output)
 	assert.Contains(t, output, "Argus: No active pipeline.")
@@ -431,7 +431,7 @@ jobs:
 `)
 
 	activePipelines, scanWarnings := loadTickActivePipelines(t, projectRoot)
-	output, logDetails, snapshotPipelineID, snapshotJobID := buildTickOutput(projectRoot, "ses-missing-workflow", &session.Session{}, activePipelines, scanWarnings)
+	output, logDetails, snapshotPipelineID, snapshotJobID := buildTickOutput(scope.NewProjectScope(projectRoot), "ses-missing-workflow", &session.Session{}, activePipelines, scanWarnings)
 
 	assertHookSafeTickText(t, output)
 	assert.Contains(t, output, "Argus: No active pipeline.")
@@ -462,7 +462,7 @@ jobs:
 `)
 
 	activePipelines, scanWarnings := loadTickActivePipelines(t, projectRoot)
-	output, logDetails, snapshotPipelineID, snapshotJobID := buildTickOutput(projectRoot, "ses-workflow-mismatch", &session.Session{}, activePipelines, scanWarnings)
+	output, logDetails, snapshotPipelineID, snapshotJobID := buildTickOutput(scope.NewProjectScope(projectRoot), "ses-workflow-mismatch", &session.Session{}, activePipelines, scanWarnings)
 
 	assertHookSafeTickText(t, output)
 	assert.Contains(t, output, "Argus: No active pipeline.")
@@ -496,7 +496,7 @@ jobs:
 	activePipelines, scanWarnings := loadTickActivePipelines(t, projectRoot)
 	sess := &session.Session{}
 
-	fullOutput, fullLogDetails, snapshotPipelineID, snapshotJobID := buildTickOutput(projectRoot, "ses-state-change", sess, activePipelines, scanWarnings)
+	fullOutput, fullLogDetails, snapshotPipelineID, snapshotJobID := buildTickOutput(scope.NewProjectScope(projectRoot), "ses-state-change", sess, activePipelines, scanWarnings)
 	expectedFullOutput, err := FormatFullContext(instanceID, "release", "1/1", "run_tests", "Run tests with context", "test-skill", "ses-state-change")
 	require.NoError(t, err)
 	assert.Equal(t, expectedFullOutput, fullOutput)
@@ -505,7 +505,7 @@ jobs:
 	assert.Equal(t, "run_tests", snapshotJobID)
 
 	sess.LastTick = &session.LastTickState{Pipeline: instanceID, Job: "run_tests"}
-	minimalOutput, minimalLogDetails, snapshotPipelineID, snapshotJobID := buildTickOutput(projectRoot, "ses-state-change", sess, activePipelines, scanWarnings)
+	minimalOutput, minimalLogDetails, snapshotPipelineID, snapshotJobID := buildTickOutput(scope.NewProjectScope(projectRoot), "ses-state-change", sess, activePipelines, scanWarnings)
 	expectedMinimalOutput, err := FormatMinimalSummary("release", "run_tests", "1/1")
 	require.NoError(t, err)
 	assert.Equal(t, expectedMinimalOutput, minimalOutput)
@@ -581,274 +581,6 @@ func TestRenderTickJobPrompt(t *testing.T) {
 			gotPrompt, gotSkill := renderTickJobPrompt(tt.pipeline, tt.workflow, tt.jobIndex)
 			assert.Equal(t, tt.wantPrompt, gotPrompt)
 			assert.Equal(t, tt.wantSkill, gotSkill)
-		})
-	}
-}
-
-func TestLoadWorkflowForTick(t *testing.T) {
-	tests := []struct {
-		name     string
-		setup    func(t *testing.T, projectRoot string) string
-		assertFn func(t *testing.T, wf *workflow.Workflow, err error)
-	}{
-		{
-			name: "successfully loads and resolves refs",
-			setup: func(t *testing.T, projectRoot string) string {
-				t.Helper()
-				writeTickSharedFixture(t, projectRoot, `jobs:
-  lint:
-    prompt: "Run lint checks"
-    skill: lint-skill
-`)
-				writeTickWorkflowFixture(t, projectRoot, "release", `version: v0.1.0
-id: release
-jobs:
-  - ref: lint
-`)
-				return filepath.Join(projectRoot, ".argus", "workflows", "release.yaml")
-			},
-			assertFn: func(t *testing.T, wf *workflow.Workflow, err error) {
-				require.NoError(t, err)
-				require.NotNil(t, wf)
-				require.Len(t, wf.Jobs, 1)
-				assert.Equal(t, workflow.Job{ID: "lint", Ref: "lint", Prompt: "Run lint checks", Skill: "lint-skill"}, wf.Jobs[0])
-			},
-		},
-		{
-			name: "parse error is returned",
-			setup: func(t *testing.T, projectRoot string) string {
-				t.Helper()
-				path := filepath.Join(projectRoot, ".argus", "workflows", "broken.yaml")
-				require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
-				require.NoError(t, os.WriteFile(path, []byte("{{invalid yaml"), 0o644))
-				return path
-			},
-			assertFn: func(t *testing.T, wf *workflow.Workflow, err error) {
-				require.Error(t, err)
-				assert.Nil(t, wf)
-				assert.Contains(t, err.Error(), "parsing workflow file")
-			},
-		},
-		{
-			name: "ref resolution errors are returned",
-			setup: func(t *testing.T, projectRoot string) string {
-				t.Helper()
-				writeTickSharedFixture(t, projectRoot, `jobs:
-  lint:
-    prompt: "Run lint checks"
-`)
-				writeTickWorkflowFixture(t, projectRoot, "release", `version: v0.1.0
-id: release
-jobs:
-  - ref: unknown_ref
-`)
-				return filepath.Join(projectRoot, ".argus", "workflows", "release.yaml")
-			},
-			assertFn: func(t *testing.T, wf *workflow.Workflow, err error) {
-				require.Error(t, err)
-				assert.Nil(t, wf)
-				assert.Contains(t, err.Error(), "resolving ref")
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			projectRoot := t.TempDir()
-			workflowPath := tt.setup(t, projectRoot)
-			wf, err := loadWorkflowForTick(filepath.Join(projectRoot, ".argus", "workflows"), workflowPath)
-			tt.assertFn(t, wf, err)
-		})
-	}
-}
-
-func TestResolveTickWorkflowRefs(t *testing.T) {
-	tests := []struct {
-		name     string
-		setup    func(t *testing.T, projectRoot string) (string, *workflow.Workflow)
-		assertFn func(t *testing.T, original *workflow.Workflow, resolved *workflow.Workflow, err error)
-	}{
-		{
-			name: "workflow without refs is returned as is",
-			setup: func(t *testing.T, projectRoot string) (string, *workflow.Workflow) {
-				t.Helper()
-				wf := &workflow.Workflow{ID: "release", Jobs: []workflow.Job{{ID: "run_tests", Prompt: "Run tests"}}}
-				return filepath.Join(projectRoot, ".argus", "workflows", "release.yaml"), wf
-			},
-			assertFn: func(t *testing.T, original *workflow.Workflow, resolved *workflow.Workflow, err error) {
-				require.NoError(t, err)
-				assert.Same(t, original, resolved)
-			},
-		},
-		{
-			name: "workflow refs are resolved from shared definitions",
-			setup: func(t *testing.T, projectRoot string) (string, *workflow.Workflow) {
-				t.Helper()
-				writeTickSharedFixture(t, projectRoot, `jobs:
-  lint:
-    prompt: "Run lint checks"
-    skill: lint-skill
-`)
-				writeTickWorkflowFixture(t, projectRoot, "release", `version: v0.1.0
-id: release
-jobs:
-  - ref: lint
-`)
-				workflowPath := filepath.Join(projectRoot, ".argus", "workflows", "release.yaml")
-				wf, err := workflow.ParseWorkflowFile(workflowPath)
-				require.NoError(t, err)
-				return workflowPath, wf
-			},
-			assertFn: func(t *testing.T, original *workflow.Workflow, resolved *workflow.Workflow, err error) {
-				require.NoError(t, err)
-				require.NotNil(t, resolved)
-				require.Len(t, resolved.Jobs, 1)
-				assert.Equal(t, workflow.Job{ID: "lint", Ref: "lint", Prompt: "Run lint checks", Skill: "lint-skill"}, resolved.Jobs[0])
-				require.Len(t, original.Jobs, 1)
-				assert.Empty(t, original.Jobs[0].Prompt)
-			},
-		},
-		{
-			name: "missing shared file returns error",
-			setup: func(t *testing.T, projectRoot string) (string, *workflow.Workflow) {
-				t.Helper()
-				writeTickWorkflowFixture(t, projectRoot, "release", `version: v0.1.0
-id: release
-jobs:
-  - ref: lint
-`)
-				workflowPath := filepath.Join(projectRoot, ".argus", "workflows", "release.yaml")
-				wf, err := workflow.ParseWorkflowFile(workflowPath)
-				require.NoError(t, err)
-				return workflowPath, wf
-			},
-			assertFn: func(t *testing.T, _ *workflow.Workflow, resolved *workflow.Workflow, err error) {
-				require.Error(t, err)
-				assert.Nil(t, resolved)
-				assert.Contains(t, err.Error(), "loading shared definitions")
-			},
-		},
-		{
-			name: "invalid ref id returns error",
-			setup: func(t *testing.T, projectRoot string) (string, *workflow.Workflow) {
-				t.Helper()
-				writeTickSharedFixture(t, projectRoot, `jobs:
-  lint:
-    prompt: "Run lint checks"
-`)
-				writeTickWorkflowFixture(t, projectRoot, "release", `version: v0.1.0
-id: release
-jobs:
-  - ref: missing_ref
-`)
-				workflowPath := filepath.Join(projectRoot, ".argus", "workflows", "release.yaml")
-				wf, err := workflow.ParseWorkflowFile(workflowPath)
-				require.NoError(t, err)
-				return workflowPath, wf
-			},
-			assertFn: func(t *testing.T, _ *workflow.Workflow, resolved *workflow.Workflow, err error) {
-				require.Error(t, err)
-				assert.Nil(t, resolved)
-				assert.Contains(t, err.Error(), "resolving ref")
-				assert.Contains(t, err.Error(), "missing_ref")
-			},
-		},
-		{
-			name: "nil workflow returns error",
-			setup: func(t *testing.T, projectRoot string) (string, *workflow.Workflow) {
-				t.Helper()
-				return filepath.Join(projectRoot, ".argus", "workflows", "release.yaml"), nil
-			},
-			assertFn: func(t *testing.T, _ *workflow.Workflow, resolved *workflow.Workflow, err error) {
-				require.Error(t, err)
-				assert.Nil(t, resolved)
-				assert.Contains(t, err.Error(), "workflow is nil")
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			projectRoot := t.TempDir()
-			workflowPath, wf := tt.setup(t, projectRoot)
-			resolved, err := resolveTickWorkflowRefs(filepath.Join(projectRoot, ".argus", "workflows"), workflowPath, wf)
-			tt.assertFn(t, wf, resolved, err)
-		})
-	}
-}
-
-func TestFindTickJobNodes(t *testing.T) {
-	tests := []struct {
-		name      string
-		buildDoc  func(t *testing.T) *yaml.Node
-		wantCount int
-		wantNil   bool
-	}{
-		{
-			name: "valid document returns job nodes",
-			buildDoc: func(t *testing.T) *yaml.Node {
-				t.Helper()
-				var doc yaml.Node
-				require.NoError(t, yaml.Unmarshal([]byte(`version: v0.1.0
-id: release
-jobs:
-  - id: lint
-    prompt: "Run lint"
-  - id: test
-    prompt: "Run tests"
-`), &doc))
-				return &doc
-			},
-			wantCount: 2,
-		},
-		{
-			name: "missing jobs key returns nil",
-			buildDoc: func(t *testing.T) *yaml.Node {
-				t.Helper()
-				var doc yaml.Node
-				require.NoError(t, yaml.Unmarshal([]byte(`version: v0.1.0
-id: release
-description: no jobs here
-`), &doc))
-				return &doc
-			},
-			wantNil: true,
-		},
-		{
-			name: "malformed node returns nil",
-			buildDoc: func(t *testing.T) *yaml.Node {
-				t.Helper()
-				return &yaml.Node{Kind: yaml.ScalarNode, Value: "not-a-document"}
-			},
-			wantNil: true,
-		},
-		{
-			name: "empty jobs sequence returns empty result",
-			buildDoc: func(t *testing.T) *yaml.Node {
-				t.Helper()
-				var doc yaml.Node
-				require.NoError(t, yaml.Unmarshal([]byte(`version: v0.1.0
-id: release
-jobs: []
-`), &doc))
-				return &doc
-			},
-			wantCount: 0,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			jobNodes := findTickJobNodes(tt.buildDoc(t))
-			if tt.wantNil {
-				assert.Nil(t, jobNodes)
-				return
-			}
-			if tt.wantCount == 0 {
-				assert.Empty(t, jobNodes)
-				return
-			}
-			assert.Len(t, jobNodes, tt.wantCount)
 		})
 	}
 }
@@ -932,7 +664,7 @@ check:
   - shell: [not valid yaml
 `)
 
-			failures := runTickInvariants(projectRoot, tt.firstTick)
+			failures := runTickInvariants(scope.NewProjectScope(projectRoot), tt.firstTick)
 			require.Len(t, failures, tt.wantFailures)
 
 			gotIDs := make([]string, 0, len(failures))
@@ -972,13 +704,6 @@ func writeTickInvariantFixture(t *testing.T, projectRoot, invariantID, yamlConte
 	invariantsDir := filepath.Join(projectRoot, ".argus", "invariants")
 	require.NoError(t, os.MkdirAll(invariantsDir, 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(invariantsDir, invariantID+".yaml"), []byte(yamlContent), 0o644))
-}
-
-func writeTickSharedFixture(t *testing.T, projectRoot, yamlContent string) {
-	t.Helper()
-	workflowsDir := filepath.Join(projectRoot, ".argus", "workflows")
-	require.NoError(t, os.MkdirAll(workflowsDir, 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(workflowsDir, "_shared.yaml"), []byte(yamlContent), 0o644))
 }
 
 func loadTickActivePipelines(t *testing.T, projectRoot string) ([]pipeline.ActivePipeline, []pipeline.ScanWarning) {

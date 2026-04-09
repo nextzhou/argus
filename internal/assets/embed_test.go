@@ -122,7 +122,6 @@ func TestPromptTemplates(t *testing.T) {
 		"prompts/tick-full-context.md.tmpl",
 		"prompts/tick-minimal.md.tmpl",
 		"prompts/tick-invariant-failed.md.tmpl",
-		"prompts/workspace-guide.md.tmpl",
 	}
 
 	for _, name := range templates {
@@ -175,7 +174,6 @@ func TestPromptTemplatesEmptyData(t *testing.T) {
 			"WorkflowID": "", "JobID": "", "Progress": "",
 		}},
 		{"prompts/tick-invariant-failed.md.tmpl", map[string]any{"Failures": nil}},
-		{"prompts/workspace-guide.md.tmpl", map[string]any{"Agents": nil}},
 	}
 
 	for _, tt := range templates {

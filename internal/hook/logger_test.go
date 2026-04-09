@@ -10,14 +10,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestLogHookExecution_ProjectPath(t *testing.T) {
+func TestLogHookExecution_LogsDir(t *testing.T) {
 	tempDir := t.TempDir()
-	projectRoot := tempDir
+	logsDir := filepath.Join(tempDir, ".argus", "logs")
 
-	err := LogHookExecution(projectRoot, "tick", true, "pipeline: release")
+	err := LogHookExecution(logsDir, "tick", true, "pipeline: release")
 	require.NoError(t, err)
 
-	logPath := filepath.Join(projectRoot, ".argus", "logs", "hook.log")
+	logPath := filepath.Join(logsDir, "hook.log")
 	content, err := os.ReadFile(logPath)
 	require.NoError(t, err)
 
@@ -47,13 +47,11 @@ func TestLogHookExecution_Fallback(t *testing.T) {
 
 func TestLogHookExecution_AutoCreateDirs(t *testing.T) {
 	tempDir := t.TempDir()
-	projectRoot := tempDir
+	logsDir := filepath.Join(tempDir, "nested", "logs")
 
-	// Verify .argus/logs doesn't exist yet
-	logsDir := filepath.Join(projectRoot, ".argus", "logs")
 	assert.NoDirExists(t, logsDir)
 
-	err := LogHookExecution(projectRoot, "tick", true, "test")
+	err := LogHookExecution(logsDir, "tick", true, "test")
 	require.NoError(t, err)
 
 	// Verify directories were created
@@ -64,17 +62,17 @@ func TestLogHookExecution_AutoCreateDirs(t *testing.T) {
 
 func TestLogHookExecution_AppendMode(t *testing.T) {
 	tempDir := t.TempDir()
-	projectRoot := tempDir
+	logsDir := filepath.Join(tempDir, ".argus", "logs")
 
 	// Write first entry
-	err := LogHookExecution(projectRoot, "tick", true, "first entry")
+	err := LogHookExecution(logsDir, "tick", true, "first entry")
 	require.NoError(t, err)
 
 	// Write second entry
-	err = LogHookExecution(projectRoot, "trap", false, "second entry")
+	err = LogHookExecution(logsDir, "trap", false, "second entry")
 	require.NoError(t, err)
 
-	logPath := filepath.Join(projectRoot, ".argus", "logs", "hook.log")
+	logPath := filepath.Join(logsDir, "hook.log")
 	content, err := os.ReadFile(logPath)
 	require.NoError(t, err)
 
@@ -89,12 +87,12 @@ func TestLogHookExecution_AppendMode(t *testing.T) {
 
 func TestLogHookExecution_ErrorStatus(t *testing.T) {
 	tempDir := t.TempDir()
-	projectRoot := tempDir
+	logsDir := filepath.Join(tempDir, ".argus", "logs")
 
-	err := LogHookExecution(projectRoot, "tick", false, "execution failed")
+	err := LogHookExecution(logsDir, "tick", false, "execution failed")
 	require.NoError(t, err)
 
-	logPath := filepath.Join(projectRoot, ".argus", "logs", "hook.log")
+	logPath := filepath.Join(logsDir, "hook.log")
 	content, err := os.ReadFile(logPath)
 	require.NoError(t, err)
 

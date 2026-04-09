@@ -51,9 +51,7 @@ func TestWorkspace_CompleteLifecycle(t *testing.T) {
 
 	result = runArgusWithStdin(t, projectDir, stdinJSON, "tick", "--agent", "claude-code", "--global")
 	require.Equal(t, 0, result.ExitCode)
-	assertHookSafeTickText(t, result.Stdout)
-	assert.Contains(t, result.Stdout, "Argus: Workspace Guide")
-	assert.Contains(t, result.Stdout, "Argus has been installed at the workspace level.")
+	assert.Empty(t, result.Stdout)
 
 	writeFile(t, projectDir, ".argus/workflows/ws-test.yaml", `version: v0.1.0
 id: ws-test
