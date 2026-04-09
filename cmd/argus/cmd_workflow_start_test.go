@@ -185,11 +185,11 @@ jobs:
 	assert.Empty(t, stderr)
 
 	assert.Contains(t, stdout, "Argus: Pipeline")
-	assert.Contains(t, stdout, "已启动 (1/2)")
-	assert.Contains(t, stdout, "当前 Job: lint")
+	assert.Contains(t, stdout, "started (1/2)")
+	assert.Contains(t, stdout, "Current job: lint")
 	assert.Contains(t, stdout, "Prompt: Run linting")
 	assert.Contains(t, stdout, "Skill: argus-lint")
-	assert.Contains(t, stdout, `argus job-done --message "执行结果摘要"`)
+	assert.Contains(t, stdout, `argus job-done --message "execution summary"`)
 }
 
 func TestWorkflowStartDefaultTextNoSkill(t *testing.T) {
@@ -205,7 +205,7 @@ jobs:
 	require.NoError(t, err)
 	assert.Empty(t, stderr)
 
-	assert.Contains(t, stdout, "当前 Job: review")
+	assert.Contains(t, stdout, "Current job: review")
 	assert.NotContains(t, stdout, "Skill:")
 }
 

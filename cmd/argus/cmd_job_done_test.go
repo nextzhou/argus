@@ -151,7 +151,7 @@ func TestJobDone(t *testing.T) {
 			checkJSON: func(t *testing.T, data map[string]any) {
 				msg, ok := data["message"].(string)
 				require.True(t, ok)
-				assert.Contains(t, msg, "当前没有活跃的 Pipeline")
+				assert.Contains(t, msg, "No active pipeline")
 			},
 		},
 		{
@@ -206,11 +206,11 @@ func TestJobDoneDefaultTextNextJob(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, stderr)
 
-	assert.Contains(t, stdout, "Argus: Job run_tests 完成 (2/5)")
-	assert.Contains(t, stdout, "下一个 Job: build")
+	assert.Contains(t, stdout, "Argus: Job run_tests completed (2/5)")
+	assert.Contains(t, stdout, "Next job: build")
 	assert.Contains(t, stdout, "Prompt: Build the project")
 	assert.NotContains(t, stdout, "Skill:")
-	assert.Contains(t, stdout, `argus job-done --message "执行结果摘要"`)
+	assert.Contains(t, stdout, `argus job-done --message "execution summary"`)
 }
 
 func TestJobDoneDefaultTextNextJobWithSkill(t *testing.T) {
@@ -238,7 +238,7 @@ jobs:
 	require.NoError(t, err)
 	assert.Empty(t, stderr)
 
-	assert.Contains(t, stdout, "下一个 Job: step2")
+	assert.Contains(t, stdout, "Next job: step2")
 	assert.Contains(t, stdout, "Skill: argus-deploy")
 }
 
@@ -251,8 +251,8 @@ func TestJobDoneDefaultTextCompleted(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, stderr)
 
-	assert.Contains(t, stdout, "Argus: Job verify 完成 (5/5)")
-	assert.Contains(t, stdout, "Pipeline release-20240101T000000Z 已全部完成。")
+	assert.Contains(t, stdout, "Argus: Job verify completed (5/5)")
+	assert.Contains(t, stdout, "Pipeline release-20240101T000000Z is complete.")
 }
 
 func TestJobDoneDefaultTextFailed(t *testing.T) {
@@ -264,9 +264,9 @@ func TestJobDoneDefaultTextFailed(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, stderr)
 
-	assert.Contains(t, stdout, "Argus: Job run_tests 标记为失败，Pipeline 已停止 (2/5)。")
-	assert.Contains(t, stdout, "- 重新开始：argus workflow start release")
-	assert.Contains(t, stdout, "- 取消：argus workflow cancel")
+	assert.Contains(t, stdout, "Argus: Job run_tests marked as failed. Pipeline stopped (2/5).")
+	assert.Contains(t, stdout, "- Restart: argus workflow start release")
+	assert.Contains(t, stdout, "- Cancel: argus workflow cancel")
 }
 
 func TestJobDoneDefaultTextFailedEarlyExit(t *testing.T) {
@@ -278,8 +278,8 @@ func TestJobDoneDefaultTextFailedEarlyExit(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, stderr)
 
-	assert.Contains(t, stdout, "Argus: Job run_tests 标记为失败，Pipeline 提前结束 (2/5)。")
-	assert.Contains(t, stdout, "- 重新开始：argus workflow start release")
+	assert.Contains(t, stdout, "Argus: Job run_tests marked as failed. Pipeline ended early (2/5).")
+	assert.Contains(t, stdout, "- Restart: argus workflow start release")
 }
 
 func TestJobDoneDefaultTextEarlyExit(t *testing.T) {
@@ -291,7 +291,7 @@ func TestJobDoneDefaultTextEarlyExit(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, stderr)
 
-	assert.Contains(t, stdout, "Argus: Job run_tests 完成，Pipeline 提前结束 (2/5)。")
+	assert.Contains(t, stdout, "Argus: Job run_tests completed. Pipeline ended early (2/5).")
 }
 
 func TestJobDoneDefaultTextNoPipeline(t *testing.T) {
@@ -302,6 +302,6 @@ func TestJobDoneDefaultTextNoPipeline(t *testing.T) {
 	assert.Error(t, err)
 	assert.Empty(t, stdout)
 
-	assert.Contains(t, stderr, "Argus: 当前没有活跃的 Pipeline。")
-	assert.Contains(t, stderr, "可以使用 argus workflow start <workflow-id> 启动一个 workflow。")
+	assert.Contains(t, stderr, "Argus: No active pipeline.")
+	assert.Contains(t, stderr, "Start one with argus workflow start <workflow-id>.")
 }

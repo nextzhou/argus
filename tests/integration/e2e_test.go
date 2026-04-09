@@ -412,8 +412,8 @@ func TestE2E_DefaultTextOutput(t *testing.T) {
 	result = runArgusText(t, projectDir, "workflow", "start", "e2e-test")
 	require.Equal(t, 0, result.ExitCode)
 	assert.Contains(t, result.Stdout, "Argus: Pipeline")
-	assert.Contains(t, result.Stdout, "已启动 (1/3)")
-	assert.Contains(t, result.Stdout, "当前 Job: step_one")
+	assert.Contains(t, result.Stdout, "started (1/3)")
+	assert.Contains(t, result.Stdout, "Current job: step_one")
 
 	result = runArgusText(t, projectDir, "job-done", "--message", "done")
 	require.Equal(t, 0, result.ExitCode)

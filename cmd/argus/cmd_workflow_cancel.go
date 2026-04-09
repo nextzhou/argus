@@ -44,7 +44,7 @@ func newWorkflowCancelCmd() *cobra.Command {
 			}
 
 			if len(actives) == 0 {
-				msg := "当前没有活跃的 Pipeline。"
+				msg := "No active pipeline."
 				writeCommandError(cmd, jsonFlag, msg)
 				return fmt.Errorf("workflow cancel failed: %w", core.ErrNoActivePipeline)
 			}

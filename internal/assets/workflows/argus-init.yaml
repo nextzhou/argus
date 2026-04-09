@@ -1,20 +1,20 @@
 version: v0.1.0
 id: argus-init
-description: "初始化项目的 Argus 配置"
+description: "Initialize Argus for the project"
 
 jobs:
   - id: generate_rules
     skill: argus-generate-rules
-    prompt: "分析项目结构，生成技术架构、编码规范、项目领域三方面的规则文件"
+    prompt: "Analyze the project structure and generate rules covering technical architecture, coding conventions, and domain context."
 
   - id: setup_git_hooks
-    prompt: "为项目配置 git pre-commit hook，确保提交前自动运行 lint 检查"
+    prompt: "Set up a git pre-commit hook for the project so lint checks run automatically before each commit."
 
   - id: setup_gitignore
-    prompt: "确保 .gitignore 包含 .argus/pipelines/、.argus/logs/、.argus/tmp/ 三个 Argus 临时文件路径"
+    prompt: "Ensure .gitignore includes the Argus temporary paths .argus/pipelines/, .argus/logs/, and .argus/tmp/."
 
   - id: generate_workflows
-    prompt: "根据项目特征生成适合的 workflow 文件到 .argus/workflows/。完成后执行 argus toolbox touch-timestamp .argus/data/init_workflows_generated"
+    prompt: "Generate workflow files suited to this project under .argus/workflows/. When finished, run argus toolbox touch-timestamp .argus/data/init_workflows_generated."
 
   - id: generate_invariant_examples
-    prompt: "生成 1-2 个适合本项目的自定义 invariant 示例到 .argus/invariants/"
+    prompt: "Create 1-2 custom invariant examples for this project under .argus/invariants/."

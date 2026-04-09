@@ -13,7 +13,7 @@ func TestParseInput_ClaudeCode_AllFields(t *testing.T) {
 		"session_id": "abc-123",
 		"cwd": "/project",
 		"hook_event_name": "UserPromptSubmit",
-		"prompt": "帮我运行测试"
+		"prompt": "Run the test suite"
 	}`
 	r := bytes.NewReader([]byte(input))
 
@@ -22,7 +22,7 @@ func TestParseInput_ClaudeCode_AllFields(t *testing.T) {
 	assert.Equal(t, "abc-123", result.SessionID)
 	assert.Equal(t, "/project", result.CWD)
 	assert.Equal(t, "UserPromptSubmit", result.HookEventName)
-	assert.Equal(t, "帮我运行测试", result.Prompt)
+	assert.Equal(t, "Run the test suite", result.Prompt)
 	assert.Empty(t, result.AgentID)
 	assert.Empty(t, result.ParentID)
 }
@@ -32,7 +32,7 @@ func TestParseInput_ClaudeCode_WithAgentID(t *testing.T) {
 		"session_id": "abc-123",
 		"cwd": "/project",
 		"hook_event_name": "UserPromptSubmit",
-		"prompt": "帮我运行测试",
+		"prompt": "Run the test suite",
 		"agent_id": "sub-agent-456"
 	}`
 	r := bytes.NewReader([]byte(input))

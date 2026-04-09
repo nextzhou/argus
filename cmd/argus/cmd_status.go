@@ -81,7 +81,7 @@ func newStatusCmd() *cobra.Command {
 			}
 
 			if len(actives) > 1 {
-				msg := "检测到多个活跃的 Pipeline（异常状态）。请运行 argus doctor 排查。"
+				msg := "Detected multiple active pipelines (unexpected state). Run argus doctor to investigate."
 				writeCommandError(cmd, jsonFlag, msg)
 				return fmt.Errorf("status failed: multiple active pipelines")
 			}
@@ -147,7 +147,7 @@ func buildStatusPipeline(p *pipeline.Pipeline, wf *workflow.Workflow, _ string, 
 		_, found := pipeline.FindJobIndex(wf, *p.CurrentJob)
 		if !found {
 			sp.CurrentJob = nil
-			out.Hints = append(out.Hints, "当前 job 在 workflow 定义中未找到，可能 workflow 定义已变更。")
+			out.Hints = append(out.Hints, "Current job was not found in the workflow definition. The workflow definition may have changed.")
 		} else {
 			idx, _ := pipeline.FindJobIndex(wf, *p.CurrentJob)
 			sp.Progress.Current = idx + 1
@@ -200,7 +200,7 @@ func runStatusInvariants(ctx context.Context, s scope.Scope, out *statusOutput) 
 	}
 
 	if totalCheckTime.Seconds() > 2 {
-		out.Hints = append(out.Hints, fmt.Sprintf("Invariant 检查总耗时 %.1fs，建议运行 argus doctor 排查慢检查项", totalCheckTime.Seconds()))
+		out.Hints = append(out.Hints, fmt.Sprintf("Invariant checks took %.1fs total. Run argus doctor to investigate slow checks.", totalCheckTime.Seconds()))
 	}
 }
 
@@ -213,17 +213,17 @@ func renderStatusTextFailedInvariants(w io.Writer, out statusOutput) {
 }
 
 func renderStatusTextNoPipeline(w io.Writer, out statusOutput) {
-	_, _ = fmt.Fprintf(w, "Argus: 项目状态\n\n")
-	_, _ = fmt.Fprintf(w, "Pipeline: 无活跃 Pipeline\n\n")
-	_, _ = fmt.Fprintf(w, "Invariant: %d passed, %d failed\n", out.Invariants.Passed, out.Invariants.Failed)
+	_, _ = fmt.Fprintf(w, "Argus: Project status\n\n")
+	_, _ = fmt.Fprintf(w, "Pipeline: No active pipeline\n\n")
+	_, _ = fmt.Fprintf(w, "Invariants: %d passed, %d failed\n", out.Invariants.Passed, out.Invariants.Failed)
 	renderStatusTextFailedInvariants(w, out)
 }
 
 func renderStatusTextActive(w io.Writer, out statusOutput, instanceID string) {
-	_, _ = fmt.Fprintf(w, "Argus: 项目状态\n\n")
+	_, _ = fmt.Fprintf(w, "Argus: Project status\n\n")
 
 	sp := out.Pipeline
-	_, _ = fmt.Fprintf(w, "Pipeline: %s (%s) - Workflow: %s - 进度 %d/%d\n",
+	_, _ = fmt.Fprintf(w, "Pipeline: %s (%s) - Workflow: %s - Progress %d/%d\n",
 		instanceID, sp.Status, sp.WorkflowID, sp.Progress.Current, sp.Progress.Total)
 
 	for i, job := range sp.Jobs {
@@ -244,6 +244,6 @@ func renderStatusTextActive(w io.Writer, out statusOutput, instanceID string) {
 		}
 	}
 
-	_, _ = fmt.Fprintf(w, "\nInvariant: %d passed, %d failed\n", out.Invariants.Passed, out.Invariants.Failed)
+	_, _ = fmt.Fprintf(w, "\nInvariants: %d passed, %d failed\n", out.Invariants.Passed, out.Invariants.Failed)
 	renderStatusTextFailedInvariants(w, out)
 }

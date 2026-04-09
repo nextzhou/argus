@@ -126,7 +126,7 @@ func TestStatus(t *testing.T) {
 			checkJSON: func(t *testing.T, data map[string]any) {
 				msg, ok := data["message"].(string)
 				require.True(t, ok)
-				assert.Contains(t, msg, "多个活跃的 Pipeline")
+				assert.Contains(t, msg, "multiple active pipelines")
 			},
 		},
 		{
@@ -144,7 +144,7 @@ func TestStatus(t *testing.T) {
 
 				hints := data["hints"].([]any)
 				require.Len(t, hints, 1)
-				assert.Contains(t, hints[0].(string), "workflow 定义已变更")
+				assert.Contains(t, hints[0].(string), "workflow definition may have changed")
 			},
 		},
 		{
@@ -256,16 +256,16 @@ func TestStatusDefaultTextActivePipeline(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, stderr)
 
-	assert.Contains(t, stdout, "Argus: 项目状态")
+	assert.Contains(t, stdout, "Argus: Project status")
 	assert.Contains(t, stdout, "Pipeline: "+testInstanceID+" (running)")
 	assert.Contains(t, stdout, "Workflow: release")
-	assert.Contains(t, stdout, "进度 2/5")
+	assert.Contains(t, stdout, "Progress 2/5")
 	assert.Contains(t, stdout, "[done] lint")
 	assert.Contains(t, stdout, "[>>]   run_tests")
 	assert.Contains(t, stdout, "[ ]    build")
 	assert.Contains(t, stdout, "[ ]    deploy")
 	assert.Contains(t, stdout, "[ ]    verify")
-	assert.Contains(t, stdout, "Invariant: 0 passed, 0 failed")
+	assert.Contains(t, stdout, "Invariants: 0 passed, 0 failed")
 }
 
 func TestStatusDefaultTextNoPipeline(t *testing.T) {
@@ -276,9 +276,9 @@ func TestStatusDefaultTextNoPipeline(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, stderr)
 
-	assert.Contains(t, stdout, "Argus: 项目状态")
-	assert.Contains(t, stdout, "Pipeline: 无活跃 Pipeline")
-	assert.Contains(t, stdout, "Invariant: 0 passed, 0 failed")
+	assert.Contains(t, stdout, "Argus: Project status")
+	assert.Contains(t, stdout, "Pipeline: No active pipeline")
+	assert.Contains(t, stdout, "Invariants: 0 passed, 0 failed")
 }
 
 func TestStatusWithInvariants(t *testing.T) {
@@ -407,7 +407,7 @@ prompt: "Fix it"
 				require.NotEmpty(t, hints)
 				found := false
 				for _, h := range hints {
-					if strings.Contains(h.(string), "Invariant 检查总耗时") {
+					if strings.Contains(h.(string), "Invariant checks took") {
 						found = true
 						break
 					}
@@ -454,7 +454,7 @@ prompt: "Fix it"
 	require.NoError(t, err)
 	assert.Empty(t, stderr)
 
-	assert.Contains(t, stdout, "Invariant: 0 passed, 1 failed")
+	assert.Contains(t, stdout, "Invariants: 0 passed, 1 failed")
 	assert.Contains(t, stdout, "[FAIL] check-fail: Always fails")
 }
 

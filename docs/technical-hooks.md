@@ -1,86 +1,101 @@
-# Agent Hook 集成方案 (Technical Hooks)
+# Agent Hook Integration (Technical Hooks)
 
-本文档详细说明了 Argus 如何通过各 AI Agent 的 Hook 系统实现深度集成。集成的核心目标是提供统一的编排入口，支持状态感知与操作门控。
+This document explains how Argus integrates with supported AI agents through their hook or plugin systems. The goal is to provide one orchestration entry point with state-aware context injection and operation gating.
 
 ---
 
-## 9.1 统一集成策略 (Unified Strategy)
+## 9.1 Unified Integration Strategy
 
-### 面临的问题
-目前主流的三个 Agent 拥有完全不同的 Hook 机制。Claude Code 与 Codex 采用基于 Shell 命令和 JSON 的系统。OpenCode 则使用基于 JS/TS 模块的插件体系。这种异构性给跨 Agent 的逻辑复用带来了巨大挑战。
+### The Problem
 
-### 核心方案
-Argus 采用"调用入口"转发策略。各 Agent 的 Hook 仅作为转发层，将事件上下文传递给 `argus tick` 或 `argus trap` 命令。所有的业务逻辑和状态检查均在 Go 编写的 CLI 程序中实现。
+The three primary agents use materially different integration models:
+
+- Claude Code and Codex rely on shell commands plus JSON hook payloads
+- OpenCode uses a JavaScript or TypeScript plugin system
+
+This heterogeneity makes it easy for logic to drift if orchestration behavior is implemented separately per agent.
+
+### Core Approach
+
+Argus uses a forwarding model. Each agent-specific hook acts only as a wrapper that forwards event context to `argus tick` or `argus trap`. All business logic and state evaluation live in the Go CLI.
 
 ```text
-Agent Hook Event --> Agent 特有入口 --> argus CLI 命令 --> Go 业务逻辑
+Agent Hook Event -> Agent-specific wrapper -> argus CLI command -> Go business logic
 ```
 
-这种架构确保了编排逻辑的单一事实来源。无论用户使用哪种 Agent，看到的进度和受到的约束都是一致的。
+This keeps orchestration logic as a single source of truth. Regardless of which agent the user is running, progress and guardrails should be interpreted the same way.
 
-### 设计指导思想：Wrapper 最薄化
+### Design Principle: Keep Wrappers as Thin as Possible
 
-**核心原则**：Hook/Plugin wrapper 层应尽可能薄——仅负责收集 Agent 提供的原始信息并透传给 argus，所有业务逻辑收敛到 argus 二进制内部。
+**Core rule**: Hook and plugin wrappers should be as thin as possible. They collect raw agent-specific input and pass it to `argus`. Business logic belongs inside the `argus` binary.
 
-**驱动因素**：
-- **升级便利**：Wrapper 不含业务逻辑，升级 argus 时只需替换二进制文件，无需修改各 Agent 的 hook/plugin 配置。
-- **一致性**：所有 Agent 的判断逻辑在同一处维护，避免多处实现产生分歧。
-- **可维护性**：各 Agent 的 Wrapper 格式差异大（Shell vs TypeScript），逻辑越少越不容易出错。
+**Why**:
 
-**具体表现**：
-- Wrapper 不包含业务逻辑；仅允许最小限度的 Agent 特定输出适配（如 trap 返回值解析）
-- Wrapper 唯一的"智能"行为是收集 Agent 特有的上下文信息（如 OpenCode 需要通过 SDK 查询 `parentID`），然后序列化到 stdin JSON 中交给 argus 处理
+- **Easy upgrades**: Upgrading Argus should usually mean replacing the binary, not rewriting per-agent wrappers.
+- **Consistency**: Decision logic stays in one place.
+- **Maintainability**: Shell wrappers and TypeScript plugins already differ enough. The less logic they contain, the fewer ways they can diverge.
 
-### 子 Agent 屏蔽
+**Practical implications**:
 
-各 Agent 在派生子 agent（如 Claude Code 的 task delegation、OpenCode 的子 session）时，子 agent 也会触发 hook。如果不加区分，子 agent 会收到无关的 pipeline context 注入，甚至可能误操作 pipeline 状态。
+- Wrappers should not contain orchestration logic.
+- Minimal agent-specific output adaptation is allowed when the host requires it, for example trap allow/deny response formatting.
+- The only wrapper-side “smart” behavior should be collecting agent-native context that Argus cannot infer by itself, such as OpenCode fetching `parentID` through its SDK.
 
-**设计方案**：检测逻辑全部收敛到 argus 内部。各 Wrapper 负责将子 agent 相关信息透传给 argus，argus 统一判断并跳过注入。
+### Sub-Agent Suppression
 
-| Agent | Wrapper 透传内容 | argus 检测方式 | 检测到子 agent 时的行为 |
-|-------|-----------------|---------------|----------------------|
-| Claude Code | stdin JSON 原样透传（已含 `agent_id` 字段） | `agent_id` 字段存在 → 子 agent | exit 0，无输出 |
-| OpenCode | plugin 查询 `session.parentID`，写入 stdin JSON | `parentID` 字段存在 → 子 agent | exit 0，无输出 |
-| Codex | stdin JSON 原样透传 | 暂无法检测（上游 Issue #16226 跟踪中） | 正常注入（Phase 1 已知限制） |
+Some agents spawn sub-agents or child sessions. Those children can also trigger hooks. If Argus treats them like the primary session, child agents may receive unrelated pipeline context or mutate pipeline state incorrectly.
 
-**Codex 后续**：当 Codex 实现 `agent_id` 字段后（跟踪 [Issue #16226](https://github.com/openai/codex/issues/16226)），argus 侧添加对应检测逻辑即可，无需修改 Wrapper。
+Argus centralizes the detection decision. Wrappers only pass through enough information for Argus to identify child sessions and skip injection.
 
-### 输入标准化：管道透传 (Pipe Passthrough)
-不同 Agent 提供的上下文 JSON 结构存在差异。Argus 采用管道透传方案处理输入。Agent 的原始 JSON 通过标准输入 (stdin) 完整传给 Argus。Argus 内部根据 `--agent` 参数识别来源并解析对应的结构。这样做避免了在 Hook 入口处进行复杂的参数提取。
+| Agent | Wrapper passes through | Detection in Argus | Behavior when child session is detected |
+|------|-------------------------|--------------------|-----------------------------------------|
+| Claude Code | Original stdin JSON including `agent_id` | Presence of `agent_id` | Exit 0 with no output |
+| OpenCode | Plugin queries `session.parentID` and serializes it | Presence of `parentID` | Exit 0 with no output |
+| Codex | Original stdin JSON | Currently unavailable | Normal injection; known Phase 1 limitation |
 
-排除的方案：
-方案 B（参数标准化）：hook 入口负责提取关键字段，通过命令行参数传给 argus（如 `argus trap --agent claude-code --tool Bash --command "git push"`）。排除理由：增加 hook 入口复杂度，每个 Agent 需要不同的提取逻辑；方案 A 更简单，归一化逻辑统一在 Go 侧。
+When Codex eventually exposes an agent identifier (tracked in upstream issue `#16226`), support can be added inside Argus without changing the wrapper model.
 
-### 输出标准化：统一文本
-`argus tick` 的输出统一为可读文本（Markdown-like），不按 `--agent` 区分输出格式。各 Agent 的 Hook/Plugin 层负责将文本注入到对应的上下文机制中：
+### Input Normalization: Pipe Passthrough
 
-- **Claude Code / Codex**：文本作为 `additionalContext` 字段值。
-- **OpenCode**：文本作为 `Part` 对象的 `text` 字段 push 到 `output.parts`。
+Different agents emit different JSON shapes. Argus uses pipe passthrough: the original JSON is forwarded over stdin and parsed inside Argus according to `--agent`.
 
-`--agent` 参数的核心作用在**输入侧**——决定如何解析各 Agent 传入的不同格式的 stdin JSON。Agent 具备较强的自适应能力，不需要为不同 Agent 定制输出格式。
+Rejected alternative:
+
+- **Argument normalization in the wrapper**: the wrapper could extract fields and pass them as CLI flags, for example `argus trap --tool Bash --command "git push"`. This was rejected because it makes each wrapper more complex and spreads parsing logic across agent-specific code. Passthrough keeps normalization centralized in Go.
+
+### Output Normalization: One Text Format for `tick`
+
+`argus tick` emits human-readable text and does not customize the payload shape per agent. Each wrapper adapts that text to the hosting agent:
+
+- **Claude Code / Codex**: the text becomes `additionalContext`
+- **OpenCode**: the text is appended as a message part
+
+The primary role of `--agent` is therefore on the **input side**, not the output side.
 
 ---
 
-## 9.2 tick 实现机制 (tick Implementation)
+## 9.2 `tick` Implementation
 
-tick 是 Argus 的协作调度点。它在用户每次输入时被动触发。Argus 借此机会检查进度并注入必要的引导上下文。
+`tick` is the collaborative scheduling point. It is triggered passively whenever the user sends input to an agent.
 
-### 引导与作用域发现 (Bootstrap and Scope Discovery)
+### Bootstrap and Scope Discovery
 
-`tick --global` 命令作为全局 Hook 的入口点，承担了引导与作用域发现的职责。与项目级 Hook 不同，它首先需要确定当前上下文应适用的配置作用域：
+`tick --global` is the entry point used by global hooks. Unlike a project-local hook, it must first determine which scope applies:
 
-1. **作用域识别**：通过 `ResolveScopeForTick` 逻辑，根据当前工作目录 (CWD) 和已注册的 Workspace，判定应使用 **Project Scope**（项目作用域，`.argus/`）还是 **Global Scope**（全局作用域，`~/.config/argus/`）。
-2. **统一编排语义**：一旦作用域确定，后续的编排逻辑（加载不变量、加载工作流、评估 Pipeline 状态、注入上下文）在各作用域间是完全共享的。`--global` 标识的是 Hook 的来源，而非一种特殊的"发现专用"模式。
-3. **优先级与仲裁**：遵循"项目作用域优先"原则。如果当前目录已初始化为项目，则优先运行项目编排。
-4. **失败开路 (Fail Open)**：如果当前环境不匹配任何已知作用域（非项目且不在 Workspace 内），则静默放行，确保不干扰 Agent 在非 Argus 项目中的正常使用。
+1. **Scope detection**: use current working directory and registered workspaces to resolve either **project scope** (`.argus/`) or **global scope** (`~/.config/argus/`).
+2. **Shared orchestration semantics**: once scope is resolved, the orchestration engine is the same across scopes. `--global` identifies the source of the hook call, not a separate “discovery-only” mode.
+3. **Arbitration**: project scope wins when both project scope and workspace scope are applicable.
+4. **Fail open**: if the environment matches no known scope, Argus exits successfully and injects nothing.
 
-### Claude Code 与 Codex
-这两个 Agent 均支持 `UserPromptSubmit` 事件。
+### Claude Code and Codex
 
-- **触发时机**：用户提交消息后，Agent 处理之前。
-- **核心能力**：通过 `additionalContext` 字段向模型注入纯文本。
+Claude Code and Codex both support a `UserPromptSubmit` event.
 
-#### Claude Code 配置示例
+- **Trigger point**: after the user submits a message, before the model processes it
+- **Core capability**: inject additional plain-text context
+
+#### Example Claude Code Configuration
+
 ```json
 {
   "hooks": {
@@ -100,7 +115,8 @@ tick 是 Argus 的协作调度点。它在用户每次输入时被动触发。Ar
 }
 ```
 
-#### Codex 配置示例
+#### Example Codex Configuration
+
 ```json
 {
   "hooks": {
@@ -120,42 +136,60 @@ tick 是 Argus 的协作调度点。它在用户每次输入时被动触发。Ar
 }
 ```
 
-#### 输入输出示例 (Claude Code)
-**输入 (stdin JSON)**:
+#### Example Input and Output
+
+**Input (stdin JSON)**:
+
 ```json
 {
   "session_id": "abc-123",
   "cwd": "/project",
   "hook_event_name": "UserPromptSubmit",
-  "prompt": "帮我运行测试"
+  "prompt": "Run the test suite"
 }
 ```
 
-**输出 (stdout)**:
-argus tick 输出统一文本格式。Claude Code 的 Hook 系统会自动将 stdout 文本封装为 `additionalContext` 注入给模型。
+**Output (stdout)**:
 
-**兼容性约束（重点）**：tick 虽然保持纯文本输出，但其首个非空白字符**不得**为 `[` 或 `{`。当前 Codex CLI（验证于 `codex-cli 0.118.0`, 2026-04-09）会把这两种前缀视为 JSON 候选；若文本实际上不是合法 JSON，就会报 `hook returned invalid user prompt submit JSON output`。为了在所有 Agent 上保持统一输出，Argus 统一使用 `Argus:` 这样的纯文本前缀，而不是旧的方括号前缀。
+`tick` emits plain text. Claude Code will wrap that stdout as model context.
+
+**Compatibility constraint**: although `tick` uses plain text, its first non-whitespace character must **not** be `[` or `{`. Current Codex CLI behavior (verified against `codex-cli 0.118.0` on April 9, 2026) treats those prefixes as candidate JSON. If the output is not valid JSON, Codex reports `hook returned invalid user prompt submit JSON output`. To keep one shared output contract across agents, Argus uses a text prefix such as `Argus:` rather than a JSON-like or bracket-style prefix.
+
+Example full-context output:
 
 ```text
-Argus: 当前正在执行 Job: run_tests
-Prompt: 运行所有测试，确保通过后再继续
+Argus: Pipeline: release-20240405T103000Z | Workflow: release | Progress: 2/5
 
-完成后请调用：argus job-done --message "执行结果摘要"
+Current Job: run_tests
+Skill: argus-run-tests
+
+Run all tests and only continue if they pass.
+
+When done: argus job-done [--message "summary"]
+To snooze: argus workflow snooze --session abc-123
+To cancel: argus workflow cancel
 ```
 
 ### OpenCode
-OpenCode 通过 `chat.message` 钩子提供更强的控制力。
 
-- **触发时机**：新用户消息到达时。
-- **核心能力**：可以直接修改用户消息内容，或者追加消息部分 (Message Parts)。
+OpenCode exposes stronger hooks through `chat.message`.
 
-#### 实现示例
+- **Trigger point**: when a new user message arrives
+- **Core capability**: modify message contents directly or append message parts
+
+#### Example Implementation
+
 ```typescript
 "chat.message": async (input, output) => {
   try {
     const session = await client.session.get();
-    const payload = JSON.stringify({ sessionID: input.sessionID, parentID: session.parentID });
-    const result = await $`echo ${payload} | argus tick --agent opencode`.quiet().nothrow();
+    const payload = JSON.stringify({
+      sessionID: input.sessionID,
+      parentID: session.parentID,
+    });
+    const result = await $`echo ${payload} | argus tick --agent opencode`
+      .quiet()
+      .nothrow();
     if (result.exitCode === 0 && result.text().trim()) {
       output.parts.push({
         type: "text",
@@ -163,28 +197,36 @@ OpenCode 通过 `chat.message` 钩子提供更强的控制力。
       } as any);
     }
   } catch {
-    // 失败时保持开启，不中断会话
+    // Fail open and keep the session usable
   }
 }
 ```
 
-#### OpenCode 额外增强
-**未来扩展方向（非 Phase 1）**：OpenCode 额外支持 `experimental.chat.system.transform` 和 `experimental.session.compacting`。前者可将状态持久注入系统提示词，后者确保上下文压缩后状态得以保留。Phase 1 仅需实现 `chat.message` 和 `tool.execute.before` 两个核心 Hook。
+#### OpenCode-Specific Future Enhancements
+
+Future versions may benefit from:
+
+- `experimental.chat.system.transform` for persistent state injection into the system prompt
+- `experimental.session.compacting` to preserve state across context compaction
+
+Phase 1 only requires `chat.message` and `tool.execute.before`.
 
 ---
 
-## 9.3 trap 实现机制 (trap Implementation)
+## 9.3 `trap` Implementation
 
-trap 是 Argus 的操作门控。它根据工作流规则拦截特定的工具调用。
+`trap` is the operation-gating entry point. It evaluates tool invocations against workflow rules and current pipeline state.
 
-**注意：在 Phase 1 阶段，trap 逻辑暂未在内部实现。命令目前默认返回退出码 0，即直接放行。但为了保持前瞻性，安装过程仍会配置对应的入口。**
+**Phase 1 note**: gating logic is not enforced yet. The command defaults to allow. The hook entry points are still installed now so future versions can enable real gating without forcing users to reinstall their hook configuration.
 
-**Phase 1 放行输出**：虽然 Phase 1 不实现拦截逻辑，但 trap 命令的放行输出不能再假设所有 Agent 都接受同一种格式：
+### Allow Output in Phase 1
 
-- **Claude Code / OpenCode**：仍返回稳定的 allow JSON，便于与未来 deny 输出保持同构。
-- **Codex**：放行时必须保持空 stdout。当前 Codex CLI（验证于 `codex-cli 0.118.0`, 2026-04-09）的 `PreToolUse` 只接受阻断输出；`permissionDecision: "allow"`、`permissionDecision: "ask"` 会直接报 unsupported 并 fail open。
+Even when `trap` is effectively pass-through, allow output still has to respect agent-specific expectations:
 
-Claude Code / OpenCode 的 allow 输出如下：
+- **Claude Code / OpenCode**: may return a stable allow JSON structure so the shape matches future deny responses
+- **Codex**: must keep stdout empty on allow. Current Codex CLI behavior rejects `permissionDecision: "allow"` and `permissionDecision: "ask"` for `PreToolUse`, then fails open
+
+Allow output used by Claude Code and OpenCode:
 
 ```json
 {
@@ -195,12 +237,21 @@ Claude Code / OpenCode 的 allow 输出如下：
 }
 ```
 
-**职责边界**：Git commit 前的 lint/test 检查应由 Git pre-commit hook 承担，不属于 trap 的职责。trap 的定位是基于 Pipeline 状态的操作门控，而非通用的代码质量守卫。
+### Responsibility Boundary
+
+Pre-commit quality checks such as lint or test enforcement belong in Git hooks, not in `trap`. `trap` is meant for pipeline-state-aware operation gating, not as a generic code-quality gate.
 
 ### Claude Code
-通过 `PreToolUse` 事件实现。它能拦截所有类型的工具，包括 Bash 命令、文件编辑和写入。
 
-#### 配置示例
+Claude Code uses `PreToolUse` and can intercept:
+
+- bash commands
+- file edits
+- writes
+- MCP and other tool operations
+
+#### Example Configuration
+
 ```json
 {
   "hooks": {
@@ -220,28 +271,32 @@ Claude Code / OpenCode 的 allow 输出如下：
 }
 ```
 
-Claude Code 支持通过 `permissionDecision` 字段返回 `deny` (拒绝)、`allow` (放行) 或 `ask` (询问用户)。
+Claude Code supports `deny`, `allow`, and `ask` through `permissionDecision`.
 
-#### 阻断输出示例
+#### Example Deny Output
+
 ```json
 {
   "hookSpecificOutput": {
     "hookEventName": "PreToolUse",
     "permissionDecision": "deny",
-    "permissionDecisionReason": "Argus: 当前阶段不允许执行此操作"
+    "permissionDecisionReason": "Argus: This operation is not allowed in the current stage"
   }
 }
 ```
 
 ### Codex
-同样支持 `PreToolUse`，但目前仅限于拦截 Bash 工具。它无法有效阻止文件编辑。这被视为一种有用的警示，不应被当作严密的执行边界。
 
-Codex trap 的额外限制：
-- 无 `if` 字段，命令过滤需要 argus 内部处理
-- Agent 可通过写脚本文件再执行的方式绕过 Bash 拦截
-- 放行时不接受 `permissionDecision: "allow"`；Argus 必须输出空 stdout，仅在阻断时返回 `deny` / `block`
+Codex also supports `PreToolUse`, but currently only for Bash tools. It cannot reliably block file edits, so it should be treated as a useful warning layer rather than a hard execution boundary.
 
-#### 配置示例
+Additional Codex limitations:
+
+- no `if` field, so command filtering must happen inside Argus
+- the agent can work around bash interception by writing a script file and then executing it
+- allow output must be empty stdout rather than a structured `permissionDecision: "allow"` response
+
+#### Example Configuration
+
 ```json
 {
   "hooks": {
@@ -263,139 +318,179 @@ Codex trap 的额外限制：
 ```
 
 ### OpenCode
-OpenCode 提供了两层拦截机制。`tool.execute.before` 允许在执行前修改工具参数。`permission.ask` 则能更优雅地控制权限决策。
 
-#### 实现示例
+OpenCode provides two relevant layers:
+
+- `tool.execute.before` to inspect or modify tool parameters before execution
+- `permission.ask` for richer permission decisions
+
+#### Example Implementation
+
 ```typescript
 "tool.execute.before": async (input, output) => {
   try {
     const payload = JSON.stringify({ tool: input.tool, args: output.args });
-    const result = await $`echo ${payload} | argus trap --agent opencode`.quiet().nothrow();
+    const result = await $`echo ${payload} | argus trap --agent opencode`
+      .quiet()
+      .nothrow();
     if (result.exitCode !== 0) {
-      // argus 命令异常，fail open（放行）
+      // Argus execution failed, fail open
       return;
     }
     const trapData = JSON.parse(result.text());
     if (trapData.hookSpecificOutput?.permissionDecision === "deny") {
-      throw new Error(trapData.hookSpecificOutput.permissionDecisionReason ?? "Argus: 操作被拒绝");
+      throw new Error(
+        trapData.hookSpecificOutput.permissionDecisionReason ??
+          "Argus: Operation denied"
+      );
     }
   } catch (e: any) {
-    if (typeof e?.message === "string" && e.message.startsWith("Argus:")) throw e;
-    // JSON 解析失败或其它异常，fail open（放行）
+    if (typeof e?.message === "string" && e.message.startsWith("Argus:")) {
+      throw e;
+    }
+    // JSON parsing or other wrapper failures: fail open
   }
 }
 ```
 
 ---
 
-## 9.4 安装与卸载逻辑 (Install / Uninstall)
+## 9.4 Install and Uninstall
 
-`argus install` 命令负责在不同 Agent 的配置路径中注入 Hook。
+`argus install` injects hook configuration into each agent-specific location.
 
-### 写入位置
-- **Claude Code**：写入 `.claude/settings.json`。该文件建议提交到仓库以实现团队共享。安装程序会合并配置并保留现有的非 Argus 钩子。
-- **Codex**：创建 `.codex/hooks.json`。同时确保用户级配置 `~/.codex/config.toml` 中开启了 `codex_hooks = true` 标识。卸载时不关闭该标识，避免影响用户可能存在的其他自定义 Hook。
-- **OpenCode**：在 `.opencode/plugins/` 目录下生成 `argus.ts` 插件文件。
+### Write Locations
 
-### 团队协作兼容性
-Hook wrapper 通过 PATH 查找 argus 二进制（优先 `command -v argus`），覆盖 GOPATH/bin 等常见安装路径。如果二进制未找到：
-- Shell wrapper（Claude Code / Codex）：静默放行（exit 0），并在输出中提示安装。
-- TS Plugin（OpenCode）：检查二进制路径是否存在，不存在时 push 安装提示 Part。
+- **Claude Code**: `.claude/settings.json`. This file should be committed to the repository so the team shares the configuration. The installer merges configuration and preserves existing non-Argus hooks.
+- **Codex**: `.codex/hooks.json`, plus ensure `codex_hooks = true` in `~/.codex/config.toml`
+- **OpenCode**: `.opencode/plugins/argus.ts`
 
-**安装提示内容**：该字符串非规范的一部分，Phase 1 输出通用安装提示即可（如 `Please install Argus CLI. See project README for instructions.`）。待项目发布后替换为具体安装命令。
+### Team Collaboration Compatibility
 
-### 卸载逻辑
-`argus uninstall` 执行逆向操作。在 Codex 中，出于安全考虑，`config.toml` 中的功能开关在卸载后会继续保留，以防破坏用户可能存在的其它自定义钩子。
+Wrappers locate the Argus binary through `PATH`, preferring `command -v argus` and covering common Go installation locations such as `GOPATH/bin`.
 
-### Hook 条目识别
-`install` / `uninstall` 需要在 Agent 配置中合并或移除 argus 条目。识别策略：
+If the binary is missing:
 
-- **Claude Code / Codex**：按 hook command 内容匹配。检查 command 字段是否包含 `argus tick` 或 `argus trap`（注意用户可能使用绝对路径，如 `/home/user/go/bin/argus tick`，需做子串匹配而非完全匹配）。
-- **OpenCode**：按文件名识别。argus 的 plugin 文件固定为 `.opencode/plugins/argus.ts`，直接按文件名操作。
+- **Shell wrappers (Claude Code / Codex)**: fail open with exit code 0 and print an installation hint
+- **TypeScript plugin (OpenCode)**: check the binary path and push an installation hint part when missing
 
----
+The exact installation hint string is not a protocol contract in Phase 1. A generic message such as `Please install Argus CLI. See project README for instructions.` is sufficient for now.
 
-## 9.5 Hook 运行日志 (Hook Logging)
+### Uninstall Behavior
 
-为了方便排查集成问题，Argus 维护统一格式的日志文件 `hook.log`。在项目作用域下，日志写入 `.argus/logs/hook.log`；在全局作用域下，日志写入 `~/.config/argus/logs/hook.log`。
+`argus uninstall` performs the inverse operation.
 
-日志写入并不依赖 Argus 二进制文件。各 Agent 的 Hook 入口会使用原生脚本或代码直接写入该文件。日志采用以下标准格式：
+For Codex, Argus intentionally **does not** disable the global `codex_hooks` toggle during uninstall, because that could break unrelated custom hooks managed by the user.
 
-`{COMPACT_UTC} [{COMMAND}] {OK|ERROR} {DETAILS}`
+### Identifying Argus-Owned Hook Entries
 
-其中 `{COMPACT_UTC}` 使用全局统一的 compact UTC 格式（如 `20240115T103000Z`），参见 [overview §3.3](technical-overview.md)。每次 Hook 调用写入一条日志记录。
+Install and uninstall must merge or remove Argus-owned entries safely.
 
-**OK/ERROR 判定范围**：`ERROR` 仅限于 **wrapper/执行层面的失败**，包括：
-- Argus 二进制缺失（PATH 查找失败）
-- 命令执行超时
-- JSON 解析失败（如 stdin 输入格式异常）
-- 日志文件写入失败
-
-以下情况记为 `OK`（即使业务上存在问题）：
-- argus 命令正常执行并返回了 error envelope（如 invariant 检查失败、无活跃 Pipeline）
-- 全局 Hook 正常 skip（不在 workspace 内、已有 `.argus/`）
-- tick/trap 正常完成（无论业务结果如何）
-
-这确保了 `doctor` 扫描 ERROR 日志时只关注集成层面的异常，不会被业务性的检查失败所干扰。
-
-**Pre-install 日志策略**：当 `.argus/logs/` 目录不存在时（如 Workspace 全局 Hook 在未初始化项目中触发），日志 fallback 写入用户级目录 `~/.config/argus/logs/hook.log`。这保持了 Workspace 非侵入原则——不为记日志而创建项目级 `.argus/` 目录。
-
-所有的 Hook 处理逻辑均采用内联方式，不使用额外的包装脚本。这减少了文件查找开销并提高了系统稳定性。
+- **Claude Code / Codex**: identify entries by matching hook command content. The command field should be checked for `argus tick` or `argus trap`, using substring matching rather than exact-match equality because users may install `argus` via absolute paths.
+- **OpenCode**: identify by filename. Argus owns `.opencode/plugins/argus.ts`.
 
 ---
 
-## 9.6 能力矩阵 (Capability Matrix)
+## 9.5 Hook Logging
 
-下表对比了各 Agent 在 Hook 层面提供的功能支持度。
+Argus maintains a unified log file named `hook.log`.
 
-| 能力类别 | 功能特性 | Claude Code | Codex | OpenCode |
+- project scope: `.argus/logs/hook.log`
+- global scope: `~/.config/argus/logs/hook.log`
+
+Logging does not depend on the Argus binary itself. Hook wrappers may write log lines directly with native shell or plugin code.
+
+Log format:
+
+```text
+{COMPACT_UTC} [{COMMAND}] {OK|ERROR} {DETAILS}
+```
+
+Where `{COMPACT_UTC}` uses the shared compact UTC format, for example `20240115T103000Z`.
+
+### What Counts as `ERROR`
+
+`ERROR` is reserved for wrapper or execution-layer failures:
+
+- Argus binary not found on `PATH`
+- command timeout
+- JSON parsing failures on hook input
+- log write failure
+
+The following still count as `OK` even if the business result is negative:
+
+- Argus returned an error envelope such as invariant failure or “no active pipeline”
+- a global hook skipped correctly because no applicable scope was found
+- `tick` or `trap` completed normally regardless of business result
+
+This keeps `doctor` focused on integration-layer problems instead of conflating them with normal business failures.
+
+### Pre-Install Logging Policy
+
+When `.argus/logs/` does not exist yet, for example when a workspace global hook fires inside an uninitialized project, logging falls back to `~/.config/argus/logs/hook.log`. This avoids creating project-level `.argus/` only for logging and preserves the non-intrusive workspace model.
+
+Argus prefers inline hook logic over extra wrapper scripts to reduce file lookup overhead and keep integration behavior stable.
+
+---
+
+## 9.6 Capability Matrix
+
+| Capability Area | Feature | Claude Code | Codex | OpenCode |
 | :--- | :--- | :---: | :---: | :---: |
-| **基础触发** | tick (上下文注入) | 支持 | 支持 | **极佳** |
-| | trap (操作门控) | **极佳** | 仅限 Bash | **极佳** |
-| **拦截范围** | Bash 命令拦截 | 支持 | 支持 | 支持 |
-| | 文件读写拦截 | 支持 | 不支持 | 支持 |
-| | MCP 工具拦截 | 支持 | 不支持 | 支持 |
-| **控制深度** | 权限决策 (Deny/Allow/Ask) | 支持 | 仅限 Deny | 支持 |
-| | 命令行精细过滤 (Matcher/if) | 支持 | 弱 | 代码实现 |
-| | 修改工具参数 | 不支持 | 不支持 | 支持 |
-| | 修改工具输出 | 不支持 | 不支持 | 支持 |
-| | 修改工具定义 | 不支持 | 不支持 | 支持 |
-| **高级扩展** | 修改 LLM 推理参数 | 不支持 | 不支持 | 支持 |
-| | 环境变量注入 | 不支持 | 不支持 | 支持 |
-| | 自定义原生工具 | 需要 MCP | 不支持 | 支持 |
-| **上下文管理** | 修改系统提示词 | 不支持 | 不支持 | 支持 |
-| | 修改完整消息历史 | 不支持 | 不支持 | 支持 |
-| | 定制上下文压缩逻辑 | 不支持 | 不支持 | 支持 |
-| | 自动继续 (Stop event) | 支持 | 支持 | 支持 |
+| **Basic triggers** | `tick` (context injection) | Yes | Yes | Excellent |
+| | `trap` (operation gating) | Excellent | Bash only | Excellent |
+| **Interception scope** | Bash command interception | Yes | Yes | Yes |
+| | File read/write interception | Yes | No | Yes |
+| | MCP tool interception | Yes | No | Yes |
+| **Decision depth** | Deny / Allow / Ask | Yes | Deny only | Yes |
+| | Fine-grained command matching | Yes | Weak | Implemented in code |
+| | Modify tool arguments | No | No | Yes |
+| | Modify tool output | No | No | Yes |
+| | Modify tool definitions | No | No | Yes |
+| **Advanced extension** | Modify LLM inference parameters | No | No | Yes |
+| | Inject environment variables | No | No | Yes |
+| | Define custom native tools | Via MCP | No | Yes |
+| **Context management** | Modify system prompt | No | No | Yes |
+| | Modify full message history | No | No | Yes |
+| | Customize context compaction | No | No | Yes |
+| | Automatic continue on stop events | Yes | Yes | Yes |
 
 ---
 
-## 9.7 局限性与规避方案 (Limitations)
+## 9.7 Limitations and Workarounds
 
-### 拦截范围限制
-Codex 的 `PreToolUse` 无法拦截文件编辑动作。如果工作流需要强制锁定某些文件，在 Codex 上只能通过 `tick` 阶段注入软性约束。Agent 可能会违背这种约束。
+### Interception Limits
 
-Codex 拦截限制的规避方案：
-- 通过 PostToolUse 事后检测（但无法阻止）
-- 通过 tick 在上下文中强调约束（软约束）
-- 等待 Codex 扩展 PreToolUse 支持范围
+Codex `PreToolUse` cannot intercept file edits. If a workflow requires hard protection over certain files, Codex can only receive soft constraints through `tick`, and the agent may still ignore them.
 
-### 运行时依赖
-OpenCode 插件需要 JS/TS 运行时环境。幸运的是 OpenCode 自带了 Bun 运行时。Argus 通过生成 TS 包装层来调用 Go CLI，虽然增加了层级，但保障了功能的完整性。
+Possible workarounds:
 
-### 格式处理
-各 Agent 对退出码和标准输出的解析逻辑各异。Argus `tick` 命令统一输出**纯文本**格式，各 Agent 的转发层负责将文本注入到各自的上下文机制中（如 Claude Code 通过 `additionalContext` 文本字段注入，OpenCode 通过 Plugin 代码处理）。为兼容 Codex 的当前 JSON 猜测逻辑，tick 文本首个非空白字符不得为 `[` 或 `{`。`trap` 命令的阻断输出统一使用 JSON（包含 `permissionDecision` 等字段），但放行输出需要按 Agent 能力适配：Claude Code / OpenCode 可返回 allow JSON，Codex 放行时必须保持空 stdout。
+- detect violations after the fact in `PostToolUse`
+- emphasize constraints in `tick`
+- wait for broader Codex hook coverage upstream
+
+### Runtime Dependencies
+
+OpenCode plugins require a JS or TS runtime. OpenCode ships with Bun, so Argus can generate a TypeScript wrapper that delegates to the Go CLI. This adds a layer, but preserves capability.
+
+### Output Handling
+
+Each agent interprets stdout and exit codes differently. Argus keeps:
+
+- **`tick`**: plain text across all agents
+- **deny responses in `trap`**: JSON with fields such as `permissionDecision`
+- **allow responses in `trap`**: agent-specific, because Codex requires empty stdout while Claude Code and OpenCode can accept allow JSON
 
 ---
 
-## 9.8 Hook 超时配置 (Hook Timeout)
+## 9.8 Hook Timeouts
 
-为了防止 Hook 进程挂起导致 Agent 假死，必须配置合理的超时时间。
+Hooks must have explicit timeouts to prevent the agent UI from appearing hung.
 
-| Agent | 默认超时 | 硬性上限 | 可配置性 | 超时行为 |
+| Agent | Default timeout | Hard limit | Configurable | Timeout behavior |
 | :--- | :---: | :---: | :---: | :--- |
-| Claude Code | 600s | 无 | 支持 (timeout) | 进程被终止，Hook 失败 |
-| Codex | 600s | 无 | 支持 (timeout) | 进程被终止，不阻断 Agent |
-| OpenCode | 无 | 无 | N/A | 持续等待函数返回 |
+| Claude Code | 600s | None | Yes (`timeout`) | Process is terminated and the hook fails |
+| Codex | 600s | None | Yes (`timeout`) | Process is terminated, agent continues |
+| OpenCode | None | None | N/A | Waits until the function returns |
 
-对于 Argus 而言，tick 操作仅涉及快速的状态检查，默认的超时设置完全能够满足需求。安装程序在写入配置时会显式声明超时参数，以增强系统的防御性。
+For Argus, `tick` should stay fast because it only performs state inspection and lightweight checks. Installers should write explicit timeout settings into generated configuration for defensive robustness.

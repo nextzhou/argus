@@ -65,7 +65,7 @@ func newWorkflowStartCmd() *cobra.Command {
 			if err != nil {
 				msg := err.Error()
 				if errors.Is(err, core.ErrActivePipelineExists) {
-					msg = "另一个 Pipeline 正在运行中，请先完成或取消当前 Pipeline 后再启动新的 Pipeline。"
+					msg = "Another pipeline is already running. Complete or cancel the current pipeline before starting a new one."
 				}
 				writeCommandError(cmd, jsonFlag, msg)
 				return fmt.Errorf("workflow start failed: %w", err)
@@ -121,13 +121,13 @@ func newWorkflowStartCmd() *cobra.Command {
 
 func renderStartText(cmd *cobra.Command, instanceID, progress string, job workflow.Job, renderedPrompt string) {
 	w := cmd.OutOrStdout()
-	_, _ = fmt.Fprintf(w, "Argus: Pipeline %s 已启动 (%s)\n\n", instanceID, progress)
-	_, _ = fmt.Fprintf(w, "当前 Job: %s\n", job.ID)
+	_, _ = fmt.Fprintf(w, "Argus: Pipeline %s started (%s)\n\n", instanceID, progress)
+	_, _ = fmt.Fprintf(w, "Current job: %s\n", job.ID)
 	_, _ = fmt.Fprintf(w, "Prompt: %s\n", renderedPrompt)
 	if job.Skill != "" {
 		_, _ = fmt.Fprintf(w, "Skill: %s\n", job.Skill)
 	}
-	_, _ = fmt.Fprintf(w, "\n完成后请调用：argus job-done --message \"执行结果摘要\"\n")
+	_, _ = fmt.Fprintf(w, "\nWhen complete, run: argus job-done --message \"execution summary\"\n")
 }
 
 func resolveRefs(workflowsDir, workflowPath string, w *workflow.Workflow) error {

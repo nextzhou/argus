@@ -1,22 +1,22 @@
 version: v0.1.0
 id: argus-init
-description: "项目已完成 Argus 初始化"
+description: "The project has completed Argus initialization"
 auto: always
 
 check:
   - shell: 'test -d .argus/rules && test "$(ls .argus/rules/)"'
-    description: "项目规则已生成"
+    description: "Project rules have been generated"
   - shell: "test -f CLAUDE.md || test -f AGENTS.md"
-    description: "Agent 原生 rules 文件存在"
+    description: "Agent-native rules file exists"
   - shell: "test -f .agents/skills/argus-doctor/SKILL.md && test -f .claude/skills/argus-doctor/SKILL.md"
-    description: "内置 Skills 已生成（两个项目级路径均存在）"
+    description: "Built-in skills have been released to both project-level paths"
   - shell: "test -f .git/hooks/pre-commit || test -f .husky/pre-commit || test -f .lefthook.yml || test -f .pre-commit-config.yaml"
-    description: "Git pre-commit hook 已配置（支持 .git/hooks、husky、lefthook、pre-commit 框架）"
+    description: "A git pre-commit hook is configured (.git/hooks, husky, lefthook, or pre-commit)"
   - shell: "grep -q '.argus/pipelines' .gitignore && grep -q '.argus/logs' .gitignore && grep -q '.argus/tmp' .gitignore"
-    description: ".gitignore 包含 Argus 临时文件（pipelines/、logs/、tmp/）"
+    description: ".gitignore includes Argus temporary files (pipelines, logs, tmp)"
   - shell: "test -f .argus/data/init_workflows_generated"
-    description: "项目 workflow 已生成（mark 文件）"
+    description: "Project workflows have been generated (marker file exists)"
   - shell: 'test "$(ls .argus/invariants/*.yaml 2>/dev/null | grep -v argus-)"'
-    description: "自定义 invariant 示例已生成"
+    description: "Custom invariant examples have been generated"
 
 workflow: argus-init

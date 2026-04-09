@@ -61,7 +61,7 @@ func newJobDoneCmd() *cobra.Command {
 			}
 
 			if len(actives) == 0 {
-				msg := "当前没有活跃的 Pipeline。可以使用 argus workflow start <workflow-id> 启动一个 workflow。"
+				msg := "No active pipeline. Start one with argus workflow start <workflow-id>."
 				if jsonFlag {
 					writeCommandError(cmd, true, msg)
 				} else {
@@ -71,7 +71,7 @@ func newJobDoneCmd() *cobra.Command {
 			}
 
 			if len(actives) > 1 {
-				msg := "检测到多个活跃的 Pipeline（异常状态）。"
+				msg := "Detected multiple active pipelines (unexpected state)."
 				writeCommandError(cmd, jsonFlag, msg)
 				return fmt.Errorf("job-done failed: multiple active pipelines")
 			}
@@ -187,36 +187,36 @@ func newJobDoneCmd() *cobra.Command {
 }
 
 func renderNoPipelineText(w io.Writer) {
-	_, _ = fmt.Fprintf(w, "Argus: 当前没有活跃的 Pipeline。\n")
-	_, _ = fmt.Fprintf(w, "可以使用 argus workflow start <workflow-id> 启动一个 workflow。\n")
+	_, _ = fmt.Fprintf(w, "Argus: No active pipeline.\n")
+	_, _ = fmt.Fprintf(w, "Start one with argus workflow start <workflow-id>.\n")
 }
 
 func renderNextJobText(w io.Writer, completedJobID, progress string, nextJob workflow.Job, renderedPrompt string) {
-	_, _ = fmt.Fprintf(w, "Argus: Job %s 完成 (%s)\n\n", completedJobID, progress)
-	_, _ = fmt.Fprintf(w, "下一个 Job: %s\n", nextJob.ID)
+	_, _ = fmt.Fprintf(w, "Argus: Job %s completed (%s)\n\n", completedJobID, progress)
+	_, _ = fmt.Fprintf(w, "Next job: %s\n", nextJob.ID)
 	_, _ = fmt.Fprintf(w, "Prompt: %s\n", renderedPrompt)
 	if nextJob.Skill != "" {
 		_, _ = fmt.Fprintf(w, "Skill: %s\n", nextJob.Skill)
 	}
-	_, _ = fmt.Fprintf(w, "\n完成后请调用：argus job-done --message \"执行结果摘要\"\n")
+	_, _ = fmt.Fprintf(w, "\nWhen complete, run: argus job-done --message \"execution summary\"\n")
 }
 
 func renderCompletedText(w io.Writer, completedJobID, progress, instanceID string) {
-	_, _ = fmt.Fprintf(w, "Argus: Job %s 完成 (%s)\n", completedJobID, progress)
-	_, _ = fmt.Fprintf(w, "Pipeline %s 已全部完成。\n", instanceID)
+	_, _ = fmt.Fprintf(w, "Argus: Job %s completed (%s)\n", completedJobID, progress)
+	_, _ = fmt.Fprintf(w, "Pipeline %s is complete.\n", instanceID)
 }
 
 func renderEarlyExitText(w io.Writer, completedJobID, progress string) {
-	_, _ = fmt.Fprintf(w, "Argus: Job %s 完成，Pipeline 提前结束 (%s)。\n", completedJobID, progress)
+	_, _ = fmt.Fprintf(w, "Argus: Job %s completed. Pipeline ended early (%s).\n", completedJobID, progress)
 }
 
 func renderFailedText(w io.Writer, failedJobID, progress, workflowID string, earlyExit bool) {
 	if earlyExit {
-		_, _ = fmt.Fprintf(w, "Argus: Job %s 标记为失败，Pipeline 提前结束 (%s)。\n", failedJobID, progress)
+		_, _ = fmt.Fprintf(w, "Argus: Job %s marked as failed. Pipeline ended early (%s).\n", failedJobID, progress)
 	} else {
-		_, _ = fmt.Fprintf(w, "Argus: Job %s 标记为失败，Pipeline 已停止 (%s)。\n", failedJobID, progress)
+		_, _ = fmt.Fprintf(w, "Argus: Job %s marked as failed. Pipeline stopped (%s).\n", failedJobID, progress)
 	}
-	_, _ = fmt.Fprintf(w, "\n可用操作：\n")
-	_, _ = fmt.Fprintf(w, "- 重新开始：argus workflow start %s\n", workflowID)
-	_, _ = fmt.Fprintf(w, "- 取消：argus workflow cancel\n")
+	_, _ = fmt.Fprintf(w, "\nAvailable actions:\n")
+	_, _ = fmt.Fprintf(w, "- Restart: argus workflow start %s\n", workflowID)
+	_, _ = fmt.Fprintf(w, "- Cancel: argus workflow cancel\n")
 }
