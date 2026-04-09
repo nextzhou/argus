@@ -1,0 +1,11 @@
+version: v0.1.0
+id: argus-project-init
+description: "Project has Argus installed"
+auto: always
+
+check:
+  - shell: "test -d .argus"
+    description: "Argus directory exists"
+
+prompt: "This project does not have Argus installed. Run `argus install --yes` to install, or use the argus-install Skill for guidance."
+workflow: ""
