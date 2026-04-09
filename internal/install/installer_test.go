@@ -137,6 +137,30 @@ func TestInstallIsIdempotent(t *testing.T) {
 	assert.FileExists(t, filepath.Join(homeDir, ".codex", "config.toml"))
 }
 
+func TestInstallPrunesObsoleteBuiltinSkills(t *testing.T) {
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+	projectRoot := newTestProjectRoot(t)
+
+	for _, skillPath := range SkillPaths() {
+		legacySkillDir := filepath.Join(projectRoot, skillPath, "argus-concepts")
+		require.NoError(t, os.MkdirAll(legacySkillDir, 0o755))
+		require.NoError(t, os.WriteFile(filepath.Join(legacySkillDir, "SKILL.md"), []byte("# legacy\n"), 0o644))
+	}
+
+	result, err := InstallWithReport(projectRoot)
+	require.NoError(t, err)
+
+	for _, skillPath := range SkillPaths() {
+		_, statErr := os.Stat(filepath.Join(projectRoot, skillPath, "argus-concepts"))
+		assert.True(t, os.IsNotExist(statErr), "%s/argus-concepts should be pruned", skillPath)
+		_, statErr = os.Stat(filepath.Join(projectRoot, skillPath, "argus-intro", "SKILL.md"))
+		assert.NoError(t, statErr, "%s/argus-intro/SKILL.md should exist", skillPath)
+	}
+
+	assert.Contains(t, result.Report.Changes.Removed, ".agents/skills/argus-*/SKILL.md")
+}
+
 func assertReleasedAsset(t *testing.T, projectRoot, srcPath, dstPath string) {
 	t.Helper()
 

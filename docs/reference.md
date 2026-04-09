@@ -253,7 +253,7 @@ These commands default to human-readable text. Add `--json` when you need struct
 | Command | Description |
 |---------|-------------|
 | `argus install [--yes] [--json]` | Install Argus into the current project |
-| `argus install --workspace <path> [--yes] [--json]` | Register a workspace and set up the global/user scope |
+| `argus install --workspace <path> [--yes] [--json]` | Register a workspace and set up or refresh the global/user scope |
 | `argus uninstall [--yes] [--json]` | Remove Argus from the current project |
 | `argus uninstall --workspace <path> [--yes] [--json]` | Remove a registered workspace |
 | `argus doctor [--json]` | Diagnose installation and configuration issues |
@@ -329,7 +329,7 @@ Released during `argus install` to `.agents/skills/` and `.claude/skills/`:
 
 | Skill | Description |
 |-------|-------------|
-| `argus-concepts` | Core terminology and architecture overview |
+| `argus-intro` | Bootstrap explanation of what Argus is and what installation changes |
 | `argus-install` | Installation and upgrade guidance |
 | `argus-uninstall` | Uninstallation guidance |
 | `argus-doctor` | Diagnostic troubleshooting |

@@ -50,22 +50,37 @@ func TestConfirmSubdirectoryInstall_NonTTY(t *testing.T) {
 }
 
 func TestConfirmWorkspaceInstall(t *testing.T) {
-	cmd := &cobra.Command{}
-	var buf bytes.Buffer
-	cmd.SetOut(&buf)
+	t.Run("registers new workspace", func(t *testing.T) {
+		cmd := &cobra.Command{}
+		var buf bytes.Buffer
+		cmd.SetOut(&buf)
 
-	got, err := confirmWorkspaceInstall(cmd, "~/work/company", strings.NewReader("yes\n"), true)
+		got, err := confirmWorkspaceInstall(cmd, "~/work/company", false, strings.NewReader("yes\n"), true)
 
-	require.NoError(t, err)
-	assert.True(t, got)
-	assert.Contains(t, buf.String(), "This will register the workspace path:")
-	assert.Contains(t, buf.String(), "~/work/company")
-	assert.Contains(t, buf.String(), "global hooks and global skills")
+		require.NoError(t, err)
+		assert.True(t, got)
+		assert.Contains(t, buf.String(), "This will register the workspace path:")
+		assert.Contains(t, buf.String(), "~/work/company")
+		assert.Contains(t, buf.String(), "global hooks and global skills")
+	})
+
+	t.Run("refreshes existing workspace", func(t *testing.T) {
+		cmd := &cobra.Command{}
+		var buf bytes.Buffer
+		cmd.SetOut(&buf)
+
+		got, err := confirmWorkspaceInstall(cmd, "~/work/company", true, strings.NewReader("yes\n"), true)
+
+		require.NoError(t, err)
+		assert.True(t, got)
+		assert.Contains(t, buf.String(), "This workspace path is already registered:")
+		assert.Contains(t, buf.String(), "refresh global hooks, global skills, and global artifacts")
+	})
 }
 
 func TestConfirmWorkspaceInstall_NonTTY(t *testing.T) {
 	cmd := &cobra.Command{}
-	got, err := confirmWorkspaceInstall(cmd, "~/work/company", strings.NewReader("yes\n"), false)
+	got, err := confirmWorkspaceInstall(cmd, "~/work/company", false, strings.NewReader("yes\n"), false)
 
 	assert.False(t, got)
 	require.Error(t, err)

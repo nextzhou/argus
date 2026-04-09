@@ -33,7 +33,7 @@ Remove Argus from a project.
 Workspace uninstall (`argus uninstall --workspace <path>`) instead:
 
 1. Removes the normalized workspace path from `~/.config/argus/config.yaml`
-2. If it was the last registered workspace, removes global hooks and global independent skills
+2. If it was the last registered workspace, removes global hooks and global bootstrap skills
 3. Preserves unrelated user-managed skills and hook settings outside the Argus-managed entries
 
 ## Notes

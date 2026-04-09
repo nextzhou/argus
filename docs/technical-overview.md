@@ -101,6 +101,7 @@ Argus embeds several classes of assets under `internal/assets/`:
 internal/assets/
   skills/                        # Released by install
     argus-doctor/SKILL.md
+    argus-intro/SKILL.md
     argus-install/SKILL.md
     ...
   workflows/                     # Released by install
@@ -122,7 +123,7 @@ var embedded embed.FS
 
 Usage rules:
 
-- `skills/`, `workflows/`, and `invariants/` are released into project or global scope during installation. At project scope, skills are released to `.agents/skills/` and `.claude/skills/`. OpenCode discovers skills through compatible path scanning, so no separate `.opencode/skills/` is generated. At global scope (`install --workspace`), skills are released to each agent's global skill directory (see [§11.5](technical-workspace.md)).
+- `skills/`, `workflows/`, and `invariants/` are released into project or global scope during installation. At project scope, skills are released to `.agents/skills/` and `.claude/skills/`. OpenCode discovers skills through compatible path scanning, so no separate `.opencode/skills/` is generated. At global scope (`install --workspace`), Argus releases the bootstrap-oriented global skill subset to each agent's global skill directory and refreshes those managed resources on repeat install (see [§11.5](technical-workspace.md)).
 - `prompts/` and `hooks/` are runtime assets read internally by the Argus binary for template rendering (tick injection, job-done output, hook wrapper generation). They are not released as project files.
 
 ---

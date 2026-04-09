@@ -50,21 +50,11 @@ func InstallWorkspaceWithReport(path string) (WorkspaceOperationResult, error) {
 	}
 
 	tracker := newMutationTracker()
-	if state.alreadyRegistered {
-		if _, err := os.Stderr.WriteString("workspace already registered: " + state.normalizedPath + "\n"); err != nil {
-			return WorkspaceOperationResult{}, fmt.Errorf("writing duplicate workspace warning: %w", err)
+	if !state.alreadyRegistered {
+		state.config.Workspaces = workspacecfg.DeduplicateWorkspaces(append(state.config.Workspaces, state.normalizedPath))
+		if err := saveWorkspaceConfigTracked(state.configPath, state.config, tracker); err != nil {
+			return WorkspaceOperationResult{}, fmt.Errorf("saving workspace config: %w", err)
 		}
-
-		return WorkspaceOperationResult{
-			Path:              state.normalizedPath,
-			AlreadyRegistered: true,
-			Report:            buildWorkspaceInstallReport(state.homeDir, tracker),
-		}, nil
-	}
-
-	state.config.Workspaces = workspacecfg.DeduplicateWorkspaces(append(state.config.Workspaces, state.normalizedPath))
-	if err := saveWorkspaceConfigTracked(state.configPath, state.config, tracker); err != nil {
-		return WorkspaceOperationResult{}, fmt.Errorf("saving workspace config: %w", err)
 	}
 
 	if err := installGlobalHooks(state.homeDir, supportedAgents, tracker); err != nil {
@@ -80,8 +70,9 @@ func InstallWorkspaceWithReport(path string) (WorkspaceOperationResult, error) {
 	}
 
 	return WorkspaceOperationResult{
-		Path:   state.normalizedPath,
-		Report: buildWorkspaceInstallReport(state.homeDir, tracker),
+		Path:              state.normalizedPath,
+		AlreadyRegistered: state.alreadyRegistered,
+		Report:            buildWorkspaceInstallReport(state.homeDir, tracker),
 	}, nil
 }
 
@@ -139,6 +130,10 @@ func installGlobalSkills(homeDir string, tracker *mutationTracker) error {
 		if err := releaseGlobalSkill(skillName, targetRoots, tracker); err != nil {
 			return fmt.Errorf("releasing global skill %s: %w", skillName, err)
 		}
+	}
+
+	if err := pruneManagedSkills(targetRoots, GlobalSkillNames(), tracker); err != nil {
+		return fmt.Errorf("pruning global skills: %w", err)
 	}
 
 	return nil
@@ -250,7 +245,7 @@ func uninstallGlobalSkills(homeDir string, tracker *mutationTracker) error {
 
 // GlobalSkillNames returns the built-in skills that are safe for global distribution.
 func GlobalSkillNames() []string {
-	return []string{"argus-install", "argus-uninstall", "argus-doctor"}
+	return []string{"argus-intro", "argus-install", "argus-uninstall", "argus-doctor"}
 }
 
 // GlobalSkillPaths returns the global Agent skill directories Argus manages.

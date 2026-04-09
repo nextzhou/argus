@@ -276,12 +276,41 @@ func TestWorkspaceInstallDuplicateRegistrationIsNoOp(t *testing.T) {
 	_, cmdErr := executeWorkspaceInstallCmd(t, workspaceDir)
 	require.NoError(t, cmdErr)
 
-	output, cmdErr := executeWorkspaceInstallCmdWithArgs(t, workspaceDir)
+	output, cmdErr := executeWorkspaceInstallCmdWithArgs(t, workspaceDir, "--yes")
 	require.NoError(t, cmdErr)
 	data := parseWorkspaceLifecycleOutput(t, output)
-	assert.Equal(t, "workspace already registered", data["message"])
+	assert.Equal(t, "workspace already registered; global resources already up to date", data["message"])
 	assertEmptyLifecycleChanges(t, data)
 	assertLifecycleReportShape(t, data, "~/.config/argus/config.yaml")
+}
+
+func TestWorkspaceInstallDuplicateRegistrationRefreshesResources(t *testing.T) {
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+
+	workspaceDir := filepath.Join(homeDir, "work")
+	require.NoError(t, os.MkdirAll(workspaceDir, 0o755))
+
+	_, cmdErr := executeWorkspaceInstallCmd(t, workspaceDir)
+	require.NoError(t, cmdErr)
+
+	for _, skillPath := range install.GlobalSkillPaths() {
+		require.NoError(t, os.MkdirAll(filepath.Join(skillPath, "argus-concepts"), 0o755))
+		require.NoError(t, os.WriteFile(filepath.Join(skillPath, "argus-concepts", "SKILL.md"), []byte("# legacy\n"), 0o644))
+	}
+	require.NoError(t, os.WriteFile(filepath.Join(homeDir, ".agents", "skills", "argus-intro", "SKILL.md"), []byte("# stale intro\n"), 0o644))
+
+	output, cmdErr := executeWorkspaceInstallCmdWithArgs(t, workspaceDir, "--yes")
+	require.NoError(t, cmdErr)
+	data := parseWorkspaceLifecycleOutput(t, output)
+	assert.Equal(t, "workspace already registered; global resources refreshed", data["message"])
+
+	for _, skillPath := range install.GlobalSkillPaths() {
+		_, err := os.Stat(filepath.Join(skillPath, "argus-concepts"))
+		assert.True(t, os.IsNotExist(err), "%s/argus-concepts should be pruned", skillPath)
+		_, err = os.Stat(filepath.Join(skillPath, "argus-intro", "SKILL.md"))
+		assert.NoError(t, err, "%s/argus-intro/SKILL.md should exist", skillPath)
+	}
 }
 
 func TestWorkspaceInstallNonInteractiveWithoutYes(t *testing.T) {
@@ -290,6 +319,26 @@ func TestWorkspaceInstallNonInteractiveWithoutYes(t *testing.T) {
 
 	workspaceDir := filepath.Join(homeDir, "work")
 	require.NoError(t, os.MkdirAll(workspaceDir, 0o755))
+
+	withPipeStdin(t, "", func() {
+		output, cmdErr := executeWorkspaceInstallCmdWithArgs(t, workspaceDir)
+		require.Error(t, cmdErr)
+		assert.Contains(t, cmdErr.Error(), "--yes")
+
+		data := parseWorkspaceLifecycleOutput(t, output)
+		assert.Equal(t, "error", data["status"])
+		assert.Contains(t, data["message"], "use --yes")
+	})
+}
+
+func TestWorkspaceInstallDuplicateNonInteractiveWithoutYes(t *testing.T) {
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+
+	workspaceDir := filepath.Join(homeDir, "work")
+	require.NoError(t, os.MkdirAll(workspaceDir, 0o755))
+	_, cmdErr := executeWorkspaceInstallCmd(t, workspaceDir)
+	require.NoError(t, cmdErr)
 
 	withPipeStdin(t, "", func() {
 		output, cmdErr := executeWorkspaceInstallCmdWithArgs(t, workspaceDir)

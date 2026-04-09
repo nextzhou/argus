@@ -239,10 +239,12 @@ argus uninstall --workspace ~/work/client-x
 A workspace is a registered parent directory. The `--workspace` flag does three things:
 
 1. **Installs global hooks** — writes `argus tick` and `argus trap` into each agent's **user-level** (global) hook configuration, so they fire for all projects, not just Argus-initialized ones.
-2. **Installs global skills** — releases tool-level skills (like `argus-install` and `argus-doctor`) to each agent's global skill directory, so agents can guide installation even in projects that don't have Argus yet.
+2. **Installs global skills** — releases bootstrap skills (such as `argus-intro`, `argus-install`, and `argus-doctor`) to each agent's global skill directory, so agents can guide installation even in projects that don't have Argus yet.
 3. **Records the workspace path** in `~/.config/argus/config.yaml`.
 
-When the global hook fires inside a workspace directory, Argus checks whether the current project has a `.argus/` directory. If not, it guides the agent to run `argus install`. The workspace itself doesn't manage projects or aggregate state — it's purely a discovery and onboarding mechanism.
+Re-running `argus install --workspace <path>` for an already registered workspace refreshes those global hooks, skills, and bootstrap artifacts to match the current Argus binary.
+
+When the global hook fires inside a workspace directory, Argus checks whether the current project has a `.argus/` directory. If not, it guides the agent to either install Argus, explain what Argus is, or ignore the reminder and continue. The workspace itself doesn't manage projects or aggregate state — it's purely a discovery and onboarding mechanism.
 
 Multiple workspaces can be registered. Remove one with `argus uninstall --workspace <path>`.
 

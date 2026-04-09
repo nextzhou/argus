@@ -32,10 +32,10 @@ func TestListSkills(t *testing.T) {
 	assert.Len(t, names, 9)
 
 	expected := []string{
-		"argus-concepts",
 		"argus-doctor",
 		"argus-generate-rules",
 		"argus-install",
+		"argus-intro",
 		"argus-invariant-check",
 		"argus-status",
 		"argus-uninstall",

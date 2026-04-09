@@ -62,6 +62,14 @@ func InstallWithReport(projectRoot string) (ProjectOperationResult, error) {
 		}
 	}
 
+	builtinSkillNames, err := BuiltinSkillNames()
+	if err != nil {
+		return ProjectOperationResult{}, err
+	}
+	if err := pruneManagedSkills(projectSkillRoots(projectRoot), builtinSkillNames, tracker); err != nil {
+		return ProjectOperationResult{}, fmt.Errorf("pruning managed project skills: %w", err)
+	}
+
 	if err := installHooks(projectRoot, supportedAgents, tracker); err != nil {
 		return ProjectOperationResult{}, fmt.Errorf("installing hooks: %w", err)
 	}

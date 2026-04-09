@@ -1,7 +1,6 @@
 package install
 
 import (
-	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -105,20 +104,12 @@ func TestInstallWorkspace_DuplicateRegistration(t *testing.T) {
 	require.NoError(t, os.MkdirAll(workspaceDir, 0o755))
 	require.NoError(t, InstallWorkspace(workspaceDir))
 
-	warning, err := captureStderr(t, func() error {
-		result, err := InstallWorkspaceWithReport(filepath.Join(workspaceDir, "."))
-		if err != nil {
-			return err
-		}
-		assert.True(t, result.AlreadyRegistered)
-		assert.Empty(t, result.Report.Changes.Created)
-		assert.Empty(t, result.Report.Changes.Updated)
-		assert.Empty(t, result.Report.Changes.Removed)
-		return nil
-	})
+	result, err := InstallWorkspaceWithReport(filepath.Join(workspaceDir, "."))
 	require.NoError(t, err)
-	assert.Contains(t, warning, "workspace already registered")
-	assert.Contains(t, warning, "~/work/company")
+	assert.True(t, result.AlreadyRegistered)
+	assert.Empty(t, result.Report.Changes.Created)
+	assert.Empty(t, result.Report.Changes.Updated)
+	assert.Empty(t, result.Report.Changes.Removed)
 
 	config, err := workspacecfg.LoadConfig(UserConfigPath())
 	require.NoError(t, err)
@@ -227,14 +218,44 @@ func TestInstallGlobalSkills(t *testing.T) {
 		assert.True(t, os.IsNotExist(err))
 	}
 
-	assert.Equal(t, 9, countSkillMarkdownFiles(t, GlobalSkillPaths()))
+	assert.Equal(t, 12, countSkillMarkdownFiles(t, GlobalSkillPaths()))
 }
 
 func TestGlobalSkillNames(t *testing.T) {
 	assert.True(t, slices.Equal(
-		[]string{"argus-install", "argus-uninstall", "argus-doctor"},
+		[]string{"argus-intro", "argus-install", "argus-uninstall", "argus-doctor"},
 		GlobalSkillNames(),
 	))
+}
+
+func TestInstallWorkspace_RefreshesGlobalResources(t *testing.T) {
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+
+	workspaceDir := filepath.Join(homeDir, "work", "company")
+	require.NoError(t, os.MkdirAll(workspaceDir, 0o755))
+	require.NoError(t, InstallWorkspace(workspaceDir))
+
+	for _, skillPath := range GlobalSkillPaths() {
+		require.NoError(t, os.MkdirAll(filepath.Join(skillPath, "argus-concepts"), 0o755))
+		require.NoError(t, os.WriteFile(filepath.Join(skillPath, "argus-concepts", "SKILL.md"), []byte("# legacy\n"), 0o644))
+	}
+
+	introPath := filepath.Join(homeDir, ".agents", "skills", "argus-intro", "SKILL.md")
+	require.NoError(t, os.WriteFile(introPath, []byte("# stale intro\n"), 0o644))
+
+	result, err := InstallWorkspaceWithReport(workspaceDir)
+	require.NoError(t, err)
+	assert.True(t, result.AlreadyRegistered)
+	assert.NotEmpty(t, result.Report.Changes.Updated)
+	assert.NotEmpty(t, result.Report.Changes.Removed)
+
+	for _, skillPath := range GlobalSkillPaths() {
+		_, statErr := os.Stat(filepath.Join(skillPath, "argus-concepts"))
+		assert.True(t, os.IsNotExist(statErr), "%s/argus-concepts should be pruned", skillPath)
+		_, statErr = os.Stat(filepath.Join(skillPath, "argus-intro", "SKILL.md"))
+		assert.NoError(t, statErr, "%s/argus-intro/SKILL.md should exist", skillPath)
+	}
 }
 
 func TestGlobalSkillPaths(t *testing.T) {
@@ -253,26 +274,6 @@ func TestUserConfigPath(t *testing.T) {
 	t.Setenv("HOME", homeDir)
 
 	assert.Equal(t, filepath.Join(homeDir, ".config", "argus", "config.yaml"), UserConfigPath())
-}
-
-func captureStderr(t *testing.T, fn func() error) (string, error) {
-	t.Helper()
-
-	oldStderr := os.Stderr
-	r, w, err := os.Pipe()
-	require.NoError(t, err)
-	os.Stderr = w
-
-	fnErr := fn()
-
-	require.NoError(t, w.Close())
-	os.Stderr = oldStderr
-
-	output, err := io.ReadAll(r)
-	require.NoError(t, err)
-	require.NoError(t, r.Close())
-
-	return string(output), fnErr
 }
 
 func assertGlobalSkillsReleased(t *testing.T) {

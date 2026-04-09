@@ -78,7 +78,9 @@ func TestHandleTick_Global(t *testing.T) {
 				assert.Contains(t, output, "Argus: Invariant check failed:")
 				assert.Contains(t, output, "argus-project-init")
 				assert.Contains(t, output, "Project has Argus installed")
-				assert.Contains(t, output, "Run `argus install --yes` to install")
+				assert.Contains(t, output, "question tool")
+				assert.Contains(t, output, "argus-install")
+				assert.Contains(t, output, "argus-intro")
 				assert.NotContains(t, output, "No active pipeline")
 				assert.True(t, session.Exists(sessionBaseDir, "ses-workspace"))
 			},

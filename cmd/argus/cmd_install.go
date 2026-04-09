@@ -29,14 +29,17 @@ func newInstallCmd() *cobra.Command {
 					return err
 				}
 
-				if !yesFlag && !preview.AlreadyRegistered {
-					confirmed, confirmErr := confirmWorkspaceInstall(cmd, preview.Path, os.Stdin, stdinIsTTY())
+				if !yesFlag {
+					confirmed, confirmErr := confirmWorkspaceInstall(cmd, preview.Path, preview.AlreadyRegistered, os.Stdin, stdinIsTTY())
 					if confirmErr != nil {
 						writeCommandError(cmd, jsonFlag, confirmErr.Error())
 						return confirmErr
 					}
 					if !confirmed {
 						cancelErr := fmt.Errorf("workspace installation cancelled")
+						if preview.AlreadyRegistered {
+							cancelErr = fmt.Errorf("workspace refresh cancelled")
+						}
 						writeCommandError(cmd, jsonFlag, cancelErr.Error())
 						return cancelErr
 					}
@@ -50,7 +53,11 @@ func newInstallCmd() *cobra.Command {
 
 				message := "workspace registered"
 				if result.AlreadyRegistered {
-					message = "workspace already registered"
+					if reportHasChanges(result.Report) {
+						message = "workspace already registered; global resources refreshed"
+					} else {
+						message = "workspace already registered; global resources already up to date"
+					}
 				}
 
 				output := lifecycleOutput{
@@ -122,7 +129,17 @@ func confirmSubdirectoryInstall(cmd *cobra.Command, projectRoot string, stdinRea
 	}, stdinReader, isTTY, "current directory is not the Git root — use --yes to install here anyway")
 }
 
-func confirmWorkspaceInstall(cmd *cobra.Command, normalizedPath string, stdinReader io.Reader, isTTY bool) (bool, error) {
+func confirmWorkspaceInstall(cmd *cobra.Command, normalizedPath string, alreadyRegistered bool, stdinReader io.Reader, isTTY bool) (bool, error) {
+	if alreadyRegistered {
+		return confirmWithPrompt(cmd, []string{
+			"This workspace path is already registered:",
+			"  " + normalizedPath,
+			"",
+			"Argus will refresh global hooks, global skills, and global artifacts for this user account.",
+			"Use this after upgrading Argus or when built-in global resources need to be restored.",
+		}, stdinReader, isTTY, "workspace refresh requires confirmation in interactive mode; use --yes to skip confirmation")
+	}
+
 	return confirmWithPrompt(cmd, []string{
 		"This will register the workspace path:",
 		"  " + normalizedPath,
@@ -168,4 +185,8 @@ func stdinIsTTY() bool {
 	}
 
 	return info.Mode()&os.ModeCharDevice != 0
+}
+
+func reportHasChanges(report install.Report) bool {
+	return len(report.Changes.Created) > 0 || len(report.Changes.Updated) > 0 || len(report.Changes.Removed) > 0
 }

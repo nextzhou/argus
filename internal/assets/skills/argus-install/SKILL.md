@@ -17,7 +17,7 @@ Install and initialize Argus in a project.
 ## Commands
 
 - `argus install [--yes] [--json]` — Install Argus in current Git project
-- `argus install --workspace <path> [--yes] [--json]` — Register a workspace and install global hooks and global skills
+- `argus install --workspace <path> [--yes] [--json]` — Register a workspace and install or refresh global hooks, global skills, and global artifacts
 
 ## Output Mode
 
@@ -35,8 +35,9 @@ Workspace install (`argus install --workspace <path>`) instead:
 
 1. Registers the normalized workspace path in `~/.config/argus/config.yaml`
 2. Installs global `tick` hooks for Claude Code, Codex, and OpenCode
-3. Releases global independent skills to Agent-level skill directories
-4. Does not install Argus into any project yet
+3. Releases global bootstrap skills to Agent-level skill directories
+4. Refreshes those global resources when the workspace is already registered
+5. Does not install Argus into any project yet
 
 ## Prerequisites
 

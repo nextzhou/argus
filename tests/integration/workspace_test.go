@@ -34,7 +34,7 @@ func TestWorkspace_CompleteLifecycle(t *testing.T) {
 		assert.Contains(t, string(content), "--global")
 	}
 
-	for _, skillName := range []string{"argus-install", "argus-uninstall", "argus-doctor"} {
+	for _, skillName := range []string{"argus-intro", "argus-install", "argus-uninstall", "argus-doctor"} {
 		skillPath := filepath.Join(homeDir, ".claude", "skills", skillName, "SKILL.md")
 		assert.True(t, fileExists(t, skillPath), "%s should exist", skillPath)
 	}
@@ -129,7 +129,7 @@ func TestWorkspace_MultiWorkspace(t *testing.T) {
 	requireOK(t, result)
 
 	globalSettingsPath := filepath.Join(homeDir, ".claude", "settings.json")
-	for _, skillName := range []string{"argus-install", "argus-uninstall", "argus-doctor"} {
+	for _, skillName := range []string{"argus-intro", "argus-install", "argus-uninstall", "argus-doctor"} {
 		skillPath := filepath.Join(homeDir, ".claude", "skills", skillName, "SKILL.md")
 		assert.True(t, fileExists(t, skillPath), "%s should exist after two workspace registrations", skillPath)
 	}
@@ -143,7 +143,7 @@ func TestWorkspace_MultiWorkspace(t *testing.T) {
 		assert.Contains(t, string(content), "argus tick",
 			"global hooks should remain while one workspace is registered")
 	}
-	for _, skillName := range []string{"argus-install", "argus-uninstall", "argus-doctor"} {
+	for _, skillName := range []string{"argus-intro", "argus-install", "argus-uninstall", "argus-doctor"} {
 		skillPath := filepath.Join(homeDir, ".claude", "skills", skillName, "SKILL.md")
 		assert.True(t, fileExists(t, skillPath),
 			"%s should still exist with remaining workspace", skillPath)
@@ -152,7 +152,7 @@ func TestWorkspace_MultiWorkspace(t *testing.T) {
 	result = runArgus(t, homeDir, "uninstall", "--workspace", wsBeta, "--yes")
 	requireOK(t, result)
 
-	for _, skillName := range []string{"argus-install", "argus-uninstall", "argus-doctor"} {
+	for _, skillName := range []string{"argus-intro", "argus-install", "argus-uninstall", "argus-doctor"} {
 		skillPath := filepath.Join(homeDir, ".claude", "skills", skillName, "SKILL.md")
 		assert.False(t, fileExists(t, skillPath),
 			"%s should be removed after last workspace uninstall", skillPath)
@@ -219,6 +219,8 @@ func TestWorkspace_GlobalTickGuidesMention(t *testing.T) {
 		"guidance should mention argus install command")
 	assert.Contains(t, result.Stdout, "argus-install",
 		"guidance should mention argus-install skill")
+	assert.Contains(t, result.Stdout, "argus-intro",
+		"guidance should mention argus-intro skill")
 }
 
 func TestWorkspace_SubAgentSkipGlobalTick(t *testing.T) {
