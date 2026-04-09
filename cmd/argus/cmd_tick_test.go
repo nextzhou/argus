@@ -36,6 +36,15 @@ func executeTickCmd(t *testing.T, stdinJSON string, args ...string) ([]byte, err
 	return out, cmdErr
 }
 
+func assertHookSafeTickText(t *testing.T, output string) {
+	t.Helper()
+
+	trimmed := strings.TrimLeft(output, " \t\r\n")
+	require.NotEmpty(t, trimmed)
+	assert.NotEqual(t, '[', rune(trimmed[0]))
+	assert.NotEqual(t, '{', rune(trimmed[0]))
+}
+
 func TestTickNoActivePipeline(t *testing.T) {
 	projectRoot := t.TempDir()
 	writeTickCommandWorkflowFixture(t, projectRoot, "release", `version: v0.1.0
@@ -53,7 +62,8 @@ jobs:
 
 	output, cmdErr := executeTickCmd(t, `{"session_id":"tick-cli-no-pipeline","cwd":"`+projectRoot+`"}`, "--agent", "claude-code")
 	require.NoError(t, cmdErr)
-	assert.Contains(t, string(output), "[Argus]")
+	assertHookSafeTickText(t, string(output))
+	assert.Contains(t, string(output), "Argus:")
 	assert.Contains(t, string(output), "argus workflow start")
 }
 
@@ -82,7 +92,8 @@ func TestTickFailOpen(t *testing.T) {
 
 	output, cmdErr := executeTickCmd(t, `{invalid json}`, "--agent", "claude-code")
 	require.NoError(t, cmdErr)
-	assert.Contains(t, string(output), "[Argus] Warning")
+	assertHookSafeTickText(t, string(output))
+	assert.Contains(t, string(output), "Argus warning")
 	assert.Contains(t, string(output), "could not parse hook input")
 }
 

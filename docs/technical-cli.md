@@ -123,10 +123,12 @@ argus toolbox touch-timestamp .argus/data/lint-passed
 
 `argus tick --agent <name>` 输出统一的文本格式。各 Agent 的 Hook/Plugin 层负责将文本注入到对应的上下文机制中（Claude Code/Codex 封装在 `additionalContext` 字段，OpenCode 封装在 `output.parts`）。以下为各场景的输出内容示例。
 
+**兼容性约束（重点）**：tick 输出虽然是纯文本，但首个非空白字符不得为 `[` 或 `{`。当前 Codex 会把这两种前缀当作 JSON 候选，从而把旧的方括号前缀文本误判为非法 JSON。为保持所有 Agent 上的统一输出，tick 使用 `Argus:` 这类普通文本前缀。
+
 ### 场景 1：无活跃 Pipeline
 当项目未启动任何流程时，每次 `tick` 会提示可用 Workflow。
 ```markdown
-[Argus] 当前没有活跃的 Pipeline。
+ Argus: 当前没有活跃的 Pipeline。
 
 可用 Workflows：
 - release: 发布流程
@@ -138,7 +140,7 @@ argus toolbox touch-timestamp .argus/data/lint-passed
 ### 场景 2：活跃 Pipeline，状态变化 (完整上下文)
 当进入新 Job 或启动新 Pipeline 时，注入完整指引。
 ```markdown
-[Argus] Pipeline: release-20240405T103000Z | Workflow: release | 进度: 2/5
+Argus: Pipeline: release-20240405T103000Z | Workflow: release | 进度: 2/5
 
 当前 Job: run_tests
 Prompt: 运行所有测试，确保通过后再继续
@@ -153,7 +155,7 @@ Skill: argus-run-tests
 ### 场景 3：活跃 Pipeline，状态未变 (最小摘要)
 当用户与 Agent 进行多轮对话且 Job 未切换时，保持静默提醒防止 Agent 遗忘。
 ```markdown
-[Argus] Workflow: release | Job: run_tests (2/5) | 完成后请调用 argus job-done
+Argus: Workflow: release | Job: run_tests (2/5) | 完成后请调用 argus job-done
 ```
 
 ### 场景 4：已 Snooze
@@ -162,7 +164,7 @@ Skill: argus-run-tests
 ### 场景 5：首次 tick + Invariant 检查失败
 在上述场景内容之后，追加 Invariant 检查结果。
 ```markdown
-[Argus] Invariant 检查未通过：
+Argus: Invariant 检查未通过：
 - argus-init: 项目未完成初始化
   建议：启动 argus-init workflow (argus workflow start argus-init)
 ```
@@ -186,7 +188,7 @@ Skill: argus-run-tests
 ```
 **Markdown (--markdown)**
 ```markdown
-[Argus] Pipeline release-20240405T103000Z 已启动 (1/5)
+Argus: Pipeline release-20240405T103000Z 已启动 (1/5)
 
 当前 Job: lint
 Prompt: 运行 lint 检查并修复问题
@@ -213,7 +215,7 @@ Skill: argus-run-lint
 ```
 **Markdown (--markdown)**
 ```markdown
-[Argus] Job run_tests 完成 (3/5)
+Argus: Job run_tests 完成 (3/5)
 
 下一个 Job: deploy
 Prompt: 将构建产物部署到 staging 环境
@@ -233,7 +235,7 @@ Prompt: 将构建产物部署到 staging 环境
 ```
 **Markdown (--markdown)**
 ```markdown
-[Argus] Job deploy 完成 (5/5)
+Argus: Job deploy 完成 (5/5)
 Pipeline release-20240405T103000Z 已全部完成。
 ```
 
@@ -250,7 +252,7 @@ Pipeline release-20240405T103000Z 已全部完成。
 ```
 **Markdown (--markdown)**
 ```markdown
-[Argus] Job run_tests 完成，Pipeline 提前结束 (2/5)。
+Argus: Job run_tests 完成，Pipeline 提前结束 (2/5)。
 ```
 
 ### 场景 4：失败 (--fail)
@@ -266,7 +268,7 @@ Pipeline release-20240405T103000Z 已全部完成。
 ```
 **Markdown (--markdown)**
 ```markdown
-[Argus] Job run_tests 标记为失败，Pipeline 已停止 (2/5)。
+Argus: Job run_tests 标记为失败，Pipeline 已停止 (2/5)。
 
 可用操作：
 - 重新开始：argus workflow start release
@@ -283,7 +285,7 @@ Pipeline release-20240405T103000Z 已全部完成。
 ```
 **Markdown (--markdown)**
 ```markdown
-[Argus] 当前没有活跃的 Pipeline。
+Argus: 当前没有活跃的 Pipeline。
 可以使用 argus workflow start <workflow-id> 启动一个 workflow。
 ```
 
@@ -303,7 +305,7 @@ Pipeline release-20240405T103000Z 已全部完成。
 ```
 **Markdown (--markdown)**
 ```markdown
-[Argus] Job run_tests 标记为失败，Pipeline 提前结束 (2/5)。
+Argus: Job run_tests 标记为失败，Pipeline 提前结束 (2/5)。
 
 可用操作：
 - 重新开始：argus workflow start release
@@ -379,7 +381,7 @@ Pipeline release-20240405T103000Z 已全部完成。
 
 ### Markdown (--markdown)
 ```markdown
-[Argus] 项目状态
+Argus: 项目状态
 
 Pipeline: release-20240115T103000Z (running) - Workflow: release - 进度 2/5
   1. [done] lint - All lint checks passed

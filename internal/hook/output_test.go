@@ -1,11 +1,21 @@
 package hook
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func assertHookSafeTickText(t *testing.T, output string) {
+	t.Helper()
+
+	trimmed := strings.TrimLeft(output, " \t\r\n")
+	require.NotEmpty(t, trimmed)
+	assert.NotEqual(t, '[', rune(trimmed[0]))
+	assert.NotEqual(t, '{', rune(trimmed[0]))
+}
 
 func TestFormatNoPipeline(t *testing.T) {
 	workflows := []WorkflowSummary{
@@ -16,7 +26,8 @@ func TestFormatNoPipeline(t *testing.T) {
 	output, err := FormatNoPipeline(workflows)
 
 	require.NoError(t, err)
-	assert.Contains(t, output, "[Argus]")
+	assertHookSafeTickText(t, output)
+	assert.Contains(t, output, "Argus:")
 	assert.Contains(t, output, "No active pipeline")
 	assert.Contains(t, output, "release")
 	assert.Contains(t, output, "argus-init")
@@ -27,7 +38,8 @@ func TestFormatNoPipeline_Empty(t *testing.T) {
 	output, err := FormatNoPipeline([]WorkflowSummary{})
 
 	require.NoError(t, err)
-	assert.Contains(t, output, "[Argus]")
+	assertHookSafeTickText(t, output)
+	assert.Contains(t, output, "Argus:")
 	assert.Contains(t, output, "No active pipeline")
 	assert.Contains(t, output, "argus workflow start")
 	assert.Contains(t, output, "(none)")
@@ -45,7 +57,8 @@ func TestFormatFullContext(t *testing.T) {
 	)
 
 	require.NoError(t, err)
-	assert.Contains(t, output, "[Argus]")
+	assertHookSafeTickText(t, output)
+	assert.Contains(t, output, "Argus:")
 	assert.Contains(t, output, "release-20240405T103000Z")
 	assert.Contains(t, output, "release")
 	assert.Contains(t, output, "2/5")
@@ -92,7 +105,8 @@ func TestFormatMinimalSummary(t *testing.T) {
 	output, err := FormatMinimalSummary("release", "run_tests", "2/5")
 
 	require.NoError(t, err)
-	assert.Contains(t, output, "[Argus]")
+	assertHookSafeTickText(t, output)
+	assert.Contains(t, output, "Argus:")
 	assert.Contains(t, output, "release")
 	assert.Contains(t, output, "run_tests")
 	assert.Contains(t, output, "2/5")
@@ -114,7 +128,7 @@ func TestFormatSnoozed(t *testing.T) {
 }
 
 func TestAppendInvariantFailed(t *testing.T) {
-	base := "[Argus] Some base output"
+	base := "Argus: Some base output"
 	failures := []InvariantFailure{
 		{
 			ID:          "argus-init",
@@ -126,16 +140,17 @@ func TestAppendInvariantFailed(t *testing.T) {
 	output, err := AppendInvariantFailed(base, failures)
 
 	require.NoError(t, err)
+	assertHookSafeTickText(t, output)
 	assert.Contains(t, output, base)
 	assert.Contains(t, output, "---")
-	assert.Contains(t, output, "[Argus] Invariant check failed:")
+	assert.Contains(t, output, "Argus: Invariant check failed:")
 	assert.Contains(t, output, "argus-init")
 	assert.Contains(t, output, "Project not initialized")
 	assert.Contains(t, output, "Suggestion: Run argus-init workflow")
 }
 
 func TestAppendInvariantFailed_Empty(t *testing.T) {
-	base := "[Argus] Some base output"
+	base := "Argus: Some base output"
 
 	output, err := AppendInvariantFailed(base, []InvariantFailure{})
 
@@ -144,7 +159,7 @@ func TestAppendInvariantFailed_Empty(t *testing.T) {
 }
 
 func TestAppendInvariantFailed_Multiple(t *testing.T) {
-	base := "[Argus] Base"
+	base := "Argus: Base"
 	failures := []InvariantFailure{
 		{
 			ID:          "check-1",
@@ -161,6 +176,7 @@ func TestAppendInvariantFailed_Multiple(t *testing.T) {
 	output, err := AppendInvariantFailed(base, failures)
 
 	require.NoError(t, err)
+	assertHookSafeTickText(t, output)
 	assert.Contains(t, output, "check-1")
 	assert.Contains(t, output, "check-2")
 	assert.Contains(t, output, "First check failed")

@@ -89,7 +89,7 @@ func newWorkflowStartCmd() *cobra.Command {
 			rendered, warnings := workflow.RenderPrompt(firstJob.Prompt, ctx)
 
 			for _, warning := range warnings {
-				_, _ = fmt.Fprintf(os.Stderr, "[Argus] Warning: %s\n", warning)
+				_, _ = fmt.Fprintf(os.Stderr, "Argus warning: %s\n", warning)
 			}
 
 			progress := fmt.Sprintf("1/%d", len(w.Jobs))
@@ -131,7 +131,7 @@ func newWorkflowStartCmd() *cobra.Command {
 
 func renderStartMarkdown(cmd *cobra.Command, instanceID, progress string, job workflow.Job, renderedPrompt string) {
 	w := cmd.OutOrStdout()
-	_, _ = fmt.Fprintf(w, "[Argus] Pipeline %s 已启动 (%s)\n\n", instanceID, progress)
+	_, _ = fmt.Fprintf(w, "Argus: Pipeline %s 已启动 (%s)\n\n", instanceID, progress)
 	_, _ = fmt.Fprintf(w, "当前 Job: %s\n", job.ID)
 	_, _ = fmt.Fprintf(w, "Prompt: %s\n", renderedPrompt)
 	if job.Skill != "" {

@@ -21,7 +21,8 @@ func TestRenderTemplate_Success(t *testing.T) {
 	result, err := renderTemplate("prompts/tick-minimal.md.tmpl", data)
 
 	require.NoError(t, err)
-	assert.Contains(t, result, "[Argus]")
+	assertHookSafeTickText(t, result)
+	assert.Contains(t, result, "Argus:")
 	assert.Contains(t, result, "release")
 	assert.Contains(t, result, "run_tests")
 	assert.Contains(t, result, "2/5")

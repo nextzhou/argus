@@ -140,7 +140,7 @@ func newJobDoneCmd() *cobra.Command {
 				rendered, warnings := workflow.RenderPrompt(nextJob.Prompt, ctx)
 				renderedPrompt = rendered
 				for _, w := range warnings {
-					_, _ = fmt.Fprintf(os.Stderr, "[Argus] Warning: %s\n", w)
+					_, _ = fmt.Fprintf(os.Stderr, "Argus warning: %s\n", w)
 				}
 			}
 
@@ -203,12 +203,12 @@ func newJobDoneCmd() *cobra.Command {
 }
 
 func renderNoPipelineMarkdown(w io.Writer) {
-	_, _ = fmt.Fprintf(w, "[Argus] 当前没有活跃的 Pipeline。\n")
+	_, _ = fmt.Fprintf(w, "Argus: 当前没有活跃的 Pipeline。\n")
 	_, _ = fmt.Fprintf(w, "可以使用 argus workflow start <workflow-id> 启动一个 workflow。\n")
 }
 
 func renderNextJobMarkdown(w io.Writer, completedJobID, progress string, nextJob workflow.Job, renderedPrompt string) {
-	_, _ = fmt.Fprintf(w, "[Argus] Job %s 完成 (%s)\n\n", completedJobID, progress)
+	_, _ = fmt.Fprintf(w, "Argus: Job %s 完成 (%s)\n\n", completedJobID, progress)
 	_, _ = fmt.Fprintf(w, "下一个 Job: %s\n", nextJob.ID)
 	_, _ = fmt.Fprintf(w, "Prompt: %s\n", renderedPrompt)
 	if nextJob.Skill != "" {
@@ -218,19 +218,19 @@ func renderNextJobMarkdown(w io.Writer, completedJobID, progress string, nextJob
 }
 
 func renderCompletedMarkdown(w io.Writer, completedJobID, progress, instanceID string) {
-	_, _ = fmt.Fprintf(w, "[Argus] Job %s 完成 (%s)\n", completedJobID, progress)
+	_, _ = fmt.Fprintf(w, "Argus: Job %s 完成 (%s)\n", completedJobID, progress)
 	_, _ = fmt.Fprintf(w, "Pipeline %s 已全部完成。\n", instanceID)
 }
 
 func renderEarlyExitMarkdown(w io.Writer, completedJobID, progress string) {
-	_, _ = fmt.Fprintf(w, "[Argus] Job %s 完成，Pipeline 提前结束 (%s)。\n", completedJobID, progress)
+	_, _ = fmt.Fprintf(w, "Argus: Job %s 完成，Pipeline 提前结束 (%s)。\n", completedJobID, progress)
 }
 
 func renderFailedMarkdown(w io.Writer, failedJobID, progress, workflowID string, earlyExit bool) {
 	if earlyExit {
-		_, _ = fmt.Fprintf(w, "[Argus] Job %s 标记为失败，Pipeline 提前结束 (%s)。\n", failedJobID, progress)
+		_, _ = fmt.Fprintf(w, "Argus: Job %s 标记为失败，Pipeline 提前结束 (%s)。\n", failedJobID, progress)
 	} else {
-		_, _ = fmt.Fprintf(w, "[Argus] Job %s 标记为失败，Pipeline 已停止 (%s)。\n", failedJobID, progress)
+		_, _ = fmt.Fprintf(w, "Argus: Job %s 标记为失败，Pipeline 已停止 (%s)。\n", failedJobID, progress)
 	}
 	_, _ = fmt.Fprintf(w, "\n可用操作：\n")
 	_, _ = fmt.Fprintf(w, "- 重新开始：argus workflow start %s\n", workflowID)

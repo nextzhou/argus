@@ -234,7 +234,7 @@ func TestJobDoneMarkdownNextJob(t *testing.T) {
 	require.NoError(t, err)
 
 	output := buf.String()
-	assert.Contains(t, output, "[Argus] Job run_tests 完成 (2/5)")
+	assert.Contains(t, output, "Argus: Job run_tests 完成 (2/5)")
 	assert.Contains(t, output, "下一个 Job: build")
 	assert.Contains(t, output, "Prompt: Build the project")
 	assert.NotContains(t, output, "Skill:")
@@ -293,7 +293,7 @@ func TestJobDoneMarkdownCompleted(t *testing.T) {
 	require.NoError(t, err)
 
 	output := buf.String()
-	assert.Contains(t, output, "[Argus] Job verify 完成 (5/5)")
+	assert.Contains(t, output, "Argus: Job verify 完成 (5/5)")
 	assert.Contains(t, output, "Pipeline release-20240101T000000Z 已全部完成。")
 }
 
@@ -313,7 +313,7 @@ func TestJobDoneMarkdownFailed(t *testing.T) {
 	require.NoError(t, err)
 
 	output := buf.String()
-	assert.Contains(t, output, "[Argus] Job run_tests 标记为失败，Pipeline 已停止 (2/5)。")
+	assert.Contains(t, output, "Argus: Job run_tests 标记为失败，Pipeline 已停止 (2/5)。")
 	assert.Contains(t, output, "- 重新开始：argus workflow start release")
 	assert.Contains(t, output, "- 取消：argus workflow cancel")
 }
@@ -334,7 +334,7 @@ func TestJobDoneMarkdownFailedEarlyExit(t *testing.T) {
 	require.NoError(t, err)
 
 	output := buf.String()
-	assert.Contains(t, output, "[Argus] Job run_tests 标记为失败，Pipeline 提前结束 (2/5)。")
+	assert.Contains(t, output, "Argus: Job run_tests 标记为失败，Pipeline 提前结束 (2/5)。")
 	assert.Contains(t, output, "- 重新开始：argus workflow start release")
 }
 
@@ -354,7 +354,7 @@ func TestJobDoneMarkdownEarlyExit(t *testing.T) {
 	require.NoError(t, err)
 
 	output := buf.String()
-	assert.Contains(t, output, "[Argus] Job run_tests 完成，Pipeline 提前结束 (2/5)。")
+	assert.Contains(t, output, "Argus: Job run_tests 完成，Pipeline 提前结束 (2/5)。")
 }
 
 func TestJobDoneMarkdownNoPipeline(t *testing.T) {
@@ -372,6 +372,6 @@ func TestJobDoneMarkdownNoPipeline(t *testing.T) {
 	assert.Error(t, err)
 
 	output := buf.String()
-	assert.Contains(t, output, "[Argus] 当前没有活跃的 Pipeline。")
+	assert.Contains(t, output, "Argus: 当前没有活跃的 Pipeline。")
 	assert.Contains(t, output, "可以使用 argus workflow start <workflow-id> 启动一个 workflow。")
 }

@@ -11,7 +11,7 @@ const plugin: Plugin = {
         if (which.exitCode !== 0) {
           output.parts.push({
             type: "text",
-            text: "[Argus] Please install Argus CLI. See project README for instructions.",
+            text: "Argus: Please install Argus CLI. See project README for instructions.",
             // biome-ignore lint/suspicious/noExplicitAny: required by OpenCode Plugin API type mismatch
           } as any);
           return;
@@ -54,12 +54,14 @@ const plugin: Plugin = {
         if (trapData.hookSpecificOutput?.permissionDecision === "deny") {
           throw new Error(
             trapData.hookSpecificOutput.permissionDecisionReason ??
-              "[Argus] Operation denied",
+              "Argus: Operation denied",
           );
         }
         // biome-ignore lint/suspicious/noExplicitAny: needed to access e.message
       } catch (e: any) {
-        if (e.message.includes("[Argus]")) throw e;
+        if (typeof e?.message === "string" && e.message.startsWith("Argus:")) {
+          throw e;
+        }
         // Fail open: JSON parse failure or other error
       }
     },

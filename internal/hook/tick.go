@@ -410,7 +410,9 @@ func findTickJobNodes(doc *yaml.Node) []*yaml.Node {
 }
 
 func writeTickWarning(stdout io.Writer, format string, args ...any) {
-	_, _ = fmt.Fprintf(stdout, "[Argus] Warning: "+format+"\n", args...)
+	// Tick warnings share the same plain-text constraint as normal tick output:
+	// do not begin with '[' or '{', or Codex may try to parse them as JSON.
+	_, _ = fmt.Fprintf(stdout, "Argus warning: "+format+"\n", args...)
 }
 
 func appendTickWarningText(base string, warning string) string {
@@ -418,10 +420,10 @@ func appendTickWarningText(base string, warning string) string {
 		return base
 	}
 	if base == "" {
-		return fmt.Sprintf("[Argus] Warning: %s\n", warning)
+		return fmt.Sprintf("Argus warning: %s\n", warning)
 	}
 	if strings.HasSuffix(base, "\n") {
-		return base + fmt.Sprintf("[Argus] Warning: %s\n", warning)
+		return base + fmt.Sprintf("Argus warning: %s\n", warning)
 	}
-	return base + "\n" + fmt.Sprintf("[Argus] Warning: %s\n", warning)
+	return base + "\n" + fmt.Sprintf("Argus warning: %s\n", warning)
 }

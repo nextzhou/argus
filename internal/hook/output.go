@@ -15,7 +15,9 @@ type InvariantFailure struct {
 }
 
 // FormatNoPipeline returns Markdown text listing available workflows when no pipeline is active.
-// It includes the [Argus] marker, workflow list, and the start command.
+// Tick output must stay plain text and must not start with '[' or '{', because
+// Codex treats those prefixes as candidate JSON in UserPromptSubmit hooks.
+// All agents therefore share the same "Argus:" text prefix.
 func FormatNoPipeline(workflows []WorkflowSummary) (string, error) {
 	data := struct {
 		Workflows []WorkflowSummary
@@ -75,7 +77,8 @@ func FormatSnoozed(workflows []WorkflowSummary) (string, error) {
 
 // AppendInvariantFailed appends an invariant failure section to the base output.
 // If failures is empty, the base output is returned unchanged.
-// The appended section includes the [Argus] marker and a list of failed invariants with suggestions.
+// The appended section preserves the same hook-safe "Argus:" text prefix and
+// lists failed invariants with suggestions.
 func AppendInvariantFailed(base string, failures []InvariantFailure) (string, error) {
 	if len(failures) == 0 {
 		return base, nil

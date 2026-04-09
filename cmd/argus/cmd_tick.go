@@ -20,13 +20,13 @@ func newTickCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			cwd, err := os.Getwd()
 			if err != nil {
-				_, _ = os.Stdout.WriteString("[Argus] Warning: could not determine working directory\n")
+				_, _ = os.Stdout.WriteString("Argus warning: could not determine working directory\n")
 				return nil
 			}
 
 			global, _ := cmd.Flags().GetBool("global")
 			if err := hook.HandleTick(agentFlag, global, cmd.InOrStdin(), os.Stdout, cwd, "/tmp/argus"); err != nil {
-				_, _ = fmt.Fprintf(os.Stdout, "[Argus] Warning: internal error: %v\n", err)
+				_, _ = fmt.Fprintf(os.Stdout, "Argus warning: internal error: %v\n", err)
 			}
 			return nil
 		},

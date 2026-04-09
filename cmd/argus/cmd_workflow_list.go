@@ -56,7 +56,7 @@ func newWorkflowListCmd() *cobra.Command {
 				fullPath := filepath.Join(workflowsDir, name)
 				w, parseErr := workflow.ParseWorkflowFile(fullPath)
 				if parseErr != nil {
-					_, _ = fmt.Fprintf(os.Stderr, "[Argus] Warning: skipping %s: %s\n", name, parseErr)
+					_, _ = fmt.Fprintf(os.Stderr, "Argus warning: skipping %s: %s\n", name, parseErr)
 					continue
 				}
 

@@ -50,7 +50,7 @@ func newInvariantListCmd() *cobra.Command {
 				fullPath := filepath.Join(invariantsDir, entry.Name())
 				inv, parseErr := invariant.ParseInvariantFile(fullPath)
 				if parseErr != nil {
-					_, _ = fmt.Fprintf(os.Stderr, "[Argus] Warning: skipping %s: %s\n", entry.Name(), parseErr)
+					_, _ = fmt.Fprintf(os.Stderr, "Argus warning: skipping %s: %s\n", entry.Name(), parseErr)
 					continue
 				}
 

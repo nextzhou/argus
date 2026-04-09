@@ -243,14 +243,14 @@ func renderStatusMarkdownFailedInvariants(w io.Writer, out statusOutput) {
 }
 
 func renderStatusMarkdownNoPipeline(w io.Writer, out statusOutput) {
-	_, _ = fmt.Fprintf(w, "[Argus] 项目状态\n\n")
+	_, _ = fmt.Fprintf(w, "Argus: 项目状态\n\n")
 	_, _ = fmt.Fprintf(w, "Pipeline: 无活跃 Pipeline\n\n")
 	_, _ = fmt.Fprintf(w, "Invariant: %d passed, %d failed\n", out.Invariants.Passed, out.Invariants.Failed)
 	renderStatusMarkdownFailedInvariants(w, out)
 }
 
 func renderStatusMarkdownActive(w io.Writer, out statusOutput, instanceID string) {
-	_, _ = fmt.Fprintf(w, "[Argus] 项目状态\n\n")
+	_, _ = fmt.Fprintf(w, "Argus: 项目状态\n\n")
 
 	sp := out.Pipeline
 	_, _ = fmt.Fprintf(w, "Pipeline: %s (%s) - Workflow: %s - 进度 %d/%d\n",

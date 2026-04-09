@@ -12,7 +12,7 @@ import (
 )
 
 func TestGlobalTick(t *testing.T) {
-	const guidance = `[Argus] This project is inside a registered workspace but Argus is not installed.
+	const guidance = `Argus: This project is inside a registered workspace but Argus is not installed.
 
 To install Argus in this project, run:
   argus install --yes
@@ -116,7 +116,7 @@ For guidance, use the argus-install Skill.
 				createGitProject(t, projectDir, true)
 				return projectDir
 			},
-			want: "[Argus] Workspace Guide\n\nArgus has been installed at the workspace level.\n\nConfigured Agents:\n  - claude-code\n\nGlobal skills installed to Agent-specific directories.\nRun `argus install` in individual projects to add project-level configuration.\n",
+			want: "Argus: Workspace Guide\n\nArgus has been installed at the workspace level.\n\nConfigured Agents:\n  - claude-code\n\nGlobal skills installed to Agent-specific directories.\nRun `argus install` in individual projects to add project-level configuration.\n",
 		},
 		{
 			name:  "empty workspace list",
@@ -162,6 +162,9 @@ For guidance, use the argus-install Skill.
 			}
 
 			require.NoError(t, err)
+			if got != "" {
+				assertHookSafeTickText(t, got)
+			}
 			assert.Equal(t, tt.want, got)
 		})
 	}

@@ -156,7 +156,7 @@ func TestPromptTemplatesRender(t *testing.T) {
 	})
 	require.NoError(t, err)
 	output := buf.String()
-	assert.Contains(t, output, "[Argus]")
+	assert.Contains(t, output, "Argus:")
 	assert.Contains(t, output, "Available workflows")
 	assert.Contains(t, output, "release: Release workflow")
 }

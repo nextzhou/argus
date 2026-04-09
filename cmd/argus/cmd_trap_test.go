@@ -69,7 +69,7 @@ func TestTrapWithEmptyStdin(t *testing.T) {
 }
 
 func TestTrapWithDifferentAgents(t *testing.T) {
-	agents := []string{"claude-code", "codex", "opencode"}
+	agents := []string{"claude-code", "opencode"}
 
 	for _, agent := range agents {
 		t.Run(agent, func(t *testing.T) {
@@ -86,6 +86,12 @@ func TestTrapWithDifferentAgents(t *testing.T) {
 			assert.Equal(t, "allow", hookOutput["permissionDecision"])
 		})
 	}
+}
+
+func TestTrapCodexAllowReturnsEmptyOutput(t *testing.T) {
+	out, err := executeTrapCmd(t, "{}", "--agent", "codex")
+	require.NoError(t, err)
+	assert.Empty(t, strings.TrimSpace(string(out)))
 }
 
 func TestTrapWithoutAgentFlag(t *testing.T) {

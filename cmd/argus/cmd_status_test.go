@@ -283,7 +283,7 @@ func TestStatusMarkdownActivePipeline(t *testing.T) {
 	require.NoError(t, err)
 
 	output := buf.String()
-	assert.Contains(t, output, "[Argus] 项目状态")
+	assert.Contains(t, output, "Argus: 项目状态")
 	assert.Contains(t, output, "Pipeline: "+testInstanceID+" (running)")
 	assert.Contains(t, output, "Workflow: release")
 	assert.Contains(t, output, "进度 2/5")
@@ -309,7 +309,7 @@ func TestStatusMarkdownNoPipeline(t *testing.T) {
 	require.NoError(t, err)
 
 	output := buf.String()
-	assert.Contains(t, output, "[Argus] 项目状态")
+	assert.Contains(t, output, "Argus: 项目状态")
 	assert.Contains(t, output, "Pipeline: 无活跃 Pipeline")
 	assert.Contains(t, output, "Invariant: 0 passed, 0 failed")
 }

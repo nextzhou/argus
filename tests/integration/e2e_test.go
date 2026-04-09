@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -31,6 +32,15 @@ check:
     description: "marker file exists"
 prompt: "Create the marker file at .argus/data/marker.txt"
 `
+
+func assertHookSafeTickText(t *testing.T, output string) {
+	t.Helper()
+
+	trimmed := strings.TrimLeft(output, " \t\r\n")
+	require.NotEmpty(t, trimmed)
+	assert.NotEqual(t, '[', rune(trimmed[0]))
+	assert.NotEqual(t, '{', rune(trimmed[0]))
+}
 
 func TestE2E_CompleteWorkflowLifecycle(t *testing.T) {
 	homeDir := t.TempDir()
@@ -72,7 +82,8 @@ func TestE2E_CompleteWorkflowLifecycle(t *testing.T) {
 	stdinJSON := fmt.Sprintf(`{"session_id":"%s","cwd":"%s"}`, sessionID, projectDir)
 	result = runArgusWithStdin(t, projectDir, stdinJSON, "tick", "--agent", "claude-code")
 	require.Equal(t, 0, result.ExitCode)
-	assert.Contains(t, result.Stdout, "[Argus]")
+	assertHookSafeTickText(t, result.Stdout)
+	assert.Contains(t, result.Stdout, "Argus:")
 	assert.Contains(t, result.Stdout, "step_one")
 	assert.Contains(t, result.Stdout, "argus job-done")
 
@@ -400,13 +411,13 @@ func TestE2E_MarkdownOutput(t *testing.T) {
 
 	result = runArgus(t, projectDir, "workflow", "start", "e2e-test", "--markdown")
 	require.Equal(t, 0, result.ExitCode)
-	assert.Contains(t, result.Stdout, "[Argus] Pipeline")
+	assert.Contains(t, result.Stdout, "Argus: Pipeline")
 	assert.Contains(t, result.Stdout, "已启动 (1/3)")
 	assert.Contains(t, result.Stdout, "当前 Job: step_one")
 
 	result = runArgus(t, projectDir, "job-done", "--message", "done", "--markdown")
 	require.Equal(t, 0, result.ExitCode)
-	assert.Contains(t, result.Stdout, "[Argus]")
+	assert.Contains(t, result.Stdout, "Argus:")
 }
 
 func TestE2E_ToolboxCommands(t *testing.T) {

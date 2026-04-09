@@ -39,7 +39,8 @@ jobs:
 	require.NoError(t, err)
 
 	output := out.String()
-	assert.Contains(t, output, "[Argus]")
+	assertHookSafeTickText(t, output)
+	assert.Contains(t, output, "Argus:")
 	assert.Contains(t, output, "No active pipeline")
 	assert.Contains(t, output, "release")
 	assert.Contains(t, output, "argus workflow start")
@@ -71,7 +72,8 @@ func TestHandleTick_NoProjectRoot(t *testing.T) {
 		t.TempDir(),
 	)
 	require.NoError(t, err)
-	assert.Contains(t, out.String(), "[Argus] Warning")
+	assertHookSafeTickText(t, out.String())
+	assert.Contains(t, out.String(), "Argus warning")
 	assert.Contains(t, out.String(), "not inside an Argus project")
 }
 
@@ -224,7 +226,7 @@ func TestAppendTickWarningText(t *testing.T) {
 			name:    "empty base with warning",
 			base:    "",
 			warning: "watch out",
-			want:    "[Argus] Warning: watch out\n",
+			want:    "Argus warning: watch out\n",
 		},
 		{
 			name:    "base with empty warning",
@@ -236,13 +238,13 @@ func TestAppendTickWarningText(t *testing.T) {
 			name:    "base without trailing newline",
 			base:    "base text",
 			warning: "watch out",
-			want:    "base text\n[Argus] Warning: watch out\n",
+			want:    "base text\nArgus warning: watch out\n",
 		},
 		{
 			name:    "base with trailing newline",
 			base:    "base text\n",
 			warning: "watch out",
-			want:    "base text\n[Argus] Warning: watch out\n",
+			want:    "base text\nArgus warning: watch out\n",
 		},
 		{
 			name:    "both empty",
@@ -400,7 +402,8 @@ jobs: {}
 	activePipelines, scanWarnings := loadTickActivePipelines(t, projectRoot)
 	output, logDetails, snapshotPipelineID, snapshotJobID := buildTickOutput(projectRoot, "ses-missing-job", &session.Session{}, activePipelines, scanWarnings)
 
-	assert.Contains(t, output, "[Argus] No active pipeline.")
+	assertHookSafeTickText(t, output)
+	assert.Contains(t, output, "Argus: No active pipeline.")
 	assert.Contains(t, output, "active pipeline is missing current job state")
 	assert.Contains(t, logDetails, "scenario=missing-current-job")
 	assert.Equal(t, instanceID, snapshotPipelineID)
@@ -430,7 +433,8 @@ jobs:
 	activePipelines, scanWarnings := loadTickActivePipelines(t, projectRoot)
 	output, logDetails, snapshotPipelineID, snapshotJobID := buildTickOutput(projectRoot, "ses-missing-workflow", &session.Session{}, activePipelines, scanWarnings)
 
-	assert.Contains(t, output, "[Argus] No active pipeline.")
+	assertHookSafeTickText(t, output)
+	assert.Contains(t, output, "Argus: No active pipeline.")
 	assert.Contains(t, output, "could not load workflow missing")
 	assert.Contains(t, logDetails, "scenario=workflow-load-error")
 	assert.Equal(t, instanceID, snapshotPipelineID)
@@ -460,7 +464,8 @@ jobs:
 	activePipelines, scanWarnings := loadTickActivePipelines(t, projectRoot)
 	output, logDetails, snapshotPipelineID, snapshotJobID := buildTickOutput(projectRoot, "ses-workflow-mismatch", &session.Session{}, activePipelines, scanWarnings)
 
-	assert.Contains(t, output, "[Argus] No active pipeline.")
+	assertHookSafeTickText(t, output)
+	assert.Contains(t, output, "Argus: No active pipeline.")
 	assert.Contains(t, output, "current job deploy was not found in workflow release")
 	assert.Contains(t, logDetails, "scenario=workflow-mismatch")
 	assert.Equal(t, instanceID, snapshotPipelineID)

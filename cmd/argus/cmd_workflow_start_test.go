@@ -212,7 +212,7 @@ jobs:
 	require.NoError(t, err)
 
 	output := buf.String()
-	assert.Contains(t, output, "[Argus] Pipeline")
+	assert.Contains(t, output, "Argus: Pipeline")
 	assert.Contains(t, output, "已启动 (1/2)")
 	assert.Contains(t, output, "当前 Job: lint")
 	assert.Contains(t, output, "Prompt: Run linting")

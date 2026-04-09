@@ -1014,6 +1014,7 @@ make lint
 - 形成 5 种场景的文本模板语义基线。
 - 兼容后续接入运行时 prompt 模板文件时的内容结构。
 - 强调 tick 输出是文本，不是 JSON。
+- 明确约束 tick 文本的首个非空白字符不得为 `[` 或 `{`；否则 Codex 会把它误判为 JSON 候选。
 
 **测试要求**:
 - 先为 5 种场景分别写 snapshot 风格测试。
@@ -1056,7 +1057,7 @@ make lint
 
 **实现内容**:
 - 注册 `argus trap --agent <name> [--global]`。
-- Phase 1 固定返回 `permissionDecision: allow` 的 JSON。
+- Phase 1 默认放行，但输出需按 Agent 兼容性区分：Claude Code / OpenCode 返回 allow JSON，Codex 放行时保持空 stdout。
 - 命令始终 exit 0。
 - 保留统一输出结构，便于后续扩展 deny / ask 决策。
 - 不在本阶段实现任何工具调用拦截规则。
