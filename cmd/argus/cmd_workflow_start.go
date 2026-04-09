@@ -9,6 +9,7 @@ import (
 
 	"github.com/nextzhou/argus/internal/core"
 	"github.com/nextzhou/argus/internal/pipeline"
+	"github.com/nextzhou/argus/internal/scope"
 	"github.com/nextzhou/argus/internal/workflow"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
@@ -42,22 +43,25 @@ func newWorkflowStartCmd() *cobra.Command {
 				return fmt.Errorf("workflow start failed: %w", err)
 			}
 
-			workflowsDir := filepath.Join(".argus", "workflows")
-			workflowPath := filepath.Join(workflowsDir, workflowID+".yaml")
-			pipelinesDir := filepath.Join(".argus", "pipelines")
+			cwd, err := os.Getwd()
+			if err != nil {
+				return fmt.Errorf("getting working directory: %w", err)
+			}
+			s, err := scope.ResolveScope(cwd)
+			if err != nil {
+				return fmt.Errorf("resolving scope: %w", err)
+			}
+			if s == nil {
+				return fmt.Errorf("not inside an Argus project or registered workspace")
+			}
 
-			w, err := workflow.ParseWorkflowFile(workflowPath)
+			w, err := s.LoadWorkflow(workflowID)
 			if err != nil {
 				writeCommandError(cmd, jsonFlag, err.Error())
 				return fmt.Errorf("workflow start failed: %w", err)
 			}
 
-			if err := resolveRefs(workflowsDir, workflowPath, w); err != nil {
-				writeCommandError(cmd, jsonFlag, err.Error())
-				return fmt.Errorf("workflow start failed: %w", err)
-			}
-
-			p, instanceID, err := pipeline.CreatePipeline(pipelinesDir, workflowID, w, time.Now())
+			p, instanceID, err := pipeline.CreatePipeline(s.PipelinesDir(), workflowID, w, time.Now())
 			if err != nil {
 				msg := err.Error()
 				if errors.Is(err, core.ErrActivePipelineExists) {

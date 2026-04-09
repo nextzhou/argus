@@ -3,11 +3,12 @@ package main
 import (
 	"fmt"
 	"io"
-	"path/filepath"
+	"os"
 	"time"
 
 	"github.com/nextzhou/argus/internal/core"
 	"github.com/nextzhou/argus/internal/pipeline"
+	"github.com/nextzhou/argus/internal/scope"
 	"github.com/spf13/cobra"
 )
 
@@ -24,9 +25,19 @@ func newWorkflowCancelCmd() *cobra.Command {
 		Short: "Cancel the active pipeline",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			pipelinesDir := filepath.Join(".argus", "pipelines")
+			cwd, err := os.Getwd()
+			if err != nil {
+				return fmt.Errorf("getting working directory: %w", err)
+			}
+			s, err := scope.ResolveScope(cwd)
+			if err != nil {
+				return fmt.Errorf("resolving scope: %w", err)
+			}
+			if s == nil {
+				return fmt.Errorf("not inside an Argus project or registered workspace")
+			}
 
-			actives, _, err := pipeline.ScanActivePipelines(pipelinesDir)
+			actives, _, err := s.ScanActivePipelines()
 			if err != nil {
 				writeCommandError(cmd, jsonFlag, err.Error())
 				return fmt.Errorf("workflow cancel failed: %w", err)
@@ -43,7 +54,7 @@ func newWorkflowCancelCmd() *cobra.Command {
 
 			for _, active := range actives {
 				pipeline.CancelPipeline(active.Pipeline, now)
-				if saveErr := pipeline.SavePipeline(pipelinesDir, active.InstanceID, active.Pipeline); saveErr != nil {
+				if saveErr := pipeline.SavePipeline(s.PipelinesDir(), active.InstanceID, active.Pipeline); saveErr != nil {
 					return fmt.Errorf("saving cancelled pipeline %q: %w", active.InstanceID, saveErr)
 				}
 				cancelled = append(cancelled, active.InstanceID)

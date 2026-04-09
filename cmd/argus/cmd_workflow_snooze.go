@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"path/filepath"
+	"os"
 
 	"github.com/nextzhou/argus/internal/core"
-	"github.com/nextzhou/argus/internal/pipeline"
+	"github.com/nextzhou/argus/internal/scope"
 	"github.com/nextzhou/argus/internal/session"
 	"github.com/spf13/cobra"
 )
@@ -26,10 +26,21 @@ func newWorkflowSnoozeCmd() *cobra.Command {
 		Short: "Snooze active pipelines for a session",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			pipelinesDir := filepath.Join(".argus", "pipelines")
+			cwd, err := os.Getwd()
+			if err != nil {
+				return fmt.Errorf("getting working directory: %w", err)
+			}
+			sc, err := scope.ResolveScope(cwd)
+			if err != nil {
+				return fmt.Errorf("resolving scope: %w", err)
+			}
+			if sc == nil {
+				return fmt.Errorf("not inside an Argus project or registered workspace")
+			}
+
 			sessionBaseDir := "/tmp/argus"
 
-			actives, _, err := pipeline.ScanActivePipelines(pipelinesDir)
+			actives, _, err := sc.ScanActivePipelines()
 			if err != nil {
 				writeCommandError(cmd, jsonFlag, err.Error())
 				return fmt.Errorf("workflow snooze failed: %w", err)

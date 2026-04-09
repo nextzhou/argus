@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/nextzhou/argus/internal/session"
@@ -149,6 +150,8 @@ jobs:
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Chdir(t.TempDir())
+			// Ensure .argus/ exists for scope resolution even when no pipelines are written.
+			require.NoError(t, os.MkdirAll(filepath.Join(".argus", "pipelines"), 0o755))
 
 			if tt.sessionID != "" {
 				cleanupSessionFile(t, tt.sessionID)
