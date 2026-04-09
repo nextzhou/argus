@@ -76,6 +76,41 @@ func TestSessionIDToSafeID(t *testing.T) {
 	})
 }
 
+func TestProjectPathToSafeID(t *testing.T) {
+	tests := []struct {
+		name string
+		path string
+	}{
+		{
+			name: "absolute project path",
+			path: "/Users/example/work/argus",
+		},
+		{
+			name: "path with spaces",
+			path: "/Users/example/My Projects/argus",
+		},
+		{
+			name: "relative-ish traversal input",
+			path: "../../tmp/argus",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := ProjectPathToSafeID(tt.path)
+			assert.Len(t, result, 16)
+			assert.Regexp(t, "^[0-9a-f]{16}$", result)
+			assert.Equal(t, result, ProjectPathToSafeID(tt.path))
+		})
+	}
+
+	t.Run("different paths produce different ids", func(t *testing.T) {
+		first := ProjectPathToSafeID("/projects/argus-a")
+		second := ProjectPathToSafeID("/projects/argus-b")
+		assert.NotEqual(t, first, second)
+	})
+}
+
 func TestValidatePath(t *testing.T) {
 	tests := []struct {
 		name    string

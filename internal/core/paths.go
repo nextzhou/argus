@@ -31,6 +31,12 @@ func SessionIDToSafeID(sessionID string) string {
 	return fmt.Sprintf("%x", hash[:8])
 }
 
+// ProjectPathToSafeID hashes a project path into a deterministic safe directory ID.
+func ProjectPathToSafeID(projectPath string) string {
+	hash := sha256.Sum256([]byte(projectPath))
+	return fmt.Sprintf("%x", hash[:8])
+}
+
 // ValidatePath checks that target is within the base directory.
 // Returns an error if target escapes base via path traversal (e.g., "../").
 //
