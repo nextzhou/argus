@@ -5,12 +5,11 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/nextzhou/argus/internal/invariant"
 	"github.com/nextzhou/argus/internal/pipeline"
+	"github.com/nextzhou/argus/internal/scope"
 	"github.com/nextzhou/argus/internal/workflow"
 	"github.com/spf13/cobra"
 )
@@ -63,9 +62,19 @@ func newStatusCmd() *cobra.Command {
 		Hidden: true,
 		Args:   cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			pipelinesDir := filepath.Join(".argus", "pipelines")
+			cwd, err := os.Getwd()
+			if err != nil {
+				return fmt.Errorf("getting working directory: %w", err)
+			}
+			s, err := scope.ResolveScope(cwd)
+			if err != nil {
+				return fmt.Errorf("resolving scope: %w", err)
+			}
+			if s == nil {
+				return fmt.Errorf("not inside an Argus project or registered workspace")
+			}
 
-			actives, _, err := pipeline.ScanActivePipelines(pipelinesDir)
+			actives, _, err := s.ScanActivePipelines()
 			if err != nil {
 				writeCommandError(cmd, jsonFlag, err.Error())
 				return fmt.Errorf("status failed: %w", err)
@@ -84,7 +93,7 @@ func newStatusCmd() *cobra.Command {
 				Hints: []string{},
 			}
 
-			runStatusInvariants(cmd.Context(), &out)
+			runStatusInvariants(cmd.Context(), s, &out)
 
 			if len(actives) == 0 {
 				if jsonFlag {
@@ -99,16 +108,8 @@ func newStatusCmd() *cobra.Command {
 			p := active.Pipeline
 			instanceID := active.InstanceID
 
-			workflowsDir := filepath.Join(".argus", "workflows")
-			workflowPath := filepath.Join(workflowsDir, p.WorkflowID+".yaml")
-
-			wf, err := workflow.ParseWorkflowFile(workflowPath)
+			wf, err := s.LoadWorkflow(p.WorkflowID)
 			if err != nil {
-				writeCommandError(cmd, jsonFlag, err.Error())
-				return fmt.Errorf("status failed: %w", err)
-			}
-
-			if err := resolveRefs(workflowsDir, workflowPath, wf); err != nil {
 				writeCommandError(cmd, jsonFlag, err.Error())
 				return fmt.Errorf("status failed: %w", err)
 			}
@@ -168,30 +169,19 @@ func buildStatusPipeline(p *pipeline.Pipeline, wf *workflow.Workflow, _ string, 
 	return sp
 }
 
-func runStatusInvariants(ctx context.Context, out *statusOutput) {
-	invariantsDir := filepath.Join(".argus", "invariants")
-	entries, err := os.ReadDir(invariantsDir)
+func runStatusInvariants(ctx context.Context, s scope.Scope, out *statusOutput) {
+	invs, err := s.LoadInvariants()
 	if err != nil {
 		return
 	}
 
 	var totalCheckTime time.Duration
-	for _, entry := range entries {
-		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".yaml") {
-			continue
-		}
-
-		fullPath := filepath.Join(invariantsDir, entry.Name())
-		inv, parseErr := invariant.ParseInvariantFile(fullPath)
-		if parseErr != nil {
-			continue
-		}
-
+	for _, inv := range invs {
 		if inv.Auto == "never" {
 			continue
 		}
 
-		result := invariant.RunCheck(ctx, inv, ".")
+		result := invariant.RunCheck(ctx, inv, s.ProjectRoot())
 		totalCheckTime += result.TotalTime
 
 		status := "passed"

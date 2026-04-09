@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/nextzhou/argus/internal/core"
 	"github.com/nextzhou/argus/internal/pipeline"
+	"github.com/nextzhou/argus/internal/scope"
 	"github.com/nextzhou/argus/internal/workflow"
 	"github.com/spf13/cobra"
 )
@@ -42,9 +42,19 @@ func newJobDoneCmd() *cobra.Command {
 		Hidden: true,
 		Args:   cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			pipelinesDir := filepath.Join(".argus", "pipelines")
+			cwd, err := os.Getwd()
+			if err != nil {
+				return fmt.Errorf("getting working directory: %w", err)
+			}
+			s, err := scope.ResolveScope(cwd)
+			if err != nil {
+				return fmt.Errorf("resolving scope: %w", err)
+			}
+			if s == nil {
+				return fmt.Errorf("not inside an Argus project or registered workspace")
+			}
 
-			actives, _, err := pipeline.ScanActivePipelines(pipelinesDir)
+			actives, _, err := s.ScanActivePipelines()
 			if err != nil {
 				writeCommandError(cmd, jsonFlag, err.Error())
 				return fmt.Errorf("job-done failed: %w", err)
@@ -70,16 +80,8 @@ func newJobDoneCmd() *cobra.Command {
 			p := active.Pipeline
 			instanceID := active.InstanceID
 
-			workflowsDir := filepath.Join(".argus", "workflows")
-			workflowPath := filepath.Join(workflowsDir, p.WorkflowID+".yaml")
-
-			wf, err := workflow.ParseWorkflowFile(workflowPath)
+			wf, err := s.LoadWorkflow(p.WorkflowID)
 			if err != nil {
-				writeCommandError(cmd, jsonFlag, err.Error())
-				return fmt.Errorf("job-done failed: %w", err)
-			}
-
-			if err := resolveRefs(workflowsDir, workflowPath, wf); err != nil {
 				writeCommandError(cmd, jsonFlag, err.Error())
 				return fmt.Errorf("job-done failed: %w", err)
 			}
@@ -102,7 +104,7 @@ func newJobDoneCmd() *cobra.Command {
 				return fmt.Errorf("job-done failed: %w", err)
 			}
 
-			if err := pipeline.SavePipeline(pipelinesDir, instanceID, p); err != nil {
+			if err := pipeline.SavePipeline(s.PipelinesDir(), instanceID, p); err != nil {
 				return fmt.Errorf("saving pipeline: %w", err)
 			}
 

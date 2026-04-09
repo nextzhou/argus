@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"os"
 	"strings"
 	"testing"
 
@@ -179,6 +180,7 @@ func TestStatus(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Chdir(t.TempDir())
+			require.NoError(t, os.MkdirAll(".argus", 0o755))
 
 			if tt.workflowYAML != "" {
 				writeWorkflowFixture(t, tt.workflowID, tt.workflowYAML)
@@ -268,6 +270,7 @@ func TestStatusDefaultTextActivePipeline(t *testing.T) {
 
 func TestStatusDefaultTextNoPipeline(t *testing.T) {
 	t.Chdir(t.TempDir())
+	require.NoError(t, os.MkdirAll(".argus", 0o755))
 
 	stdout, stderr, err := executeTextCommand(t, newStatusCmd())
 	require.NoError(t, err)
