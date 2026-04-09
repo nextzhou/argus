@@ -20,6 +20,7 @@ func TestWorkspace(t *testing.T) {
 	t.Run("InstallWorkspace_NonExistentPath", TestInstallWorkspace_NonExistentPath)
 	t.Run("InstallWorkspace_NotDirectory", TestInstallWorkspace_NotDirectory)
 	t.Run("InstallWorkspace_NestedPathsAreStoredSeparately", TestInstallWorkspace_NestedPathsAreStoredSeparately)
+	t.Run("InstallWorkspace_GlobalArtifacts", TestInstallWorkspace_GlobalArtifacts)
 	t.Run("InstallGlobalHooks_ClaudeCode", TestInstallGlobalHooks_ClaudeCode)
 	t.Run("InstallGlobalHooks_Codex", TestInstallGlobalHooks_Codex)
 	t.Run("InstallGlobalHooks_OpenCode", TestInstallGlobalHooks_OpenCode)
@@ -60,6 +61,33 @@ func TestInstallWorkspace_Success(t *testing.T) {
 	assert.Contains(t, string(opencodePlugin), "argus trap --agent opencode --global")
 
 	assertGlobalSkillsReleased(t)
+}
+
+func TestInstallWorkspace_GlobalArtifacts(t *testing.T) {
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+
+	workspaceDir := filepath.Join(homeDir, "work", "company")
+	require.NoError(t, os.MkdirAll(workspaceDir, 0o755))
+
+	require.NoError(t, InstallWorkspace(workspaceDir))
+
+	globalRoot := filepath.Join(homeDir, ".config", "argus")
+
+	// Verify global directory structure exists.
+	for _, dir := range []string{"invariants", "workflows", "pipelines", "logs"} {
+		dirPath := filepath.Join(globalRoot, dir)
+		info, err := os.Stat(dirPath)
+		require.NoError(t, err, "directory %s should exist", dir)
+		assert.True(t, info.IsDir(), "%s should be a directory", dir)
+	}
+
+	// Verify global invariant files are released.
+	invariantPath := filepath.Join(globalRoot, "invariants", "argus-project-init.yaml")
+	data, err := os.ReadFile(invariantPath)
+	require.NoError(t, err, "global invariant file should exist")
+	assert.Contains(t, string(data), "id: argus-project-init")
+	assert.Contains(t, string(data), "test -d .argus")
 }
 
 func TestInstallWorkspace_DuplicateRegistration(t *testing.T) {

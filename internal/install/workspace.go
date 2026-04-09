@@ -75,6 +75,10 @@ func InstallWorkspaceWithReport(path string) (WorkspaceOperationResult, error) {
 		return WorkspaceOperationResult{}, fmt.Errorf("installing global skills: %w", err)
 	}
 
+	if err := installGlobalArtifacts(state.homeDir, tracker); err != nil {
+		return WorkspaceOperationResult{}, fmt.Errorf("installing global artifacts: %w", err)
+	}
+
 	return WorkspaceOperationResult{
 		Path:   state.normalizedPath,
 		Report: buildWorkspaceInstallReport(state.homeDir, tracker),
@@ -466,4 +470,27 @@ func userConfigPathForHome(homeDir string) string {
 
 func globalOpenCodePluginPathForHome(homeDir string) string {
 	return filepath.Join(homeDir, ".config", "opencode", "plugins", "argus.ts")
+}
+
+func installGlobalArtifacts(homeDir string, tracker *mutationTracker) error {
+	globalRoot := filepath.Join(homeDir, ".config", "argus")
+
+	// Create global directory structure.
+	globalDirs := []string{"invariants", "workflows", "pipelines", "logs"}
+	for _, dir := range globalDirs {
+		if err := ensureDirTracked(filepath.Join(globalRoot, dir), tracker); err != nil {
+			return fmt.Errorf("creating global %s directory: %w", dir, err)
+		}
+	}
+
+	// Release built-in global invariants.
+	// releaseAssetsTracked(projectRoot, srcDir, dstDir, tracker) computes:
+	//   dstPath = filepath.Join(projectRoot, dstDir, relPath)
+	// So we pass globalRoot as projectRoot and "invariants" as dstDir to get:
+	//   dstPath = filepath.Join(globalRoot, "invariants", relPath)
+	if err := releaseAssetsTracked(globalRoot, "invariants", "invariants", tracker); err != nil {
+		return fmt.Errorf("releasing global invariant assets: %w", err)
+	}
+
+	return nil
 }
