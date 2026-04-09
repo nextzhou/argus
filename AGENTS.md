@@ -146,13 +146,15 @@ No `confirm` / `auto` fields. Write confirmation requirements directly in job pr
 ### Standard Workflow
 
 For every implementation task:
-1. Read the task specification in `docs/implementation-tasks.md`
-2. Read the relevant technical chapter in `docs/technical-*.md`
-3. Write tests first (TDD): define expected behavior before implementation
-4. Implement the minimum code to make tests pass
-5. Refactor for clarity and maintainability
-6. Run `make build && make test && make lint` before committing
-7. Commit with Conventional Commits format
+1. Read `AGENTS.md`
+2. Read `docs/technical-overview.md`
+3. Read the relevant `docs/technical-*.md` chapters on demand
+4. Review the current implementation and tests before changing behavior
+5. Write tests first (TDD): define expected behavior before implementation
+6. Implement the minimum code to make tests pass
+7. Refactor for clarity and maintainability
+8. Run `make build && make test && make lint` before committing
+9. Commit with Conventional Commits format
 
 ### Go Best Practices
 
