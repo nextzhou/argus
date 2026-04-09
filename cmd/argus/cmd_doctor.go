@@ -3,6 +3,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"os"
 
 	"github.com/nextzhou/argus/internal/doctor"
@@ -30,27 +31,7 @@ func newDoctorCmd() *cobra.Command {
 			}
 
 			results := doctor.RunAllChecks(projectRoot)
-
-			var passed, failed, skipped int
-			for _, result := range results {
-				switch result.Status {
-				case "pass":
-					passed++
-					_, _ = fmt.Fprintf(cmd.OutOrStdout(), "[PASS] %s\n", result.Name)
-				case "fail":
-					failed++
-					_, _ = fmt.Fprintf(cmd.OutOrStdout(), "[FAIL] %s: %s\n", result.Name, result.Message)
-					if result.Suggestion != "" {
-						_, _ = fmt.Fprintf(cmd.OutOrStdout(), "  → %s\n", result.Suggestion)
-					}
-				case "skip":
-					skipped++
-					_, _ = fmt.Fprintf(cmd.OutOrStdout(), "[SKIP] %s: %s\n", result.Name, result.Message)
-				}
-			}
-
-			total := len(results)
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\n%d checks: %d passed, %d failed, %d skipped\n", total, passed, failed, skipped)
+			failed := writeDoctorReport(cmd.OutOrStdout(), results)
 
 			if failed > 0 {
 				return fmt.Errorf("doctor found %d failures", failed)
@@ -61,4 +42,29 @@ func newDoctorCmd() *cobra.Command {
 	}
 
 	return cmd
+}
+
+func writeDoctorReport(out io.Writer, results []doctor.CheckResult) int {
+	var passed, failed, skipped int
+	for _, result := range results {
+		switch result.Status {
+		case "pass":
+			passed++
+			_, _ = fmt.Fprintf(out, "[PASS] %s\n", result.Name)
+		case "fail":
+			failed++
+			_, _ = fmt.Fprintf(out, "[FAIL] %s: %s\n", result.Name, result.Message)
+			if result.Suggestion != "" {
+				_, _ = fmt.Fprintf(out, "  → %s\n", result.Suggestion)
+			}
+		case "skip":
+			skipped++
+			_, _ = fmt.Fprintf(out, "[SKIP] %s: %s\n", result.Name, result.Message)
+		}
+	}
+
+	total := len(results)
+	_, _ = fmt.Fprintf(out, "\n%d checks: %d passed, %d failed, %d skipped\n", total, passed, failed, skipped)
+
+	return failed
 }
