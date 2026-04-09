@@ -65,6 +65,15 @@ Agent Hook Event --> Agent 特有入口 --> argus CLI 命令 --> Go 业务逻辑
 
 tick 是 Argus 的协作调度点。它在用户每次输入时被动触发。Argus 借此机会检查进度并注入必要的引导上下文。
 
+### 引导与作用域发现 (Bootstrap and Scope Discovery)
+
+`tick --global` 命令作为全局 Hook 的入口点，承担了引导与作用域发现的职责。与项目级 Hook 不同，它首先需要确定当前上下文应适用的配置作用域：
+
+1. **作用域识别**：通过 `ResolveScopeForTick` 逻辑，根据当前工作目录 (CWD) 和已注册的 Workspace，判定应使用 **Project Scope**（项目作用域，`.argus/`）还是 **Global Scope**（全局作用域，`~/.config/argus/`）。
+2. **统一编排语义**：一旦作用域确定，后续的编排逻辑（加载不变量、加载工作流、评估 Pipeline 状态、注入上下文）在各作用域间是完全共享的。`--global` 标识的是 Hook 的来源，而非一种特殊的"发现专用"模式。
+3. **优先级与仲裁**：遵循"项目作用域优先"原则。如果当前目录已初始化为项目，则优先运行项目编排。
+4. **失败开路 (Fail Open)**：如果当前环境不匹配任何已知作用域（非项目且不在 Workspace 内），则静默放行，确保不干扰 Agent 在非 Argus 项目中的正常使用。
+
 ### Claude Code 与 Codex
 这两个 Agent 均支持 `UserPromptSubmit` 事件。
 

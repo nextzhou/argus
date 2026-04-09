@@ -131,11 +131,27 @@ var embedded embed.FS
 - `internal/assets/skills/`：`argus install`（项目级）时释出到 `.agents/skills/` 和 `.claude/skills/`；OpenCode 可通过兼容扫描发现这两份文件，因此不额外生成 `.opencode/skills/`。`argus install --workspace` 时释出到各 Agent 的全局 Skill 目录（详见 workspace §11.5）。
 - `internal/assets/prompts/`：仅在运行时由 argus 内部读取，用于 tick 注入、job-done 输出、错误引导等场景的文本模板渲染（Go `text/template`）。不释出到文件系统。
 
-### 2.4 安装层级
-1. **全局二进制**：Argus CLI 二进制文件安装在用户全局路径（如 `~/.local/bin/argus`）。
-2. **PATH 查找**：Agent Hook 配置直接使用 `argus` 命令，不依赖项目内的相对路径。
-3. **项目配置**：每个项目的 `.argus/` 目录存放该项目特有的编排配置和运行数据。
-4. **用户级配置**：`~/.config/argus/config.yaml` 用于记录 Workspace 路径等全局偏好。`~/.config/argus/logs/` 存放全局 Hook 日志。
+### 2.4 作用域与安装层级 (Scopes and Installation)
+
+Argus 采用统一的作用域模型来管理不同层次的配置与状态：
+
+1. **项目作用域 (Project Scope)**：
+   - 根目录：项目内的 `.argus/`。
+   - 存储：项目特有的 Workflow、Invariant、Rules 以及 Pipeline 运行数据。
+   - 行为：当 Agent 在已初始化的项目内工作时，优先应用该作用域。
+
+2. **全局/用户作用域 (Global/User Scope)**：
+   - 根目录：`~/.config/argus/`。
+   - 存储：全局共享的 Workflow、Invariant 以及跨项目的工作空间配置。
+   - 行为：当 Agent 进入已注册的 Workspace 但尚未初始化的项目时，应用该作用域。安装引导（Install Guidance）被建模为全局作用域下的不变量失效与修复工作流。
+
+3. **统一编排模型**：
+   - 无论处于哪种作用域，`tick`、`job-done`、`status` 等命令均遵循相同的编排语义。作用域（Scope）抽象封装了配置加载路径和数据写入位置的差异，确保核心引擎的一致性。
+
+4. **安装层级**：
+   - **全局二进制**：Argus CLI 安装在用户全局路径（如 `~/.local/bin/argus`）。
+   - **项目级安装**：`argus install` 释出内置产物到项目作用域。
+   - **工作空间安装**：`argus install --workspace` 注册路径，释出内置产物到全局作用域，并配置全局 Hook。
 
 ### 2.5 临时数据管理
 Argus 在 `/tmp/argus/` 目录下管理 Session 相关数据。
