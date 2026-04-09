@@ -194,6 +194,11 @@ func TestOpenCodePlugin(t *testing.T) {
 	pluginContent, err := os.ReadFile(pluginPath)
 	require.NoError(t, err)
 	assert.Contains(t, string(pluginContent), "argus tick --agent opencode")
+	assert.Contains(t, string(pluginContent), `import type { Plugin } from "@opencode-ai/plugin"`)
+	assert.Contains(t, string(pluginContent), "export const ArgusPlugin: Plugin = async")
+	assert.Contains(t, string(pluginContent), "parentID: session.data?.parentID")
+	assert.Contains(t, string(pluginContent), "experimental.chat.messages.transform")
+	assert.Contains(t, string(pluginContent), "synthetic: true")
 	assert.NotContains(t, string(pluginContent), "argus trap --agent opencode")
 
 	require.NoError(t, UninstallHooks(projectRoot, []string{"opencode"}))

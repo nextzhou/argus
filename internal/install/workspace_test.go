@@ -57,6 +57,9 @@ func TestInstallWorkspace_Success(t *testing.T) {
 	opencodePlugin, err := os.ReadFile(filepath.Join(homeDir, ".config", "opencode", "plugins", "argus.ts"))
 	require.NoError(t, err)
 	assert.Contains(t, string(opencodePlugin), "argus tick --agent opencode --global")
+	assert.Contains(t, string(opencodePlugin), `import type { Plugin } from "@opencode-ai/plugin"`)
+	assert.Contains(t, string(opencodePlugin), "export const ArgusPlugin: Plugin = async")
+	assert.Contains(t, string(opencodePlugin), "experimental.chat.messages.transform")
 	assert.NotContains(t, string(opencodePlugin), "argus trap --agent opencode --global")
 
 	assertGlobalSkillsReleased(t)
@@ -202,6 +205,8 @@ func TestInstallGlobalHooks_OpenCode(t *testing.T) {
 	plugin, err := os.ReadFile(pluginPath)
 	require.NoError(t, err)
 	assert.Contains(t, string(plugin), "argus tick --agent opencode --global")
+	assert.Contains(t, string(plugin), "parentID: session.data?.parentID")
+	assert.Contains(t, string(plugin), "synthetic: true")
 	assert.NotContains(t, string(plugin), "argus trap --agent opencode --global")
 }
 

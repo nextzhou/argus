@@ -172,7 +172,7 @@ To cancel: argus workflow cancel
 
 ### OpenCode
 
-OpenCode exposes stronger hooks through `chat.message`.
+OpenCode exposes stronger hooks through `chat.message`, plus `experimental.chat.messages.transform` when a plugin needs to insert a synthetic context part safely.
 
 - **Trigger point**: when a new user message arrives
 - **Core capability**: modify message contents directly or append message parts
@@ -180,24 +180,57 @@ OpenCode exposes stronger hooks through `chat.message`.
 #### Example Implementation
 
 ```typescript
-"chat.message": async (input, output) => {
-  try {
-    const session = await client.session.get();
-    const payload = JSON.stringify({
-      sessionID: input.sessionID,
-      parentID: session.parentID,
-    });
-    const result = await $`echo ${payload} | argus tick --agent opencode`
-      .quiet()
-      .nothrow();
-    if (result.exitCode === 0 && result.text().trim()) {
-      output.parts.push({
+import type { Plugin } from "@opencode-ai/plugin"
+
+export const ArgusPlugin: Plugin = async ({ $, client, directory }) => {
+  const pendingInjections = new Map<string, string>()
+
+  return {
+    "chat.message": async (input) => {
+      try {
+        const session = await client.session.get({ path: { id: input.sessionID } })
+        const payload = JSON.stringify({
+          sessionID: input.sessionID,
+          parentID: session.data?.parentID,
+          cwd: directory,
+        })
+        const result = await $`echo ${payload} | argus tick --agent opencode`
+          .cwd(directory)
+          .quiet()
+          .nothrow()
+        const text = result.text().trim()
+        if (result.exitCode === 0 && text) {
+          pendingInjections.set(input.sessionID, text)
+        }
+      } catch {
+        // Fail open and keep the session usable
+      }
+    },
+    "experimental.chat.messages.transform": async (_input, output) => {
+      const lastUserMessage = output.messages.findLast((message) => message.info.role === "user")
+      const sessionID = lastUserMessage?.info.sessionID ?? ""
+      const injectedText = pendingInjections.get(sessionID)
+      if (!lastUserMessage || !sessionID || !injectedText) {
+        return
+      }
+      pendingInjections.delete(sessionID)
+
+      const textPartIndex = lastUserMessage.parts.findIndex(
+        (part) => part.type === "text" && typeof part.text === "string",
+      )
+      if (textPartIndex === -1) {
+        return
+      }
+
+      lastUserMessage.parts.splice(textPartIndex, 0, {
+        id: `synthetic_hook_${Date.now()}`,
+        messageID: lastUserMessage.info.id,
+        sessionID,
         type: "text",
-        text: result.text(),
-      } as any);
-    }
-  } catch {
-    // Fail open and keep the session usable
+        text: injectedText,
+        synthetic: true,
+      } as any)
+    },
   }
 }
 ```
@@ -209,7 +242,20 @@ Future versions may benefit from:
 - `experimental.chat.system.transform` for persistent state injection into the system prompt
 - `experimental.session.compacting` to preserve state across context compaction
 
-Phase 1 only requires `chat.message`.
+Phase 1 uses `chat.message` to compute the pending Argus guidance and `experimental.chat.messages.transform` to inject that guidance as a synthetic text part with the metadata OpenCode expects.
+
+#### Maintenance Notes
+
+When debugging agent hook integrations, prefer this order of evidence:
+
+1. The host agent's runtime logs
+2. The currently installed SDK or type definitions on the machine
+3. The actual installed hook or plugin artifact
+4. Repository templates and official docs
+
+This order matters because host integration APIs can change before older templates or prose examples are updated. After changing a hook template, remember that user machines will continue running the previously installed artifact until `argus install` or `argus install --workspace` refreshes it.
+
+For OpenCode specifically, synthetic context insertion should happen in `experimental.chat.messages.transform`, not by treating `chat.message` as a generic append-only surface. The runtime validates inserted message parts more strictly than the minimal `chat.message` output type suggests, so synthetic parts should be created in the transform stage with the message metadata that OpenCode expects.
 
 ---
 

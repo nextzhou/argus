@@ -32,7 +32,12 @@ func HandleTick(agent string, global bool, stdin io.Reader, stdout io.Writer, pr
 		return nil
 	}
 
-	root, err := workspace.FindProjectRoot(projectRoot)
+	effectiveCWD := projectRoot
+	if input.CWD != "" {
+		effectiveCWD = input.CWD
+	}
+
+	root, err := workspace.FindProjectRoot(effectiveCWD)
 	if err != nil {
 		writeTickWarning(stdout, "could not determine project root: %v", err)
 		return nil

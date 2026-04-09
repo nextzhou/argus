@@ -43,11 +43,25 @@ func TestOpenCodePluginTemplate(t *testing.T) {
 	require.NoError(t, err)
 
 	content := string(rendered)
+	assert.Contains(t, content, `import type { Plugin } from "@opencode-ai/plugin"`)
+	assert.Contains(t, content, "export const ArgusPlugin: Plugin = async")
+	assert.Contains(t, content, "const pendingInjections = new Map<string, string>()")
 	assert.Contains(t, content, "argus tick --agent opencode")
 	assert.NotContains(t, content, "argus trap --agent opencode")
 	assert.Contains(t, content, "chat.message")
+	assert.Contains(t, content, "experimental.chat.messages.transform")
 	assert.NotContains(t, content, "tool.execute.before")
 	assert.Contains(t, content, "which argus")
+	assert.Contains(t, content, "client.session.get({")
+	assert.Contains(t, content, "path: { id: input.sessionID }")
+	assert.Contains(t, content, "parentID: session.data?.parentID")
+	assert.Contains(t, content, "cwd: directory")
+	assert.Contains(t, content, ".cwd(directory)")
+	assert.Contains(t, content, "pendingInjections.set(input.sessionID, text)")
+	assert.Contains(t, content, "lastUserMessage.parts.splice(textPartIndex, 0, {")
+	assert.Contains(t, content, "sessionID,")
+	assert.Contains(t, content, "synthetic: true")
+	assert.NotContains(t, content, "export default plugin")
 }
 
 func TestHookTemplateGlobalFlag(t *testing.T) {

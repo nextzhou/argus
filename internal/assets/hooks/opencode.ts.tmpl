@@ -1,39 +1,86 @@
-import type { Plugin } from "@anthropic-ai/opencode";
+import type { Plugin } from "@opencode-ai/plugin";
 
-const plugin: Plugin = {
-  name: "argus",
-  version: "0.1.0",
+export const ArgusPlugin: Plugin = async ({ $, client, directory }) => {
+  const pendingInjections = new Map<string, string>();
 
-  hooks: {
-    "chat.message": async (input, output) => {
+  return {
+    "chat.message": async (input) => {
       try {
-        const which = await $`which argus`.quiet().nothrow();
+        const which = await $`which argus`.cwd(directory).quiet().nothrow();
         if (which.exitCode !== 0) {
-          output.parts.push({
-            type: "text",
-            text: "Argus: Please install Argus CLI. See project README for instructions.",
-            // biome-ignore lint/suspicious/noExplicitAny: required by OpenCode Plugin API type mismatch
-          } as any);
+          pendingInjections.set(
+            input.sessionID,
+            "Argus: Please install Argus CLI. See project README for instructions.",
+          );
           return;
         }
+
+        const session = await client.session.get({
+          path: { id: input.sessionID },
+        });
         const payload = JSON.stringify({
           sessionID: input.sessionID,
+          parentID: session.data?.parentID,
+          cwd: directory,
         });
         const result = await $`echo ${payload} | argus tick --agent opencode{{ if .Global }} --global{{ end }}`
+          .cwd(directory)
           .quiet()
           .nothrow();
-        if (result.exitCode === 0 && result.text().trim()) {
-          output.parts.push({
-            type: "text",
-            text: result.text(),
-            // biome-ignore lint/suspicious/noExplicitAny: required by OpenCode Plugin API type mismatch
-          } as any);
+        const text = result.text().trim();
+        if (result.exitCode === 0 && text) {
+          pendingInjections.set(input.sessionID, text);
+        } else {
+          pendingInjections.delete(input.sessionID);
         }
       } catch {
         // Fail open: do not interrupt session on error
       }
     },
-  },
-};
+    "experimental.chat.messages.transform": async (_input, output) => {
+      if (output.messages.length === 0) {
+        return;
+      }
 
-export default plugin;
+      let lastUserMessageIndex = -1;
+      for (let index = output.messages.length - 1; index >= 0; index -= 1) {
+        if (output.messages[index].info.role === "user") {
+          lastUserMessageIndex = index;
+          break;
+        }
+      }
+      if (lastUserMessageIndex === -1) {
+        return;
+      }
+
+      const lastUserMessage = output.messages[lastUserMessageIndex];
+      const sessionID = lastUserMessage.info.sessionID ?? "";
+      if (!sessionID) {
+        return;
+      }
+
+      const injectedText = pendingInjections.get(sessionID);
+      if (!injectedText) {
+        return;
+      }
+      pendingInjections.delete(sessionID);
+
+      const textPartIndex = lastUserMessage.parts.findIndex(
+        (part) => part.type === "text" && typeof part.text === "string",
+      );
+      if (textPartIndex === -1) {
+        return;
+      }
+
+      lastUserMessage.parts.splice(textPartIndex, 0, {
+        id: `synthetic_hook_${Date.now()}`,
+        messageID: lastUserMessage.info.id,
+        sessionID,
+        type: "text",
+        text: injectedText,
+        synthetic: true,
+        // biome-ignore lint/suspicious/noExplicitAny: OpenCode Part typing requires a wider union than the hook output exposes here.
+      } as any);
+    },
+  };
+};

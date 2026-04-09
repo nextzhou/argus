@@ -79,6 +79,9 @@ func ParseInput(r io.Reader, agent string) (*AgentInput, error) {
 		if sessionID, ok := raw["sessionID"].(string); ok {
 			input.SessionID = sessionID
 		}
+		if cwd, ok := raw["cwd"].(string); ok {
+			input.CWD = cwd
+		}
 		if parentID, ok := raw["parentID"].(string); ok {
 			input.ParentID = parentID
 		}

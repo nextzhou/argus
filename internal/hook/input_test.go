@@ -63,13 +63,15 @@ func TestParseInput_Codex_BasicFields(t *testing.T) {
 
 func TestParseInput_OpenCode_NoParentID(t *testing.T) {
 	input := `{
-		"sessionID": "opencode-111"
+		"sessionID": "opencode-111",
+		"cwd": "/project"
 	}`
 	r := bytes.NewReader([]byte(input))
 
 	result, err := ParseInput(r, "opencode")
 	require.NoError(t, err)
 	assert.Equal(t, "opencode-111", result.SessionID)
+	assert.Equal(t, "/project", result.CWD)
 	assert.Empty(t, result.ParentID)
 	assert.False(t, IsSubAgent(result))
 }
@@ -77,6 +79,7 @@ func TestParseInput_OpenCode_NoParentID(t *testing.T) {
 func TestParseInput_OpenCode_WithParentID(t *testing.T) {
 	input := `{
 		"sessionID": "opencode-222",
+		"cwd": "/workspace",
 		"parentID": "parent-session-333"
 	}`
 	r := bytes.NewReader([]byte(input))
@@ -84,6 +87,7 @@ func TestParseInput_OpenCode_WithParentID(t *testing.T) {
 	result, err := ParseInput(r, "opencode")
 	require.NoError(t, err)
 	assert.Equal(t, "opencode-222", result.SessionID)
+	assert.Equal(t, "/workspace", result.CWD)
 	assert.Equal(t, "parent-session-333", result.ParentID)
 	assert.True(t, IsSubAgent(result))
 }
