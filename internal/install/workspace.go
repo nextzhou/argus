@@ -11,53 +11,88 @@ import (
 	"github.com/nextzhou/argus/internal/assets"
 	"github.com/nextzhou/argus/internal/core"
 	workspacecfg "github.com/nextzhou/argus/internal/workspace"
+	"gopkg.in/yaml.v3"
 )
+
+type workspaceInstallState struct {
+	homeDir           string
+	configPath        string
+	normalizedPath    string
+	config            *workspacecfg.Config
+	alreadyRegistered bool
+}
+
+type workspaceUninstallState struct {
+	homeDir        string
+	configPath     string
+	normalizedPath string
+	config         *workspacecfg.Config
+	index          int
+	isLast         bool
+}
 
 // InstallWorkspace registers a workspace path and installs global Argus resources.
 //
 //nolint:revive // package-qualified API name is required by the CLI/install surface.
 func InstallWorkspace(path string) error {
-	if _, err := validateWorkspacePath(path); err != nil {
-		return err
-	}
+	_, err := InstallWorkspaceWithReport(path)
+	return err
+}
 
-	normalizedPath, err := workspacecfg.NormalizePath(path)
+// InstallWorkspaceWithReport registers a workspace path and returns the
+// summarized filesystem changes produced by the operation.
+//
+//nolint:revive // package-qualified report API mirrors the existing install surface.
+func InstallWorkspaceWithReport(path string) (WorkspaceOperationResult, error) {
+	state, err := prepareWorkspaceInstall(path)
 	if err != nil {
-		return fmt.Errorf("normalizing workspace path: %w", err)
+		return WorkspaceOperationResult{}, err
 	}
 
-	homeDir, err := resolveUserHomeDir()
-	if err != nil {
-		return err
-	}
-
-	configPath := userConfigPathForHome(homeDir)
-	config, err := loadWorkspaceConfig(configPath)
-	if err != nil {
-		return err
-	}
-
-	if slices.Contains(config.Workspaces, normalizedPath) {
-		if _, err := os.Stderr.WriteString("workspace already registered: " + normalizedPath + "\n"); err != nil {
-			return fmt.Errorf("writing duplicate workspace warning: %w", err)
+	tracker := newMutationTracker()
+	if state.alreadyRegistered {
+		if _, err := os.Stderr.WriteString("workspace already registered: " + state.normalizedPath + "\n"); err != nil {
+			return WorkspaceOperationResult{}, fmt.Errorf("writing duplicate workspace warning: %w", err)
 		}
-		return nil
+
+		return WorkspaceOperationResult{
+			Path:              state.normalizedPath,
+			AlreadyRegistered: true,
+			Report:            buildWorkspaceInstallReport(state.homeDir, tracker),
+		}, nil
 	}
 
-	config.Workspaces = workspacecfg.DeduplicateWorkspaces(append(config.Workspaces, normalizedPath))
-	if err := workspacecfg.SaveConfig(configPath, config); err != nil {
-		return fmt.Errorf("saving workspace config: %w", err)
+	state.config.Workspaces = workspacecfg.DeduplicateWorkspaces(append(state.config.Workspaces, state.normalizedPath))
+	if err := saveWorkspaceConfigTracked(state.configPath, state.config, tracker); err != nil {
+		return WorkspaceOperationResult{}, fmt.Errorf("saving workspace config: %w", err)
 	}
 
-	if err := InstallGlobalHooks(supportedAgents); err != nil {
-		return fmt.Errorf("installing global hooks: %w", err)
+	if err := installGlobalHooks(state.homeDir, supportedAgents, tracker); err != nil {
+		return WorkspaceOperationResult{}, fmt.Errorf("installing global hooks: %w", err)
 	}
 
-	if err := InstallGlobalSkills(); err != nil {
-		return fmt.Errorf("installing global skills: %w", err)
+	if err := installGlobalSkills(state.homeDir, tracker); err != nil {
+		return WorkspaceOperationResult{}, fmt.Errorf("installing global skills: %w", err)
 	}
 
-	return nil
+	return WorkspaceOperationResult{
+		Path:   state.normalizedPath,
+		Report: buildWorkspaceInstallReport(state.homeDir, tracker),
+	}, nil
+}
+
+// PrepareWorkspaceInstall validates workspace install inputs and reports
+// whether the operation is already satisfied.
+func PrepareWorkspaceInstall(path string) (WorkspaceInstallPreview, error) {
+	state, err := prepareWorkspaceInstall(path)
+	if err != nil {
+		return WorkspaceInstallPreview{}, err
+	}
+
+	return WorkspaceInstallPreview{
+		Path:              state.normalizedPath,
+		AlreadyRegistered: state.alreadyRegistered,
+	}, nil
 }
 
 // InstallGlobalHooks installs global Argus hook files for the requested agents.
@@ -69,8 +104,12 @@ func InstallGlobalHooks(agents []string) error {
 		return err
 	}
 
+	return installGlobalHooks(homeDir, agents, nil)
+}
+
+func installGlobalHooks(homeDir string, agents []string, tracker *mutationTracker) error {
 	for _, agent := range agents {
-		if err := installGlobalHooksForAgent(homeDir, agent); err != nil {
+		if err := installGlobalHooksForAgent(homeDir, agent, tracker); err != nil {
 			return fmt.Errorf("installing %s global hooks: %w", agent, err)
 		}
 	}
@@ -87,9 +126,13 @@ func InstallGlobalSkills() error {
 		return err
 	}
 
+	return installGlobalSkills(homeDir, nil)
+}
+
+func installGlobalSkills(homeDir string, tracker *mutationTracker) error {
 	targetRoots := globalSkillPathsForHome(homeDir)
 	for _, skillName := range GlobalSkillNames() {
-		if err := releaseGlobalSkill(skillName, targetRoots); err != nil {
+		if err := releaseGlobalSkill(skillName, targetRoots, tracker); err != nil {
 			return fmt.Errorf("releasing global skill %s: %w", skillName, err)
 		}
 	}
@@ -100,42 +143,53 @@ func InstallGlobalSkills() error {
 // UninstallWorkspace removes a workspace registration and cleans up global resources
 // if no workspaces remain.
 func UninstallWorkspace(path string) error {
-	normalizedPath, err := workspacecfg.NormalizePath(path)
+	_, err := UninstallWorkspaceWithReport(path)
+	return err
+}
+
+// UninstallWorkspaceWithReport removes a workspace registration and returns the
+// summarized filesystem changes produced by the operation.
+func UninstallWorkspaceWithReport(path string) (WorkspaceOperationResult, error) {
+	state, err := prepareWorkspaceUninstall(path)
 	if err != nil {
-		return fmt.Errorf("normalizing workspace path: %w", err)
+		return WorkspaceOperationResult{}, err
 	}
 
-	homeDir, err := resolveUserHomeDir()
-	if err != nil {
-		return err
+	tracker := newMutationTracker()
+	state.config.Workspaces = slices.Delete(state.config.Workspaces, state.index, state.index+1)
+	if err := saveWorkspaceConfigTracked(state.configPath, state.config, tracker); err != nil {
+		return WorkspaceOperationResult{}, fmt.Errorf("saving workspace config: %w", err)
 	}
 
-	configPath := userConfigPathForHome(homeDir)
-	config, err := loadWorkspaceConfig(configPath)
-	if err != nil {
-		return err
-	}
-
-	idx := slices.Index(config.Workspaces, normalizedPath)
-	if idx < 0 {
-		return fmt.Errorf("workspace %q is not registered", normalizedPath)
-	}
-
-	config.Workspaces = slices.Delete(config.Workspaces, idx, idx+1)
-	if err := workspacecfg.SaveConfig(configPath, config); err != nil {
-		return fmt.Errorf("saving workspace config: %w", err)
-	}
-
-	if len(config.Workspaces) == 0 {
-		if err := UninstallGlobalHooks(supportedAgents); err != nil {
-			return fmt.Errorf("uninstalling global hooks: %w", err)
+	removedGlobalResources := len(state.config.Workspaces) == 0
+	if removedGlobalResources {
+		if err := uninstallGlobalHooks(state.homeDir, supportedAgents, tracker); err != nil {
+			return WorkspaceOperationResult{}, fmt.Errorf("uninstalling global hooks: %w", err)
 		}
-		if err := UninstallGlobalSkills(); err != nil {
-			return fmt.Errorf("uninstalling global skills: %w", err)
+		if err := uninstallGlobalSkills(state.homeDir, tracker); err != nil {
+			return WorkspaceOperationResult{}, fmt.Errorf("uninstalling global skills: %w", err)
 		}
 	}
 
-	return nil
+	return WorkspaceOperationResult{
+		Path:                  state.normalizedPath,
+		RemovedGlobalResource: removedGlobalResources,
+		Report:                buildWorkspaceUninstallReport(state.homeDir, tracker, removedGlobalResources),
+	}, nil
+}
+
+// PrepareWorkspaceUninstall validates workspace uninstall inputs and reports
+// whether removing the registration will also remove global resources.
+func PrepareWorkspaceUninstall(path string) (WorkspaceUninstallPreview, error) {
+	state, err := prepareWorkspaceUninstall(path)
+	if err != nil {
+		return WorkspaceUninstallPreview{}, err
+	}
+
+	return WorkspaceUninstallPreview{
+		Path:   state.normalizedPath,
+		IsLast: state.isLast,
+	}, nil
 }
 
 // UninstallGlobalHooks removes global Argus hook files for the requested agents.
@@ -145,8 +199,12 @@ func UninstallGlobalHooks(agents []string) error {
 		return err
 	}
 
+	return uninstallGlobalHooks(homeDir, agents, nil)
+}
+
+func uninstallGlobalHooks(homeDir string, agents []string, tracker *mutationTracker) error {
 	for _, agent := range agents {
-		if err := uninstallGlobalHooksForAgent(homeDir, agent); err != nil {
+		if err := uninstallGlobalHooksForAgent(homeDir, agent, tracker); err != nil {
 			return fmt.Errorf("uninstalling %s global hooks: %w", agent, err)
 		}
 	}
@@ -161,6 +219,10 @@ func UninstallGlobalSkills() error {
 		return err
 	}
 
+	return uninstallGlobalSkills(homeDir, nil)
+}
+
+func uninstallGlobalSkills(homeDir string, tracker *mutationTracker) error {
 	for _, skillPath := range globalSkillPathsForHome(homeDir) {
 		entries, err := os.ReadDir(skillPath)
 		if err != nil {
@@ -172,7 +234,7 @@ func UninstallGlobalSkills() error {
 
 		for _, entry := range entries {
 			if entry.IsDir() && core.IsArgusReserved(entry.Name()) {
-				if err := os.RemoveAll(filepath.Join(skillPath, entry.Name())); err != nil {
+				if err := removeAllIfExists(filepath.Join(skillPath, entry.Name()), tracker); err != nil {
 					return fmt.Errorf("removing skill %s: %w", entry.Name(), err)
 				}
 			}
@@ -207,6 +269,68 @@ func UserConfigPath() string {
 	return userConfigPathForHome(homeDir)
 }
 
+func prepareWorkspaceInstall(path string) (workspaceInstallState, error) {
+	if _, err := validateWorkspacePath(path); err != nil {
+		return workspaceInstallState{}, err
+	}
+
+	normalizedPath, err := workspacecfg.NormalizePath(path)
+	if err != nil {
+		return workspaceInstallState{}, fmt.Errorf("normalizing workspace path: %w", err)
+	}
+
+	homeDir, err := resolveUserHomeDir()
+	if err != nil {
+		return workspaceInstallState{}, err
+	}
+
+	configPath := userConfigPathForHome(homeDir)
+	config, err := loadWorkspaceConfig(configPath)
+	if err != nil {
+		return workspaceInstallState{}, err
+	}
+
+	return workspaceInstallState{
+		homeDir:           homeDir,
+		configPath:        configPath,
+		normalizedPath:    normalizedPath,
+		config:            config,
+		alreadyRegistered: slices.Contains(config.Workspaces, normalizedPath),
+	}, nil
+}
+
+func prepareWorkspaceUninstall(path string) (workspaceUninstallState, error) {
+	normalizedPath, err := workspacecfg.NormalizePath(path)
+	if err != nil {
+		return workspaceUninstallState{}, fmt.Errorf("normalizing workspace path: %w", err)
+	}
+
+	homeDir, err := resolveUserHomeDir()
+	if err != nil {
+		return workspaceUninstallState{}, err
+	}
+
+	configPath := userConfigPathForHome(homeDir)
+	config, err := loadWorkspaceConfig(configPath)
+	if err != nil {
+		return workspaceUninstallState{}, err
+	}
+
+	idx := slices.Index(config.Workspaces, normalizedPath)
+	if idx < 0 {
+		return workspaceUninstallState{}, fmt.Errorf("workspace %q is not registered", normalizedPath)
+	}
+
+	return workspaceUninstallState{
+		homeDir:        homeDir,
+		configPath:     configPath,
+		normalizedPath: normalizedPath,
+		config:         config,
+		index:          idx,
+		isLast:         len(config.Workspaces) == 1,
+	}, nil
+}
+
 func validateWorkspacePath(path string) (string, error) {
 	absolutePath, err := filepath.Abs(workspacecfg.ExpandPath(path))
 	if err != nil {
@@ -239,79 +363,47 @@ func loadWorkspaceConfig(configPath string) (*workspacecfg.Config, error) {
 	return nil, fmt.Errorf("loading workspace config: %w", err)
 }
 
-func installGlobalHooksForAgent(homeDir, agent string) error {
+func saveWorkspaceConfigTracked(path string, config *workspacecfg.Config, tracker *mutationTracker) error {
+	data, err := yaml.Marshal(config)
+	if err != nil {
+		return fmt.Errorf("marshaling config: %w", err)
+	}
+
+	if err := writeFileTracked(path, data, tracker); err != nil {
+		return fmt.Errorf("writing config file %q: %w", path, err)
+	}
+
+	return nil
+}
+
+func installGlobalHooksForAgent(homeDir, agent string, tracker *mutationTracker) error {
 	switch agent {
 	case agentClaudeCode:
-		return installClaudeCodeHooksAt(filepath.Join(homeDir, claudeSettingsRelativePath), true)
+		return installClaudeCodeHooksAt(filepath.Join(homeDir, claudeSettingsRelativePath), true, tracker)
 	case agentCodex:
-		return installCodexHooksAt(filepath.Join(homeDir, codexHooksRelativePath), true)
+		return installCodexHooksAt(filepath.Join(homeDir, codexHooksRelativePath), true, tracker)
 	case agentOpenCode:
-		return installOpenCodeHooksAt(globalOpenCodePluginPathForHome(homeDir), true)
+		return installOpenCodeHooksAt(globalOpenCodePluginPathForHome(homeDir), true, tracker)
 	default:
 		_, err := RenderHookTemplate(agent, true)
 		return err
 	}
 }
 
-func uninstallGlobalHooksForAgent(homeDir, agent string) error {
+func uninstallGlobalHooksForAgent(homeDir, agent string, tracker *mutationTracker) error {
 	switch agent {
 	case agentClaudeCode:
-		return uninstallClaudeCodeHooksAt(filepath.Join(homeDir, claudeSettingsRelativePath))
+		return uninstallClaudeCodeHooksAt(filepath.Join(homeDir, claudeSettingsRelativePath), tracker)
 	case agentCodex:
-		return removeIfExists(filepath.Join(homeDir, codexHooksRelativePath))
+		return removeIfExistsTracked(filepath.Join(homeDir, codexHooksRelativePath), tracker)
 	case agentOpenCode:
-		return removeIfExists(globalOpenCodePluginPathForHome(homeDir))
+		return removeIfExistsTracked(globalOpenCodePluginPathForHome(homeDir), tracker)
 	default:
 		return nil
 	}
 }
 
-func uninstallClaudeCodeHooksAt(settingsPath string) error {
-	settings, err := loadJSONObjectIfExists(settingsPath)
-	if err != nil {
-		return fmt.Errorf("parsing claude code settings: %w", err)
-	}
-	if settings == nil {
-		return nil
-	}
-
-	hooksValue, ok := settings["hooks"]
-	if !ok {
-		return nil
-	}
-
-	hooks, ok := hooksValue.(map[string]any)
-	if !ok {
-		return fmt.Errorf("reading claude code hooks: hooks must be an object")
-	}
-
-	for _, event := range claudeCodeHookEvents {
-		existingEntries, err := getArray(hooks, event)
-		if err != nil {
-			return fmt.Errorf("reading claude code %s hooks: %w", event, err)
-		}
-
-		cleanedEntries, err := removeArgusEntries(existingEntries)
-		if err != nil {
-			return fmt.Errorf("cleaning claude code %s hooks: %w", event, err)
-		}
-
-		if len(cleanedEntries) == 0 {
-			delete(hooks, event)
-			continue
-		}
-
-		hooks[event] = cleanedEntries
-	}
-
-	if len(hooks) == 0 {
-		delete(settings, "hooks")
-	}
-
-	return writeJSONObject(settingsPath, settings)
-}
-
-func releaseGlobalSkill(skillName string, targetRoots []string) error {
+func releaseGlobalSkill(skillName string, targetRoots []string, tracker *mutationTracker) error {
 	sourceDir := filepath.Join("skills", skillName)
 
 	return assets.WalkAssets(sourceDir, func(path string, d fs.DirEntry, err error) error {
@@ -342,7 +434,7 @@ func releaseGlobalSkill(skillName string, targetRoots []string) error {
 		}
 
 		for _, targetRoot := range targetRoots {
-			if err := writeFile(filepath.Join(targetRoot, skillName, relPath), data); err != nil {
+			if err := writeFileTracked(filepath.Join(targetRoot, skillName, relPath), data, tracker); err != nil {
 				return err
 			}
 		}

@@ -70,6 +70,72 @@ func initGitRepo(t *testing.T) {
 	require.NoError(t, os.MkdirAll(".git", 0o755))
 }
 
+func parseLifecycleOutput(t *testing.T, output []byte) map[string]any {
+	t.Helper()
+
+	var data map[string]any
+	require.NoError(t, json.Unmarshal(output, &data), "output should be valid JSON: %s", string(output))
+	return data
+}
+
+func assertLifecycleReportShape(t *testing.T, data map[string]any, expectedAffectedPaths ...string) {
+	t.Helper()
+
+	changes, ok := data["changes"].(map[string]any)
+	require.True(t, ok, "changes should be an object")
+	for _, key := range []string{"created", "updated", "removed"} {
+		_, ok := changes[key].([]any)
+		require.True(t, ok, "%s should be an array", key)
+	}
+
+	affected, ok := data["affected_paths"].([]any)
+	require.True(t, ok, "affected_paths should be an array")
+	gotAffected := make([]string, 0, len(affected))
+	for _, value := range affected {
+		asString, ok := value.(string)
+		require.True(t, ok, "affected_paths values should be strings")
+		gotAffected = append(gotAffected, asString)
+	}
+
+	for _, expected := range expectedAffectedPaths {
+		assert.Contains(t, gotAffected, expected)
+	}
+}
+
+func assertEmptyLifecycleChanges(t *testing.T, data map[string]any) {
+	t.Helper()
+
+	changes, ok := data["changes"].(map[string]any)
+	require.True(t, ok, "changes should be an object")
+	for _, key := range []string{"created", "updated", "removed"} {
+		entries, ok := changes[key].([]any)
+		require.True(t, ok, "%s should be an array", key)
+		assert.Empty(t, entries, "%s should be empty", key)
+	}
+}
+
+func withPipeStdin(t *testing.T, content string, fn func()) {
+	t.Helper()
+
+	oldStdin := os.Stdin
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
+	os.Stdin = r
+
+	if content != "" {
+		_, err = w.WriteString(content)
+		require.NoError(t, err)
+	}
+	require.NoError(t, w.Close())
+
+	defer func() {
+		os.Stdin = oldStdin
+		require.NoError(t, r.Close())
+	}()
+
+	fn()
+}
+
 func TestInstallLifecycle(t *testing.T) {
 	t.Chdir(t.TempDir())
 	t.Setenv("HOME", t.TempDir())
@@ -78,9 +144,13 @@ func TestInstallLifecycle(t *testing.T) {
 	output, cmdErr := executeInstallCmd(t, "--yes")
 	require.NoError(t, cmdErr)
 
-	var data map[string]any
-	require.NoError(t, json.Unmarshal(output, &data), "output should be valid JSON: %s", string(output))
+	data := parseLifecycleOutput(t, output)
 	assert.Equal(t, "ok", data["status"])
+	assertLifecycleReportShape(t, data,
+		".argus/{workflows,invariants,rules,pipelines,logs,data,tmp}/",
+		".agents/skills/argus-*/SKILL.md",
+		".claude/settings.json",
+	)
 
 	for _, dir := range []string{"workflows", "invariants", "rules", "pipelines", "logs", "data", "tmp"} {
 		_, err := os.Stat(filepath.Join(".argus", dir))
@@ -102,8 +172,13 @@ func TestInstallLifecycle(t *testing.T) {
 	output, cmdErr = executeUninstallCmd(t, "--yes")
 	require.NoError(t, cmdErr)
 
-	require.NoError(t, json.Unmarshal(output, &data), "output should be valid JSON: %s", string(output))
+	data = parseLifecycleOutput(t, output)
 	assert.Equal(t, "ok", data["status"])
+	assertLifecycleReportShape(t, data,
+		".argus/",
+		".agents/skills/argus-*",
+		".claude/settings.json",
+	)
 
 	_, err = os.Stat(".argus")
 	assert.True(t, os.IsNotExist(err), ".argus/ should not exist after uninstall")
@@ -116,7 +191,7 @@ func TestInstallLifecycle(t *testing.T) {
 	output, cmdErr = executeInstallCmd(t, "--yes")
 	require.NoError(t, cmdErr)
 
-	require.NoError(t, json.Unmarshal(output, &data), "output should be valid JSON: %s", string(output))
+	data = parseLifecycleOutput(t, output)
 	assert.Equal(t, "ok", data["status"])
 
 	_, err = os.Stat(filepath.Join(".argus", "workflows"))
@@ -131,8 +206,7 @@ func TestInstallEdgeCases(t *testing.T) {
 		output, cmdErr := executeInstallCmd(t, "--yes")
 		assert.Error(t, cmdErr)
 
-		var data map[string]any
-		require.NoError(t, json.Unmarshal(output, &data), "output should be valid JSON: %s", string(output))
+		data := parseLifecycleOutput(t, output)
 		assert.Equal(t, "error", data["status"])
 
 		msg, ok := data["message"].(string)
@@ -156,8 +230,7 @@ func TestInstallEdgeCases(t *testing.T) {
 		output, cmdErr := executeInstallCmd(t, "--yes")
 		assert.Error(t, cmdErr)
 
-		var data map[string]any
-		require.NoError(t, json.Unmarshal(output, &data), "output should be valid JSON: %s", string(output))
+		data := parseLifecycleOutput(t, output)
 		assert.Equal(t, "error", data["status"])
 
 		msg, ok := data["message"].(string)
@@ -176,9 +249,10 @@ func TestInstallEdgeCases(t *testing.T) {
 		output, cmdErr := executeInstallCmd(t, "--yes")
 		require.NoError(t, cmdErr)
 
-		var data map[string]any
-		require.NoError(t, json.Unmarshal(output, &data), "output should be valid JSON: %s", string(output))
+		data := parseLifecycleOutput(t, output)
 		assert.Equal(t, "ok", data["status"])
+		assertEmptyLifecycleChanges(t, data)
+		assertLifecycleReportShape(t, data, ".argus/{workflows,invariants,rules,pipelines,logs,data,tmp}/")
 
 		settingsData, err := os.ReadFile(filepath.Join(".claude", "settings.json"))
 		require.NoError(t, err)

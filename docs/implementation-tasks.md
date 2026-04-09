@@ -1260,6 +1260,7 @@ make lint
 - 先检查 Git 仓库存在性；无 `.git/` 直接报错。
 - 若祖先目录已有 `.argus/`，报错防止嵌套安装。
 - 若当前目录不是 git root，则给出警告与确认机制；`--yes` 可跳过。
+- 成功输出包含 `changes` 与 `affected_paths`，汇总本次实际变更及命令管理路径摘要。
 - 成功时创建 `.argus/{workflows,invariants,rules,pipelines,logs,data,tmp}`，释出内置资源和项目级 skills，并安装 Hook。
 
 **测试要求**:
@@ -1281,6 +1282,7 @@ make lint
 **实现内容**:
 - 注册 `argus uninstall [--yes]`。
 - 提供交互确认与 `--yes` 跳过逻辑。
+- 成功输出包含 `changes` 与 `affected_paths`，汇总本次实际变更及命令管理路径摘要。
 - 删除 `.argus/` 目录。
 - 删除 `.agents/skills/argus-*` 与 `.claude/skills/argus-*`，保留非 `argus-` 用户自定义 skills。
 - 调用 Hook 卸载逻辑移除项目级 Agent 配置。
@@ -1323,15 +1325,17 @@ make lint
 | Commit | `feat(cli): add install --workspace for global hook and skill distribution` |
 
 **实现内容**:
-- 扩展 `argus install --workspace <path>`。
+- 扩展 `argus install --workspace <path> [--yes]`。
 - 先校验路径存在且为目录，再做 4 步规范化。
+- 提供交互确认；`--yes` 跳过。重复注册时不确认，仍保持非错误返回。
 - 写入全局 Hook 配置，命令中带 `--global`。
 - 释出全局 Skills 到各 Agent 的全局 Skill 目录。
 - 更新 `~/.config/argus/config.yaml`，重复注册仅 stderr 提示，不视为错误。
+- 成功输出包含规范化后的 `path`、`changes` 与 `affected_paths`。
 
 **测试要求**:
 - 先写路径不存在与非目录报错测试。
-- 覆盖重复注册、嵌套路径、全局 hook 写入。
+- 覆盖重复注册、确认拒绝、非 TTY 未传 `--yes`、嵌套路径、全局 hook 写入。
 - 验证 config.yaml 中存储的是规范化后路径。
 
 ---
@@ -1346,15 +1350,17 @@ make lint
 | Commit | `feat(cli): add uninstall --workspace with global cleanup` |
 
 **实现内容**:
-- 扩展 `argus uninstall --workspace <path>`。
+- 扩展 `argus uninstall --workspace <path> [--yes]`。
 - 对输入路径应用与 install 相同的规范化算法。
 - 未找到匹配项时返回 exit 1。
+- 提供交互确认；`--yes` 跳过。最后一个 workspace 的确认文案需明确会移除全局 Hook 和全局 Skills。
 - 从 config.yaml 中删除对应 workspace。
 - 当最后一个 workspace 被移除时，一并清理全局 Hook 和全局 Skills。
+- 成功输出包含规范化后的 `path`、`changes` 与 `affected_paths`。
 
 **测试要求**:
 - 先写 install 后再 uninstall 的 round-trip 测试。
-- 覆盖未注册 workspace 报错与最后一个 workspace 清理逻辑。
+- 覆盖未注册 workspace 报错、确认拒绝、非 TTY 未传 `--yes` 与最后一个 workspace 清理逻辑。
 - 验证路径规范化前后等价输入能命中同一注册项。
 
 ---

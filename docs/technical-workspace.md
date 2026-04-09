@@ -59,6 +59,18 @@ CLI 输入（`argus install --workspace <path>`）接受任意形式的路径（
 
 **路径校验**：`install --workspace <path>` 在规范化之前，先检查 `<path>` 展开后的绝对路径是否存在且为目录。若路径不存在或不是目录，返回 exit 1 并提示错误信息。
 
+**确认机制**：`install --workspace <path>` 与 `uninstall --workspace <path>` 都需要二次确认；传入 `--yes` 跳过。workspace install 的确认文案必须明确这是**用户级全局 Hook/Skill 安装**，而不是对某个项目执行真正的 `argus install`。workspace uninstall 的确认文案区分：
+
+- 非最后一个 workspace：仅提示将停止对该 workspace 内项目的全局引导
+- 最后一个 workspace：额外提示将移除全局 Hook 和全局 Skills
+
+**成功输出**：workspace install / uninstall 成功时，除了 `message` 与规范化后的 `path` 外，还返回：
+
+- `changes`：本次实际发生的 `created` / `updated` / `removed` 路径摘要
+- `affected_paths`：该命令管理的稳定路径摘要列表
+
+这些摘要是面向用户的稳定展示契约，不要求与单个真实文件路径一一对应；允许将多个真实路径合并为一条摘要（如 `~/.claude/skills/argus-*`）。
+
 *   **卸载**：执行 `argus uninstall --workspace <path>` 可移除特定工作区。卸载时对 `<path>` 应用**与 install 相同的规范化算法**，用规范化后的字符串与 config.yaml 中的已注册路径匹配。若未找到匹配项，返回 exit 1 并提示 workspace 不存在。当所有工作区都被移除时，系统会自动清理全局 Hook 和全局 Skills。
 *   **标志位变更**：原有的 `--global` 作为安装入口的用法已被 `--workspace` 替代。`--global` 标志本身仍保留，作为 `tick` / `trap` 的内部来源标记（标识调用来自全局 Hook），由 `install --workspace` 自动写入全局 Hook 配置。
 
@@ -102,7 +114,7 @@ CLI 输入（`argus install --workspace <path>`）接受任意形式的路径（
 3. **用户确认后** → 在 CWD 创建 `.argus/` 目录。
 4. **用户拒绝** → 输出 `Installation cancelled.`，exit 1。
 
-**确认机制**（CLI 通用约定，适用于 `install` 子目录确认、`uninstall` 删除确认等所有需要确认的场景）：
+**确认机制**（CLI 通用约定，适用于 `install` 子目录确认、workspace install/uninstall、`uninstall` 删除确认等所有需要确认的场景）：
 
 - **交互式确认**：通过 stdin prompt 提示 `Continue? [y/N]`（默认 No）
 - **`--yes` flag**：传入 `--yes` 跳过确认，直接执行。用于脚本和自动化场景

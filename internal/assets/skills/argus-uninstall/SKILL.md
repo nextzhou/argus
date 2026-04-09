@@ -16,6 +16,7 @@ Remove Argus from a project.
 ## Commands
 
 - `argus uninstall [--yes]` — Remove Argus from current project
+- `argus uninstall --workspace <path> [--yes]` — Remove a workspace registration and, if it is the last one, clean up global hooks and global skills
 
 ## What Uninstall Does
 
@@ -23,6 +24,12 @@ Remove Argus from a project.
 2. Removes `argus-*` prefixed skills from the project-level `.agents/skills/` and `.claude/skills/` paths
 3. Removes Agent hook configurations
 4. Preserves non-argus user skills
+
+Workspace uninstall (`argus uninstall --workspace <path>`) instead:
+
+1. Removes the normalized workspace path from `~/.config/argus/config.yaml`
+2. If it was the last registered workspace, removes global hooks and global independent skills
+3. Preserves unrelated user-managed skills and hook settings outside the Argus-managed entries
 
 ## Notes
 

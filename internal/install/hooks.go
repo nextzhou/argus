@@ -29,8 +29,12 @@ var claudeCodeHookEvents = []string{"UserPromptSubmit", "PreToolUse"}
 //
 //nolint:revive // package-qualified API name is required by the install command surface.
 func InstallHooks(projectRoot string, agents []string) error {
+	return installHooks(projectRoot, agents, nil)
+}
+
+func installHooks(projectRoot string, agents []string, tracker *mutationTracker) error {
 	for _, agent := range agents {
-		if err := installHooksForAgent(projectRoot, agent); err != nil {
+		if err := installHooksForAgent(projectRoot, agent, tracker); err != nil {
 			return fmt.Errorf("installing %s hooks: %w", agent, err)
 		}
 	}
@@ -40,47 +44,52 @@ func InstallHooks(projectRoot string, agents []string) error {
 
 // UninstallHooks removes only Argus-managed hook files for the requested agents.
 func UninstallHooks(projectRoot string, agents []string) error {
+	return uninstallHooks(projectRoot, agents, nil)
+}
+
+func uninstallHooks(projectRoot string, agents []string, tracker *mutationTracker) error {
 	for _, agent := range agents {
-		if err := uninstallHooksForAgent(projectRoot, agent); err != nil {
+		if err := uninstallHooksForAgent(projectRoot, agent, tracker); err != nil {
 			return fmt.Errorf("uninstalling %s hooks: %w", agent, err)
 		}
 	}
 
 	return nil
 }
-func installHooksForAgent(projectRoot string, agent string) error {
+
+func installHooksForAgent(projectRoot string, agent string, tracker *mutationTracker) error {
 	switch agent {
 	case agentClaudeCode:
-		return installClaudeCodeHooks(projectRoot)
+		return installClaudeCodeHooks(projectRoot, tracker)
 	case agentCodex:
-		return installCodexHooks(projectRoot)
+		return installCodexHooks(projectRoot, tracker)
 	case agentOpenCode:
-		return installOpenCodeHooks(projectRoot)
+		return installOpenCodeHooks(projectRoot, tracker)
 	default:
 		_, err := RenderHookTemplate(agent, false)
 		return err
 	}
 }
 
-func uninstallHooksForAgent(projectRoot string, agent string) error {
+func uninstallHooksForAgent(projectRoot string, agent string, tracker *mutationTracker) error {
 	switch agent {
 	case agentClaudeCode:
-		return uninstallClaudeCodeHooks(projectRoot)
+		return uninstallClaudeCodeHooks(projectRoot, tracker)
 	case agentCodex:
-		return removeIfExists(filepath.Join(projectRoot, codexHooksRelativePath))
+		return removeIfExistsTracked(filepath.Join(projectRoot, codexHooksRelativePath), tracker)
 	case agentOpenCode:
-		return removeIfExists(filepath.Join(projectRoot, opencodePluginRelativePath))
+		return removeIfExistsTracked(filepath.Join(projectRoot, opencodePluginRelativePath), tracker)
 	default:
 		_, err := RenderHookTemplate(agent, false)
 		return err
 	}
 }
 
-func installClaudeCodeHooks(projectRoot string) error {
-	return installClaudeCodeHooksAt(filepath.Join(projectRoot, claudeSettingsRelativePath), false)
+func installClaudeCodeHooks(projectRoot string, tracker *mutationTracker) error {
+	return installClaudeCodeHooksAt(filepath.Join(projectRoot, claudeSettingsRelativePath), false, tracker)
 }
 
-func installClaudeCodeHooksAt(settingsPath string, global bool) error {
+func installClaudeCodeHooksAt(settingsPath string, global bool, tracker *mutationTracker) error {
 	settings, err := loadJSONObject(settingsPath)
 	if err != nil {
 		return fmt.Errorf("parsing claude code settings: %w", err)
@@ -110,11 +119,15 @@ func installClaudeCodeHooksAt(settingsPath string, global bool) error {
 		hooks[event] = append(cleanedEntries, desiredEvents[event]...)
 	}
 
-	return writeJSONObject(settingsPath, settings)
+	return writeJSONObjectTracked(settingsPath, settings, tracker)
 }
 
-func uninstallClaudeCodeHooks(projectRoot string) error {
+func uninstallClaudeCodeHooks(projectRoot string, tracker *mutationTracker) error {
 	settingsPath := filepath.Join(projectRoot, claudeSettingsRelativePath)
+	return uninstallClaudeCodeHooksAt(settingsPath, tracker)
+}
+
+func uninstallClaudeCodeHooksAt(settingsPath string, tracker *mutationTracker) error {
 	settings, err := loadJSONObjectIfExists(settingsPath)
 	if err != nil {
 		return fmt.Errorf("parsing claude code settings: %w", err)
@@ -156,48 +169,48 @@ func uninstallClaudeCodeHooks(projectRoot string) error {
 		delete(settings, "hooks")
 	}
 
-	return writeJSONObject(settingsPath, settings)
+	return writeJSONObjectTracked(settingsPath, settings, tracker)
 }
 
-func installCodexHooks(projectRoot string) error {
-	return installCodexHooksAt(filepath.Join(projectRoot, codexHooksRelativePath), false)
+func installCodexHooks(projectRoot string, tracker *mutationTracker) error {
+	return installCodexHooksAt(filepath.Join(projectRoot, codexHooksRelativePath), false, tracker)
 }
 
-func installCodexHooksAt(hooksPath string, global bool) error {
+func installCodexHooksAt(hooksPath string, global bool, tracker *mutationTracker) error {
 	rendered, err := RenderHookTemplate(agentCodex, global)
 	if err != nil {
 		return err
 	}
 
-	if err := writeFile(hooksPath, rendered); err != nil {
+	if err := writeFileTracked(hooksPath, rendered, tracker); err != nil {
 		return fmt.Errorf("writing codex hooks: %w", err)
 	}
 
-	if err := ensureCodexHooksEnabled(); err != nil {
+	if err := ensureCodexHooksEnabled(tracker); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func installOpenCodeHooks(projectRoot string) error {
-	return installOpenCodeHooksAt(filepath.Join(projectRoot, opencodePluginRelativePath), false)
+func installOpenCodeHooks(projectRoot string, tracker *mutationTracker) error {
+	return installOpenCodeHooksAt(filepath.Join(projectRoot, opencodePluginRelativePath), false, tracker)
 }
 
-func installOpenCodeHooksAt(pluginPath string, global bool) error {
+func installOpenCodeHooksAt(pluginPath string, global bool, tracker *mutationTracker) error {
 	rendered, err := RenderHookTemplate(agentOpenCode, global)
 	if err != nil {
 		return err
 	}
 
-	if err := writeFile(pluginPath, rendered); err != nil {
+	if err := writeFileTracked(pluginPath, rendered, tracker); err != nil {
 		return fmt.Errorf("writing opencode plugin: %w", err)
 	}
 
 	return nil
 }
 
-func ensureCodexHooksEnabled() error {
+func ensureCodexHooksEnabled(tracker *mutationTracker) error {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		return fmt.Errorf("resolving home directory: %w", err)
@@ -222,7 +235,7 @@ func ensureCodexHooksEnabled() error {
 		return fmt.Errorf("encoding codex config: %w", err)
 	}
 
-	if err := writeFile(configPath, rendered); err != nil {
+	if err := writeFileTracked(configPath, rendered, tracker); err != nil {
 		return fmt.Errorf("writing codex config: %w", err)
 	}
 
@@ -301,6 +314,10 @@ func loadJSONObjectIfExists(path string) (map[string]any, error) {
 }
 
 func writeJSONObject(path string, value map[string]any) error {
+	return writeJSONObjectTracked(path, value, nil)
+}
+
+func writeJSONObjectTracked(path string, value map[string]any, tracker *mutationTracker) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return fmt.Errorf("creating %s: %w", filepath.Dir(path), err)
 	}
@@ -313,14 +330,28 @@ func writeJSONObject(path string, value map[string]any) error {
 		return fmt.Errorf("encoding %s: %w", path, err)
 	}
 
-	if err := os.WriteFile(path, buf.Bytes(), 0o644); err != nil {
-		return fmt.Errorf("writing %s: %w", path, err)
-	}
-
-	return nil
+	return writeFileTracked(path, buf.Bytes(), tracker)
 }
 
 func writeFile(path string, content []byte) error {
+	return writeFileTracked(path, content, nil)
+}
+
+func writeFileTracked(path string, content []byte, tracker *mutationTracker) error {
+	existed := false
+	existing, err := os.ReadFile(path)
+	switch {
+	case err == nil:
+		existed = true
+		if bytes.Equal(existing, content) {
+			return nil
+		}
+	case errors.Is(err, os.ErrNotExist):
+		// The file will be created below.
+	default:
+		return fmt.Errorf("reading %s: %w", path, err)
+	}
+
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return fmt.Errorf("creating %s: %w", filepath.Dir(path), err)
 	}
@@ -329,14 +360,45 @@ func writeFile(path string, content []byte) error {
 		return fmt.Errorf("writing %s: %w", path, err)
 	}
 
+	if !existed {
+		tracker.recordCreated(path)
+		return nil
+	}
+
+	tracker.recordUpdated(path)
 	return nil
 }
 
 func removeIfExists(path string) error {
-	if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+	return removeIfExistsTracked(path, nil)
+}
+
+func removeIfExistsTracked(path string, tracker *mutationTracker) error {
+	if err := os.Remove(path); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
 		return fmt.Errorf("removing %s: %w", path, err)
 	}
 
+	tracker.recordRemoved(path)
+	return nil
+}
+
+func removeAllIfExists(path string, tracker *mutationTracker) error {
+	_, err := os.Stat(path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		return fmt.Errorf("stating %s: %w", path, err)
+	}
+
+	if err := os.RemoveAll(path); err != nil {
+		return fmt.Errorf("removing %s: %w", path, err)
+	}
+
+	tracker.recordRemoved(path)
 	return nil
 }
 

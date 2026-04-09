@@ -9,7 +9,6 @@ import (
 
 	"github.com/nextzhou/argus/internal/core"
 	"github.com/nextzhou/argus/internal/install"
-	workspacecfg "github.com/nextzhou/argus/internal/workspace"
 	"github.com/spf13/cobra"
 )
 
@@ -24,20 +23,40 @@ func newInstallCmd() *cobra.Command {
 		Short: "Install Argus in the current project",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if cmd.Flags().Changed("workspace") {
-				if err := install.InstallWorkspace(workspacePath); err != nil {
-					writeEnvelope(core.ErrorEnvelope(err.Error()))
-					return err
-				}
-
-				normalizedPath, err := workspacecfg.NormalizePath(workspacePath)
+				preview, err := install.PrepareWorkspaceInstall(workspacePath)
 				if err != nil {
 					writeEnvelope(core.ErrorEnvelope(err.Error()))
 					return err
 				}
 
-				okBytes, err := core.OKEnvelope(map[string]string{
-					"message": "workspace registered",
-					"path":    normalizedPath,
+				if !yesFlag && !preview.AlreadyRegistered {
+					confirmed, confirmErr := confirmWorkspaceInstall(cmd, preview.Path, os.Stdin, stdinIsTTY())
+					if confirmErr != nil {
+						writeEnvelope(core.ErrorEnvelope(confirmErr.Error()))
+						return confirmErr
+					}
+					if !confirmed {
+						cancelErr := fmt.Errorf("workspace installation cancelled")
+						writeEnvelope(core.ErrorEnvelope(cancelErr.Error()))
+						return cancelErr
+					}
+				}
+
+				result, err := install.InstallWorkspaceWithReport(workspacePath)
+				if err != nil {
+					writeEnvelope(core.ErrorEnvelope(err.Error()))
+					return err
+				}
+
+				message := "workspace registered"
+				if result.AlreadyRegistered {
+					message = "workspace already registered"
+				}
+
+				okBytes, err := core.OKEnvelope(lifecycleOutput{
+					Message: message,
+					Path:    result.Path,
+					Report:  result.Report,
 				})
 				if err != nil {
 					return fmt.Errorf("marshaling workspace install output: %w", err)
@@ -67,14 +86,16 @@ func newInstallCmd() *cobra.Command {
 				}
 			}
 
-			if err := install.Install(projectRoot, yesFlag); err != nil {
+			result, err := install.InstallWithReport(projectRoot)
+			if err != nil {
 				writeEnvelope(core.ErrorEnvelope(err.Error()))
 				return err
 			}
 
-			okBytes, err := core.OKEnvelope(map[string]string{
-				"message": "Argus installed successfully",
-				"root":    projectRoot,
+			okBytes, err := core.OKEnvelope(lifecycleOutput{
+				Message: "Argus installed successfully",
+				Root:    result.Root,
+				Report:  result.Report,
 			})
 			if err != nil {
 				return fmt.Errorf("marshaling install output: %w", err)
@@ -92,20 +113,37 @@ func newInstallCmd() *cobra.Command {
 }
 
 func confirmSubdirectoryInstall(cmd *cobra.Command, projectRoot string, stdinReader io.Reader, isTTY bool) (bool, error) {
+	return confirmWithPrompt(cmd, []string{
+		"Current directory is not the Git root.",
+		"Install Argus in this subdirectory instead: " + projectRoot,
+	}, stdinReader, isTTY, "current directory is not the Git root — use --yes to install here anyway")
+}
+
+func confirmWorkspaceInstall(cmd *cobra.Command, normalizedPath string, stdinReader io.Reader, isTTY bool) (bool, error) {
+	return confirmWithPrompt(cmd, []string{
+		"This will register the workspace path:",
+		"  " + normalizedPath,
+		"",
+		"Argus will install global hooks and global skills for this user account.",
+		"This does not install Argus into any project yet.",
+		"Projects inside this workspace may be guided to run project-level Argus install.",
+	}, stdinReader, isTTY, "workspace installation requires confirmation in interactive mode; use --yes to skip confirmation")
+}
+
+func confirmWithPrompt(cmd *cobra.Command, lines []string, stdinReader io.Reader, isTTY bool, nonTTYMessage string) (bool, error) {
 	if !isTTY {
-		return false, fmt.Errorf("current directory is not the Git root — use --yes to install here anyway")
+		return false, fmt.Errorf("%s", nonTTYMessage)
 	}
 
 	w := cmd.OutOrStdout()
-	_, err := w.Write([]byte("Current directory is not the Git root.\n"))
-	if err != nil {
-		return false, fmt.Errorf("writing confirmation prompt: %w", err)
+	for _, line := range lines {
+		_, err := w.Write([]byte(line + "\n"))
+		if err != nil {
+			return false, fmt.Errorf("writing confirmation prompt: %w", err)
+		}
 	}
-	_, err = w.Write([]byte("Install Argus in this subdirectory instead: " + projectRoot + "\n"))
-	if err != nil {
-		return false, fmt.Errorf("writing confirmation prompt: %w", err)
-	}
-	_, err = w.Write([]byte("Continue? [y/N] "))
+
+	_, err := w.Write([]byte("Continue? [y/N] "))
 	if err != nil {
 		return false, fmt.Errorf("writing confirmation prompt: %w", err)
 	}

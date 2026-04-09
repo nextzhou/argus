@@ -79,7 +79,11 @@ func TestInstallCreatesProjectStructureAndAssets(t *testing.T) {
 	t.Setenv("HOME", homeDir)
 	projectRoot := newTestProjectRoot(t)
 
-	require.NoError(t, Install(projectRoot, true))
+	result, err := InstallWithReport(projectRoot)
+	require.NoError(t, err)
+	assert.Equal(t, projectRoot, result.Root)
+	assert.Contains(t, result.Report.AffectedPaths, ".argus/{workflows,invariants,rules,pipelines,logs,data,tmp}/")
+	assert.Contains(t, result.Report.Changes.Created, ".argus/{workflows,invariants,rules,pipelines,logs,data,tmp}/")
 
 	for _, relDir := range []string{
 		".argus/workflows",
@@ -113,8 +117,15 @@ func TestInstallIsIdempotent(t *testing.T) {
 	t.Setenv("HOME", homeDir)
 	projectRoot := newTestProjectRoot(t)
 
-	require.NoError(t, Install(projectRoot, true))
-	require.NoError(t, Install(projectRoot, true))
+	_, err := InstallWithReport(projectRoot)
+	require.NoError(t, err)
+
+	result, err := InstallWithReport(projectRoot)
+	require.NoError(t, err)
+	assert.Empty(t, result.Report.Changes.Created)
+	assert.Empty(t, result.Report.Changes.Updated)
+	assert.Empty(t, result.Report.Changes.Removed)
+	assert.Contains(t, result.Report.AffectedPaths, ".argus/{workflows,invariants,rules,pipelines,logs,data,tmp}/")
 
 	settings := readJSONFile(t, filepath.Join(projectRoot, ".claude", "settings.json"))
 	assert.Equal(t, []string{"argus tick --agent claude-code"}, hookCommandsForEvent(t, settings, "UserPromptSubmit"))

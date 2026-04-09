@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -24,7 +25,7 @@ func newUninstallCmd() *cobra.Command {
 		Short: "Uninstall Argus from the current project or remove a workspace registration",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if cmd.Flags().Changed("workspace") {
-				return runWorkspaceUninstall(workspaceFlag)
+				return runWorkspaceUninstall(cmd, workspaceFlag, yesFlag)
 			}
 			return runProjectUninstall(yesFlag)
 		},
@@ -35,14 +36,36 @@ func newUninstallCmd() *cobra.Command {
 	return cmd
 }
 
-func runWorkspaceUninstall(workspacePath string) error {
-	if err := install.UninstallWorkspace(workspacePath); err != nil {
+func runWorkspaceUninstall(cmd *cobra.Command, workspacePath string, yesFlag bool) error {
+	preview, err := install.PrepareWorkspaceUninstall(workspacePath)
+	if err != nil {
 		writeEnvelope(core.ErrorEnvelope(err.Error()))
 		return err
 	}
 
-	writeEnvelope(core.OKEnvelope(map[string]string{
-		"message": "workspace unregistered successfully",
+	if !yesFlag {
+		confirmed, confirmErr := confirmWorkspaceUninstall(cmd, preview.Path, preview.IsLast, os.Stdin, stdinIsTTY())
+		if confirmErr != nil {
+			writeEnvelope(core.ErrorEnvelope(confirmErr.Error()))
+			return confirmErr
+		}
+		if !confirmed {
+			cancelErr := fmt.Errorf("workspace uninstallation cancelled")
+			writeEnvelope(core.ErrorEnvelope(cancelErr.Error()))
+			return cancelErr
+		}
+	}
+
+	result, err := install.UninstallWorkspaceWithReport(workspacePath)
+	if err != nil {
+		writeEnvelope(core.ErrorEnvelope(err.Error()))
+		return err
+	}
+
+	writeEnvelope(core.OKEnvelope(lifecycleOutput{
+		Message: "workspace unregistered successfully",
+		Path:    result.Path,
+		Report:  result.Report,
 	}))
 	return nil
 }
@@ -74,28 +97,34 @@ func runProjectUninstall(yesFlag bool) error {
 		}
 	}
 
-	if err := os.RemoveAll(argusDir); err != nil {
-		return fmt.Errorf("removing .argus: %w", err)
+	report, err := install.UninstallProject(cwd)
+	if err != nil {
+		return err
 	}
 
-	for _, skillPath := range install.SkillPaths() {
-		skillsDir := filepath.Join(cwd, skillPath)
-		if entries, err := os.ReadDir(skillsDir); err == nil {
-			for _, entry := range entries {
-				if entry.IsDir() && core.IsArgusReserved(entry.Name()) {
-					_ = os.RemoveAll(filepath.Join(skillsDir, entry.Name()))
-				}
-			}
-		}
-	}
-
-	agents := []string{"claude-code", "codex", "opencode"}
-	if err := install.UninstallHooks(cwd, agents); err != nil {
-		return fmt.Errorf("uninstalling hooks: %w", err)
-	}
-
-	writeEnvelope(core.OKEnvelope(map[string]string{
-		"message": "Argus uninstalled successfully",
+	writeEnvelope(core.OKEnvelope(lifecycleOutput{
+		Message: "Argus uninstalled successfully",
+		Report:  report,
 	}))
 	return nil
+}
+
+func confirmWorkspaceUninstall(cmd *cobra.Command, normalizedPath string, isLast bool, stdinReader io.Reader, isTTY bool) (bool, error) {
+	lines := []string{
+		"This will unregister the workspace path:",
+		"  " + normalizedPath,
+		"",
+	}
+	if isLast {
+		lines = append(lines,
+			"No registered workspaces will remain.",
+			"Argus will remove global hooks and global skills for this user account.",
+		)
+	} else {
+		lines = append(lines,
+			"Argus will stop guiding projects inside this workspace via global hooks.",
+		)
+	}
+
+	return confirmWithPrompt(cmd, lines, stdinReader, isTTY, "workspace uninstallation requires confirmation in interactive mode; use --yes to skip confirmation")
 }

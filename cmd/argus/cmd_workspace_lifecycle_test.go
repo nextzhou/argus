@@ -15,6 +15,10 @@ import (
 )
 
 func executeWorkspaceInstallCmd(t *testing.T, workspacePath string) ([]byte, error) {
+	return executeWorkspaceInstallCmdWithArgs(t, workspacePath, "--yes")
+}
+
+func executeWorkspaceInstallCmdWithArgs(t *testing.T, workspacePath string, args ...string) ([]byte, error) {
 	t.Helper()
 
 	old := os.Stdout
@@ -25,7 +29,7 @@ func executeWorkspaceInstallCmd(t *testing.T, workspacePath string) ([]byte, err
 	cmd := newInstallCmd()
 	cmd.SilenceErrors = true
 	cmd.SilenceUsage = true
-	cmd.SetArgs([]string{"--workspace", workspacePath})
+	cmd.SetArgs(append(args, "--workspace", workspacePath))
 	cmdErr := cmd.Execute()
 
 	require.NoError(t, w.Close())
@@ -39,6 +43,10 @@ func executeWorkspaceInstallCmd(t *testing.T, workspacePath string) ([]byte, err
 }
 
 func executeWorkspaceUninstallCmd(t *testing.T, workspacePath string) ([]byte, error) {
+	return executeWorkspaceUninstallCmdWithArgs(t, workspacePath, "--yes")
+}
+
+func executeWorkspaceUninstallCmdWithArgs(t *testing.T, workspacePath string, args ...string) ([]byte, error) {
 	t.Helper()
 
 	old := os.Stdout
@@ -49,7 +57,7 @@ func executeWorkspaceUninstallCmd(t *testing.T, workspacePath string) ([]byte, e
 	cmd := newUninstallCmd()
 	cmd.SilenceErrors = true
 	cmd.SilenceUsage = true
-	cmd.SetArgs([]string{"--workspace", workspacePath})
+	cmd.SetArgs(append(args, "--workspace", workspacePath))
 	cmdErr := cmd.Execute()
 
 	require.NoError(t, w.Close())
@@ -164,6 +172,11 @@ func TestWorkspaceLifecycle_Complete(t *testing.T) {
 	data := parseWorkspaceLifecycleOutput(t, output)
 	assert.Equal(t, "ok", data["status"])
 	assert.Equal(t, "~/work", data["path"])
+	assertLifecycleReportShape(t, data,
+		"~/.config/argus/config.yaml",
+		"~/.claude/settings.json",
+		"~/.codex/{hooks.json,config.toml}",
+	)
 	config := readWorkspaceConfig(t)
 	assert.Equal(t, []string{"~/work"}, config.Workspaces)
 	settingsData := readFileString(t, settingsPath)
@@ -196,6 +209,11 @@ func TestWorkspaceLifecycle_Complete(t *testing.T) {
 	require.NoError(t, cmdErr)
 	data = parseWorkspaceLifecycleOutput(t, output)
 	assert.Equal(t, "ok", data["status"])
+	assertLifecycleReportShape(t, data,
+		"~/.config/argus/config.yaml",
+		"~/.claude/settings.json",
+		"~/.codex/hooks.json",
+	)
 	config = readWorkspaceConfig(t)
 	assert.Empty(t, config.Workspaces)
 	if settingsData, ok := readOptionalFileString(t, settingsPath); ok {
@@ -225,11 +243,13 @@ func TestWorkspaceLifecycle_MultiWorkspace(t *testing.T) {
 	require.NoError(t, cmdErr)
 	data := parseWorkspaceLifecycleOutput(t, output)
 	assert.Equal(t, "ok", data["status"])
+	assertLifecycleReportShape(t, data, "~/.config/argus/config.yaml")
 
 	output, cmdErr = executeWorkspaceInstallCmd(t, workspaceBeta)
 	require.NoError(t, cmdErr)
 	data = parseWorkspaceLifecycleOutput(t, output)
 	assert.Equal(t, "ok", data["status"])
+	assertLifecycleReportShape(t, data, "~/.config/argus/config.yaml")
 	config := readWorkspaceConfig(t)
 	assert.Equal(t, []string{"~/ws-alpha", "~/ws-beta"}, config.Workspaces)
 
@@ -237,6 +257,7 @@ func TestWorkspaceLifecycle_MultiWorkspace(t *testing.T) {
 	require.NoError(t, cmdErr)
 	data = parseWorkspaceLifecycleOutput(t, output)
 	assert.Equal(t, "ok", data["status"])
+	assertLifecycleReportShape(t, data, "~/.config/argus/config.yaml")
 	config = readWorkspaceConfig(t)
 	assert.Equal(t, []string{"~/ws-beta"}, config.Workspaces)
 	settingsData := readFileString(t, settingsPath)
@@ -248,6 +269,7 @@ func TestWorkspaceLifecycle_MultiWorkspace(t *testing.T) {
 	require.NoError(t, cmdErr)
 	data = parseWorkspaceLifecycleOutput(t, output)
 	assert.Equal(t, "ok", data["status"])
+	assertLifecycleReportShape(t, data, "~/.config/argus/config.yaml", "~/.claude/settings.json")
 	config = readWorkspaceConfig(t)
 	assert.Empty(t, config.Workspaces)
 	if settingsData, ok := readOptionalFileString(t, settingsPath); ok {
@@ -270,6 +292,7 @@ func TestWorkspaceLifecycle_PathNormalization(t *testing.T) {
 	require.NoError(t, cmdErr)
 	data := parseWorkspaceLifecycleOutput(t, output)
 	assert.Equal(t, "ok", data["status"])
+	assertLifecycleReportShape(t, data, "~/.config/argus/config.yaml")
 	config := readWorkspaceConfig(t)
 	assert.Equal(t, []string{workspaceDir}, config.Workspaces)
 
@@ -277,6 +300,63 @@ func TestWorkspaceLifecycle_PathNormalization(t *testing.T) {
 	require.NoError(t, cmdErr)
 	data = parseWorkspaceLifecycleOutput(t, output)
 	assert.Equal(t, "ok", data["status"])
+	assertLifecycleReportShape(t, data, "~/.config/argus/config.yaml")
 	config = readWorkspaceConfig(t)
 	assert.Empty(t, config.Workspaces)
+}
+
+func TestWorkspaceInstallDuplicateRegistrationIsNoOp(t *testing.T) {
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+
+	workspaceDir := filepath.Join(homeDir, "work")
+	require.NoError(t, os.MkdirAll(workspaceDir, 0o755))
+
+	_, cmdErr := executeWorkspaceInstallCmd(t, workspaceDir)
+	require.NoError(t, cmdErr)
+
+	output, cmdErr := executeWorkspaceInstallCmdWithArgs(t, workspaceDir)
+	require.NoError(t, cmdErr)
+	data := parseWorkspaceLifecycleOutput(t, output)
+	assert.Equal(t, "workspace already registered", data["message"])
+	assertEmptyLifecycleChanges(t, data)
+	assertLifecycleReportShape(t, data, "~/.config/argus/config.yaml")
+}
+
+func TestWorkspaceInstallNonInteractiveWithoutYes(t *testing.T) {
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+
+	workspaceDir := filepath.Join(homeDir, "work")
+	require.NoError(t, os.MkdirAll(workspaceDir, 0o755))
+
+	withPipeStdin(t, "", func() {
+		output, cmdErr := executeWorkspaceInstallCmdWithArgs(t, workspaceDir)
+		require.Error(t, cmdErr)
+		assert.Contains(t, cmdErr.Error(), "--yes")
+
+		data := parseWorkspaceLifecycleOutput(t, output)
+		assert.Equal(t, "error", data["status"])
+		assert.Contains(t, data["message"], "use --yes")
+	})
+}
+
+func TestWorkspaceUninstallNonInteractiveWithoutYes(t *testing.T) {
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+
+	workspaceDir := filepath.Join(homeDir, "work")
+	require.NoError(t, os.MkdirAll(workspaceDir, 0o755))
+	_, cmdErr := executeWorkspaceInstallCmd(t, workspaceDir)
+	require.NoError(t, cmdErr)
+
+	withPipeStdin(t, "", func() {
+		output, cmdErr := executeWorkspaceUninstallCmdWithArgs(t, workspaceDir)
+		require.Error(t, cmdErr)
+		assert.Contains(t, cmdErr.Error(), "--yes")
+
+		data := parseWorkspaceLifecycleOutput(t, output)
+		assert.Equal(t, "error", data["status"])
+		assert.Contains(t, data["message"], "use --yes")
+	})
 }

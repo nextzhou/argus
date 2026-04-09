@@ -251,9 +251,9 @@ Run these directly in your terminal:
 | Command | Description |
 |---------|-------------|
 | `argus install [--yes]` | Install Argus into the current project |
-| `argus install --workspace <path>` | Register a workspace for cross-project discovery |
+| `argus install --workspace <path> [--yes]` | Register a workspace for cross-project discovery |
 | `argus uninstall [--yes]` | Remove Argus from the current project |
-| `argus uninstall --workspace <path>` | Remove a registered workspace |
+| `argus uninstall --workspace <path> [--yes]` | Remove a registered workspace |
 | `argus doctor` | Diagnose installation and configuration issues |
 | `argus version` | Show version |
 

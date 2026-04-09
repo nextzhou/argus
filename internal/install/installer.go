@@ -16,6 +16,21 @@ var supportedAgents = []string{"claude-code", "codex", "opencode"}
 // It creates the .argus/ directory structure, releases built-in assets,
 // and installs Agent hook configurations. The operation is idempotent.
 func Install(projectRoot string, _ bool) error {
+	_, err := InstallWithReport(projectRoot)
+	return err
+}
+
+// InstallWithReport performs project-level installation and returns the
+// summarized filesystem changes produced by the operation.
+//
+//nolint:revive // package-qualified report API mirrors the existing install surface.
+func InstallWithReport(projectRoot string) (ProjectOperationResult, error) {
+	homeDir, err := resolveUserHomeDir()
+	if err != nil {
+		return ProjectOperationResult{}, err
+	}
+
+	tracker := newMutationTracker()
 	dirs := []string{
 		"workflows",
 		"invariants",
@@ -28,8 +43,8 @@ func Install(projectRoot string, _ bool) error {
 
 	for _, dir := range dirs {
 		path := filepath.Join(projectRoot, ".argus", dir)
-		if err := os.MkdirAll(path, 0o755); err != nil {
-			return fmt.Errorf("creating %s: %w", path, err)
+		if err := ensureDirTracked(path, tracker); err != nil {
+			return ProjectOperationResult{}, fmt.Errorf("creating %s: %w", path, err)
 		}
 	}
 
@@ -41,20 +56,27 @@ func Install(projectRoot string, _ bool) error {
 
 	for srcDir, dstDirs := range releaseMap {
 		for _, dstDir := range dstDirs {
-			if err := releaseAssets(projectRoot, srcDir, dstDir); err != nil {
-				return fmt.Errorf("releasing %s assets to %s: %w", srcDir, dstDir, err)
+			if err := releaseAssetsTracked(projectRoot, srcDir, dstDir, tracker); err != nil {
+				return ProjectOperationResult{}, fmt.Errorf("releasing %s assets to %s: %w", srcDir, dstDir, err)
 			}
 		}
 	}
 
-	if err := InstallHooks(projectRoot, supportedAgents); err != nil {
-		return fmt.Errorf("installing hooks: %w", err)
+	if err := installHooks(projectRoot, supportedAgents, tracker); err != nil {
+		return ProjectOperationResult{}, fmt.Errorf("installing hooks: %w", err)
 	}
 
-	return nil
+	return ProjectOperationResult{
+		Root:   projectRoot,
+		Report: buildProjectInstallReport(projectRoot, homeDir, tracker),
+	}, nil
 }
 
 func releaseAssets(projectRoot, srcDir, dstDir string) error {
+	return releaseAssetsTracked(projectRoot, srcDir, dstDir, nil)
+}
+
+func releaseAssetsTracked(projectRoot, srcDir, dstDir string, tracker *mutationTracker) error {
 	return assets.WalkAssets(srcDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return fmt.Errorf("walking %s assets: %w", srcDir, err)
@@ -82,16 +104,31 @@ func releaseAssets(projectRoot, srcDir, dstDir string) error {
 			return err
 		}
 
-		if err := os.MkdirAll(filepath.Dir(dstPath), 0o755); err != nil {
-			return fmt.Errorf("creating parent for %s: %w", dstPath, err)
-		}
-
-		if err := os.WriteFile(dstPath, data, 0o644); err != nil {
+		if err := writeFileTracked(dstPath, data, tracker); err != nil {
 			return fmt.Errorf("writing %s: %w", dstPath, err)
 		}
 
 		return nil
 	})
+}
+
+func ensureDirTracked(path string, tracker *mutationTracker) error {
+	info, err := os.Stat(path)
+	switch {
+	case err == nil && info.IsDir():
+		return nil
+	case err == nil && !info.IsDir():
+		return fmt.Errorf("%s already exists and is not a directory", path)
+	case err != nil && !os.IsNotExist(err):
+		return fmt.Errorf("stating %s: %w", path, err)
+	}
+
+	if err := os.MkdirAll(path, 0o755); err != nil {
+		return err
+	}
+
+	tracker.recordCreated(path)
+	return nil
 }
 
 // CheckInstallPreconditions validates that installation can proceed.

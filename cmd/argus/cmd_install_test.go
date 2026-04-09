@@ -49,6 +49,67 @@ func TestConfirmSubdirectoryInstall_NonTTY(t *testing.T) {
 	assert.Contains(t, err.Error(), "--yes")
 }
 
+func TestConfirmWorkspaceInstall(t *testing.T) {
+	cmd := &cobra.Command{}
+	var buf bytes.Buffer
+	cmd.SetOut(&buf)
+
+	got, err := confirmWorkspaceInstall(cmd, "~/work/company", strings.NewReader("yes\n"), true)
+
+	require.NoError(t, err)
+	assert.True(t, got)
+	assert.Contains(t, buf.String(), "This will register the workspace path:")
+	assert.Contains(t, buf.String(), "~/work/company")
+	assert.Contains(t, buf.String(), "global hooks and global skills")
+}
+
+func TestConfirmWorkspaceInstall_NonTTY(t *testing.T) {
+	cmd := &cobra.Command{}
+	got, err := confirmWorkspaceInstall(cmd, "~/work/company", strings.NewReader("yes\n"), false)
+
+	assert.False(t, got)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "--yes")
+}
+
+func TestConfirmWorkspaceUninstall(t *testing.T) {
+	t.Run("non-final workspace", func(t *testing.T) {
+		cmd := &cobra.Command{}
+		var buf bytes.Buffer
+		cmd.SetOut(&buf)
+
+		got, err := confirmWorkspaceUninstall(cmd, "~/work/company", false, strings.NewReader("y\n"), true)
+
+		require.NoError(t, err)
+		assert.True(t, got)
+		assert.Contains(t, buf.String(), "This will unregister the workspace path:")
+		assert.Contains(t, buf.String(), "stop guiding projects inside this workspace")
+		assert.NotContains(t, buf.String(), "No registered workspaces will remain.")
+	})
+
+	t.Run("last workspace", func(t *testing.T) {
+		cmd := &cobra.Command{}
+		var buf bytes.Buffer
+		cmd.SetOut(&buf)
+
+		got, err := confirmWorkspaceUninstall(cmd, "~/work/company", true, strings.NewReader("y\n"), true)
+
+		require.NoError(t, err)
+		assert.True(t, got)
+		assert.Contains(t, buf.String(), "No registered workspaces will remain.")
+		assert.Contains(t, buf.String(), "remove global hooks and global skills")
+	})
+}
+
+func TestConfirmWorkspaceUninstall_NonTTY(t *testing.T) {
+	cmd := &cobra.Command{}
+	got, err := confirmWorkspaceUninstall(cmd, "~/work/company", true, strings.NewReader("yes\n"), false)
+
+	assert.False(t, got)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "--yes")
+}
+
 func TestUninstallNoArgusDirectory(t *testing.T) {
 	t.Chdir(t.TempDir())
 	t.Setenv("HOME", t.TempDir())

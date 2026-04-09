@@ -36,7 +36,11 @@ func TestInstallWorkspace_Success(t *testing.T) {
 	workspaceDir := filepath.Join(homeDir, "work", "company")
 	require.NoError(t, os.MkdirAll(workspaceDir, 0o755))
 
-	require.NoError(t, InstallWorkspace(workspaceDir+string(filepath.Separator)))
+	result, err := InstallWorkspaceWithReport(workspaceDir + string(filepath.Separator))
+	require.NoError(t, err)
+	assert.Equal(t, "~/work/company", result.Path)
+	assert.Contains(t, result.Report.AffectedPaths, "~/.config/argus/config.yaml")
+	assert.Contains(t, result.Report.Changes.Created, "~/.config/argus/config.yaml")
 
 	config, err := workspacecfg.LoadConfig(UserConfigPath())
 	require.NoError(t, err)
@@ -67,7 +71,15 @@ func TestInstallWorkspace_DuplicateRegistration(t *testing.T) {
 	require.NoError(t, InstallWorkspace(workspaceDir))
 
 	warning, err := captureStderr(t, func() error {
-		return InstallWorkspace(filepath.Join(workspaceDir, "."))
+		result, err := InstallWorkspaceWithReport(filepath.Join(workspaceDir, "."))
+		if err != nil {
+			return err
+		}
+		assert.True(t, result.AlreadyRegistered)
+		assert.Empty(t, result.Report.Changes.Created)
+		assert.Empty(t, result.Report.Changes.Updated)
+		assert.Empty(t, result.Report.Changes.Removed)
+		return nil
 	})
 	require.NoError(t, err)
 	assert.Contains(t, warning, "workspace already registered")
@@ -112,6 +124,21 @@ func TestInstallWorkspace_NestedPathsAreStoredSeparately(t *testing.T) {
 	config, err := workspacecfg.LoadConfig(UserConfigPath())
 	require.NoError(t, err)
 	assert.Equal(t, []string{"~/work", "~/work/client-x"}, config.Workspaces)
+}
+
+func TestUninstallWorkspaceWithReport(t *testing.T) {
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+
+	workspaceDir := filepath.Join(homeDir, "work")
+	require.NoError(t, os.MkdirAll(workspaceDir, 0o755))
+	require.NoError(t, InstallWorkspace(workspaceDir))
+
+	result, err := UninstallWorkspaceWithReport(workspaceDir)
+	require.NoError(t, err)
+	assert.True(t, result.RemovedGlobalResource)
+	assert.Contains(t, result.Report.AffectedPaths, "~/.config/argus/config.yaml")
+	assert.Contains(t, result.Report.Changes.Removed, "~/.claude/skills/argus-*")
 }
 
 func TestInstallGlobalHooks_ClaudeCode(t *testing.T) {
