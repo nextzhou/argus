@@ -19,7 +19,7 @@
 *   **执行操作**：
     1.  将 `argus tick` 和 `argus trap` 写入各 Agent 的**全局** Hook 配置文件。
     2.  安装全局 Skills（如 `argus-install`、`argus-doctor` 等）。
-    3.  **释放全局 Artifacts**：将内置的 Invariants 和 Workflows 释放到全局配置目录 `~/.config/argus/`（包括 `invariants/`, `workflows/` 等子目录）。
+    3.  **释放全局 Artifacts**：将全局特定的 Invariant（`argus-project-init`）释放到全局配置目录 `~/.config/argus/invariants/`，并创建全局目录结构（`invariants/`, `workflows/`, `pipelines/`, `logs/` 等子目录）。注意：Workflows 目录被创建但不释放任何 Workflows；项目级 Invariants（如 `argus-init`）不被释放到全局作用域，因为它们的修复工作流不存在于全局作用域。
     4.  将工作区路径记录到用户级配置文件 `~/.config/argus/config.yaml`。
 *   **多工作区支持**：支持注册多个工作区路径。
 

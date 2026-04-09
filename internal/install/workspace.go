@@ -483,13 +483,16 @@ func installGlobalArtifacts(homeDir string, tracker *mutationTracker) error {
 		}
 	}
 
-	// Release built-in global invariants.
-	// releaseAssetsTracked(projectRoot, srcDir, dstDir, tracker) computes:
-	//   dstPath = filepath.Join(projectRoot, dstDir, relPath)
-	// So we pass globalRoot as projectRoot and "invariants" as dstDir to get:
-	//   dstPath = filepath.Join(globalRoot, "invariants", relPath)
-	if err := releaseAssetsTracked(globalRoot, "invariants", "invariants", tracker); err != nil {
-		return fmt.Errorf("releasing global invariant assets: %w", err)
+	// Release only the global-specific invariant (argus-project-init).
+	// Do NOT release project-level invariants (argus-init) to global scope
+	// because their remediation workflows don't exist globally.
+	data, err := assets.ReadAsset("invariants/argus-project-init.yaml")
+	if err != nil {
+		return fmt.Errorf("reading global invariant asset: %w", err)
+	}
+	dstPath := filepath.Join(globalRoot, "invariants", "argus-project-init.yaml")
+	if err := writeFileTracked(dstPath, data, tracker); err != nil {
+		return fmt.Errorf("writing global invariant: %w", err)
 	}
 
 	return nil

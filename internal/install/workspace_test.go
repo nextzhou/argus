@@ -82,12 +82,19 @@ func TestInstallWorkspace_GlobalArtifacts(t *testing.T) {
 		assert.True(t, info.IsDir(), "%s should be a directory", dir)
 	}
 
-	// Verify global invariant files are released.
-	invariantPath := filepath.Join(globalRoot, "invariants", "argus-project-init.yaml")
-	data, err := os.ReadFile(invariantPath)
-	require.NoError(t, err, "global invariant file should exist")
+	// Verify only global-specific invariant is released (not project-level ones)
+	projectInitPath := filepath.Join(globalRoot, "invariants", "argus-project-init.yaml")
+	_, err := os.Stat(projectInitPath)
+	require.NoError(t, err, "argus-project-init.yaml should exist")
+
+	data, err := os.ReadFile(projectInitPath)
+	require.NoError(t, err)
 	assert.Contains(t, string(data), "id: argus-project-init")
 	assert.Contains(t, string(data), "test -d .argus")
+
+	argusInitPath := filepath.Join(globalRoot, "invariants", "argus-init.yaml")
+	_, err = os.Stat(argusInitPath)
+	assert.True(t, os.IsNotExist(err), "argus-init.yaml should NOT exist in global scope")
 }
 
 func TestInstallWorkspace_DuplicateRegistration(t *testing.T) {
