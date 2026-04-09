@@ -16,8 +16,14 @@ Run invariant checks to verify project state compliance.
 
 ## Commands
 
-- `argus invariant check` — Run all invariant checks
-- `argus invariant list` — List defined invariants
+- `argus invariant check [--json]` — Run all invariant checks
+- `argus invariant list [--json]` — List defined invariants
+- `argus invariant inspect [dir] [--json]` — Validate invariant definitions
+
+## Output Mode
+
+- Default output is readable text for both humans and agents.
+- Use `--json` only when another tool needs stable fields.
 
 ## Invariant System
 

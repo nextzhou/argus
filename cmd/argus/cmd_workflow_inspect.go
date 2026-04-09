@@ -2,15 +2,13 @@ package main
 
 import (
 	"fmt"
-	"os"
 
-	"github.com/nextzhou/argus/internal/core"
 	"github.com/nextzhou/argus/internal/workflow"
 	"github.com/spf13/cobra"
 )
 
 func newWorkflowInspectCmd() *cobra.Command {
-	var markdownFlag bool
+	var jsonFlag bool
 
 	cmd := &cobra.Command{
 		Use:   "inspect [dir]",
@@ -24,32 +22,24 @@ func newWorkflowInspectCmd() *cobra.Command {
 
 			report, err := workflow.InspectDirectory(dir)
 			if err != nil {
-				errBytes, _ := core.ErrorEnvelope(err.Error())
-				_, _ = os.Stdout.Write(errBytes)
-				_, _ = os.Stdout.WriteString("\n")
+				writeCommandError(cmd, jsonFlag, err.Error())
 				return fmt.Errorf("workflow inspect failed: %w", err)
 			}
 
-			if markdownFlag {
-				renderWorkflowMarkdown(cmd, report)
-				return nil
+			if jsonFlag {
+				return writeJSONOK(cmd, report)
 			}
 
-			outBytes, err := core.OKEnvelope(report)
-			if err != nil {
-				return fmt.Errorf("marshaling output: %w", err)
-			}
-			_, _ = os.Stdout.Write(outBytes)
-			_, _ = os.Stdout.WriteString("\n")
+			renderWorkflowText(cmd, report)
 			return nil
 		},
 	}
 
-	cmd.Flags().BoolVar(&markdownFlag, "markdown", false, "Output human-readable markdown summary")
+	bindJSONFlag(cmd, &jsonFlag)
 	return cmd
 }
 
-func renderWorkflowMarkdown(cmd *cobra.Command, report *workflow.InspectReport) {
+func renderWorkflowText(cmd *cobra.Command, report *workflow.InspectReport) {
 	w := cmd.OutOrStdout()
 	if report.Valid {
 		_, _ = w.Write([]byte("# Workflow Inspect\n\nAll workflows valid.\n"))

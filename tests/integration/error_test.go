@@ -184,7 +184,7 @@ jobs:
     started_at: "20240101T000001Z"
 `)
 
-	result := runArgus(t, projectDir, "doctor")
+	result := runArgusText(t, projectDir, "doctor")
 	assert.NotEqual(t, 0, result.ExitCode, "doctor should exit non-zero when issues found")
 	assert.Contains(t, result.Stdout, "FAIL")
 }

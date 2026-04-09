@@ -353,7 +353,7 @@ func TestE2E_DoctorInInstalledProject(t *testing.T) {
 	result := runArgus(t, projectDir, "install", "--yes")
 	requireOK(t, result)
 
-	result = runArgus(t, projectDir, "doctor")
+	result = runArgusText(t, projectDir, "doctor")
 	assert.Contains(t, result.Stdout, "PASS")
 }
 
@@ -398,7 +398,7 @@ func TestE2E_Snooze(t *testing.T) {
 	assert.NotContains(t, result.Stdout, "step_one")
 }
 
-func TestE2E_MarkdownOutput(t *testing.T) {
+func TestE2E_DefaultTextOutput(t *testing.T) {
 	homeDir := t.TempDir()
 	t.Setenv("HOME", homeDir)
 
@@ -409,13 +409,13 @@ func TestE2E_MarkdownOutput(t *testing.T) {
 
 	writeFile(t, projectDir, ".argus/workflows/e2e-test.yaml", testWorkflow)
 
-	result = runArgus(t, projectDir, "workflow", "start", "e2e-test", "--markdown")
+	result = runArgusText(t, projectDir, "workflow", "start", "e2e-test")
 	require.Equal(t, 0, result.ExitCode)
 	assert.Contains(t, result.Stdout, "Argus: Pipeline")
 	assert.Contains(t, result.Stdout, "已启动 (1/3)")
 	assert.Contains(t, result.Stdout, "当前 Job: step_one")
 
-	result = runArgus(t, projectDir, "job-done", "--message", "done", "--markdown")
+	result = runArgusText(t, projectDir, "job-done", "--message", "done")
 	require.Equal(t, 0, result.ExitCode)
 	assert.Contains(t, result.Stdout, "Argus:")
 }

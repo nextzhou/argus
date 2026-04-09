@@ -1,9 +1,7 @@
 package main
 
 import (
-	"bytes"
 	"encoding/json"
-	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -13,29 +11,10 @@ import (
 )
 
 // executeInvariantInspectCmd runs the invariant inspect command and captures stdout output.
-// Tests using this helper must NOT call t.Parallel since os.Stdout is redirected.
 func executeInvariantInspectCmd(t *testing.T, args ...string) ([]byte, error) {
 	t.Helper()
 
-	old := os.Stdout
-	r, w, err := os.Pipe()
-	require.NoError(t, err)
-	os.Stdout = w
-
-	cmd := newInvariantInspectCmd()
-	cmd.SilenceErrors = true
-	cmd.SilenceUsage = true
-	cmd.SetArgs(args)
-	cmdErr := cmd.Execute()
-
-	require.NoError(t, w.Close())
-	os.Stdout = old
-
-	out, err := io.ReadAll(r)
-	require.NoError(t, err)
-	require.NoError(t, r.Close())
-
-	return out, cmdErr
+	return executeJSONCommand(t, newInvariantInspectCmd(), args...)
 }
 
 const validInvariantForInspect = `version: v0.1.0
@@ -258,7 +237,7 @@ func TestInvariantInspect(t *testing.T) {
 	}
 }
 
-func TestInvariantInspectMarkdown(t *testing.T) {
+func TestInvariantInspectDefaultText(t *testing.T) {
 	tests := []struct {
 		name           string
 		setup          func(t *testing.T)
@@ -296,21 +275,15 @@ func TestInvariantInspectMarkdown(t *testing.T) {
 				tt.setup(t)
 			}
 
-			var buf bytes.Buffer
-			cmd := newInvariantInspectCmd()
-			cmd.SetOut(&buf)
-			cmd.SilenceErrors = true
-			cmd.SilenceUsage = true
-			cmd.SetArgs([]string{"--markdown"})
-			err := cmd.Execute()
+			stdout, stderr, err := executeTextCommand(t, newInvariantInspectCmd())
 			require.NoError(t, err)
+			assert.Empty(t, stderr)
 
-			output := buf.String()
 			for _, want := range tt.wantContains {
-				assert.Contains(t, output, want)
+				assert.Contains(t, stdout, want)
 			}
 			for _, notWant := range tt.wantNoContains {
-				assert.NotContains(t, output, notWant)
+				assert.NotContains(t, stdout, notWant)
 			}
 		})
 	}

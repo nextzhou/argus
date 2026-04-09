@@ -7,9 +7,11 @@ import (
 // NewRootCmd creates and returns the root command with all subcommands registered.
 func NewRootCmd(version string) *cobra.Command {
 	rootCmd := &cobra.Command{
-		Use:   "argus",
-		Short: "AI Agent workflow orchestration tool",
-		Long:  "Argus is an AI Agent workflow orchestration tool that integrates with multiple AI Agents via their hook systems.",
+		Use:           "argus",
+		Short:         "AI Agent workflow orchestration tool",
+		Long:          "Argus is an AI Agent workflow orchestration tool that integrates with multiple AI Agents via their hook systems.",
+		SilenceErrors: true,
+		SilenceUsage:  true,
 	}
 
 	// External commands (visible by default)

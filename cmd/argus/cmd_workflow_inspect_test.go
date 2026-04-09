@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -12,29 +11,10 @@ import (
 )
 
 // executeWorkflowInspectCmd runs the workflow inspect command and captures stdout output.
-// Tests using this helper must NOT call t.Parallel since os.Stdout is redirected.
 func executeWorkflowInspectCmd(t *testing.T, args ...string) ([]byte, error) {
 	t.Helper()
 
-	old := os.Stdout
-	r, w, err := os.Pipe()
-	require.NoError(t, err)
-	os.Stdout = w
-
-	cmd := newWorkflowInspectCmd()
-	cmd.SilenceErrors = true
-	cmd.SilenceUsage = true
-	cmd.SetArgs(args)
-	cmdErr := cmd.Execute()
-
-	require.NoError(t, w.Close())
-	os.Stdout = old
-
-	out, err := io.ReadAll(r)
-	require.NoError(t, err)
-	require.NoError(t, r.Close())
-
-	return out, cmdErr
+	return executeJSONCommand(t, newWorkflowInspectCmd(), args...)
 }
 
 func TestWorkflowInspect(t *testing.T) {
@@ -308,14 +288,14 @@ jobs:
 	}
 }
 
-func TestWorkflowInspectMarkdown(t *testing.T) {
+func TestWorkflowInspectDefaultText(t *testing.T) {
 	tests := []struct {
 		name        string
 		setupFiles  map[string]string
 		checkOutput func(t *testing.T, output string)
 	}{
 		{
-			name: "all valid workflows markdown output",
+			name: "all valid workflows default text output",
 			setupFiles: map[string]string{
 				"build.yaml": `version: v0.1.0
 id: build
@@ -331,7 +311,7 @@ jobs:
 			},
 		},
 		{
-			name: "validation errors markdown output",
+			name: "validation errors default text output",
 			setupFiles: map[string]string{
 				"bad.yaml": `version: v0.1.0
 id: bad
@@ -348,7 +328,7 @@ jobs:
 			},
 		},
 		{
-			name:       "empty directory markdown output",
+			name:       "empty directory default text output",
 			setupFiles: nil,
 			checkOutput: func(t *testing.T, output string) {
 				assert.Contains(t, output, "# Workflow Inspect")
@@ -374,27 +354,10 @@ jobs:
 				require.NoError(t, os.MkdirAll(workflowsDir, 0o755))
 			}
 
-			old := os.Stdout
-			r, w, err := os.Pipe()
+			outputStr, stderr, err := executeTextCommand(t, newWorkflowInspectCmd())
 			require.NoError(t, err)
-			os.Stdout = w
+			assert.Empty(t, stderr)
 
-			cmd := newWorkflowInspectCmd()
-			cmd.SilenceErrors = true
-			cmd.SilenceUsage = true
-			cmd.SetArgs([]string{"--markdown"})
-			cmdErr := cmd.Execute()
-
-			require.NoError(t, w.Close())
-			os.Stdout = old
-
-			output, err := io.ReadAll(r)
-			require.NoError(t, err)
-			require.NoError(t, r.Close())
-
-			require.NoError(t, cmdErr)
-
-			outputStr := string(output)
 			if tt.checkOutput != nil {
 				tt.checkOutput(t, outputStr)
 			}

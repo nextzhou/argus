@@ -71,6 +71,13 @@ type cmdResult struct {
 // The caller must have set the working directory (via t.Chdir or workDir param).
 func runArgus(t *testing.T, workDir string, args ...string) cmdResult {
 	t.Helper()
+	return runArgusWithStdin(t, workDir, "", withJSONIfSupported(args...)...)
+}
+
+// runArgusText executes the argus binary without automatically forcing JSON output.
+// Use this in tests that validate the default human-readable output.
+func runArgusText(t *testing.T, workDir string, args ...string) cmdResult {
+	t.Helper()
 	return runArgusWithStdin(t, workDir, "", args...)
 }
 
@@ -105,6 +112,50 @@ func runArgusWithStdin(t *testing.T, workDir string, stdin string, args ...strin
 		Stderr:   stderr.String(),
 		ExitCode: exitCode,
 	}
+}
+
+func withJSONIfSupported(args ...string) []string {
+	withFlag := append([]string(nil), args...)
+	for _, arg := range withFlag {
+		if arg == "--json" {
+			return withFlag
+		}
+	}
+
+	if !supportsJSONOutput(withFlag) {
+		return withFlag
+	}
+
+	return append(withFlag, "--json")
+}
+
+func supportsJSONOutput(args []string) bool {
+	if len(args) == 0 {
+		return false
+	}
+
+	switch args[0] {
+	case "install", "uninstall", "doctor", "version", "status", "job-done":
+		return true
+	case "workflow":
+		if len(args) < 2 {
+			return false
+		}
+		switch args[1] {
+		case "start", "list", "cancel", "snooze", "inspect":
+			return true
+		}
+	case "invariant":
+		if len(args) < 2 {
+			return false
+		}
+		switch args[1] {
+		case "check", "list", "inspect":
+			return true
+		}
+	}
+
+	return false
 }
 
 // setupGitRepo creates a temporary directory with a .git directory to simulate a git repo.

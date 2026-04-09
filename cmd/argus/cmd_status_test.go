@@ -1,10 +1,7 @@
 package main
 
 import (
-	"bytes"
 	"encoding/json"
-	"io"
-	"os"
 	"strings"
 	"testing"
 
@@ -13,29 +10,10 @@ import (
 )
 
 // executeStatusCmd runs the status command and captures stdout output.
-// Tests using this helper must NOT call t.Parallel since os.Stdout is redirected.
 func executeStatusCmd(t *testing.T) ([]byte, error) {
 	t.Helper()
 
-	old := os.Stdout
-	r, w, err := os.Pipe()
-	require.NoError(t, err)
-	os.Stdout = w
-
-	cmd := newStatusCmd()
-	cmd.SilenceErrors = true
-	cmd.SilenceUsage = true
-	cmd.SetArgs(nil)
-	cmdErr := cmd.Execute()
-
-	require.NoError(t, w.Close())
-	os.Stdout = old
-
-	out, err := io.ReadAll(r)
-	require.NoError(t, err)
-	require.NoError(t, r.Close())
-
-	return out, cmdErr
+	return executeJSONCommand(t, newStatusCmd())
 }
 
 func TestStatus(t *testing.T) {
@@ -267,51 +245,37 @@ jobs:
     started_at: "20240101T000100Z"
 `
 
-func TestStatusMarkdownActivePipeline(t *testing.T) {
+func TestStatusDefaultTextActivePipeline(t *testing.T) {
 	t.Chdir(t.TempDir())
 	writeWorkflowFixture(t, "release", fiveJobWorkflow)
 	writePipelineFixture(t, testInstanceID, pipelineAtRunTests)
 
-	cmd := newStatusCmd()
-	buf := new(bytes.Buffer)
-	cmd.SetOut(buf)
-	cmd.SilenceErrors = true
-	cmd.SilenceUsage = true
-	cmd.SetArgs([]string{"--markdown"})
-
-	err := cmd.Execute()
+	stdout, stderr, err := executeTextCommand(t, newStatusCmd())
 	require.NoError(t, err)
+	assert.Empty(t, stderr)
 
-	output := buf.String()
-	assert.Contains(t, output, "Argus: 项目状态")
-	assert.Contains(t, output, "Pipeline: "+testInstanceID+" (running)")
-	assert.Contains(t, output, "Workflow: release")
-	assert.Contains(t, output, "进度 2/5")
-	assert.Contains(t, output, "[done] lint")
-	assert.Contains(t, output, "[>>]   run_tests")
-	assert.Contains(t, output, "[ ]    build")
-	assert.Contains(t, output, "[ ]    deploy")
-	assert.Contains(t, output, "[ ]    verify")
-	assert.Contains(t, output, "Invariant: 0 passed, 0 failed")
+	assert.Contains(t, stdout, "Argus: 项目状态")
+	assert.Contains(t, stdout, "Pipeline: "+testInstanceID+" (running)")
+	assert.Contains(t, stdout, "Workflow: release")
+	assert.Contains(t, stdout, "进度 2/5")
+	assert.Contains(t, stdout, "[done] lint")
+	assert.Contains(t, stdout, "[>>]   run_tests")
+	assert.Contains(t, stdout, "[ ]    build")
+	assert.Contains(t, stdout, "[ ]    deploy")
+	assert.Contains(t, stdout, "[ ]    verify")
+	assert.Contains(t, stdout, "Invariant: 0 passed, 0 failed")
 }
 
-func TestStatusMarkdownNoPipeline(t *testing.T) {
+func TestStatusDefaultTextNoPipeline(t *testing.T) {
 	t.Chdir(t.TempDir())
 
-	cmd := newStatusCmd()
-	buf := new(bytes.Buffer)
-	cmd.SetOut(buf)
-	cmd.SilenceErrors = true
-	cmd.SilenceUsage = true
-	cmd.SetArgs([]string{"--markdown"})
-
-	err := cmd.Execute()
+	stdout, stderr, err := executeTextCommand(t, newStatusCmd())
 	require.NoError(t, err)
+	assert.Empty(t, stderr)
 
-	output := buf.String()
-	assert.Contains(t, output, "Argus: 项目状态")
-	assert.Contains(t, output, "Pipeline: 无活跃 Pipeline")
-	assert.Contains(t, output, "Invariant: 0 passed, 0 failed")
+	assert.Contains(t, stdout, "Argus: 项目状态")
+	assert.Contains(t, stdout, "Pipeline: 无活跃 Pipeline")
+	assert.Contains(t, stdout, "Invariant: 0 passed, 0 failed")
 }
 
 func TestStatusWithInvariants(t *testing.T) {
@@ -470,7 +434,7 @@ prompt: "Fix it"
 	}
 }
 
-func TestStatusMarkdownWithFailedInvariants(t *testing.T) {
+func TestStatusDefaultTextWithFailedInvariants(t *testing.T) {
 	t.Chdir(t.TempDir())
 
 	writeInvariantFixture(t, "check-fail", `version: v0.1.0
@@ -483,38 +447,24 @@ check:
 prompt: "Fix it"
 `)
 
-	cmd := newStatusCmd()
-	buf := new(bytes.Buffer)
-	cmd.SetOut(buf)
-	cmd.SilenceErrors = true
-	cmd.SilenceUsage = true
-	cmd.SetArgs([]string{"--markdown"})
-
-	err := cmd.Execute()
+	stdout, stderr, err := executeTextCommand(t, newStatusCmd())
 	require.NoError(t, err)
+	assert.Empty(t, stderr)
 
-	output := buf.String()
-	assert.Contains(t, output, "Invariant: 0 passed, 1 failed")
-	assert.Contains(t, output, "[FAIL] check-fail: Always fails")
+	assert.Contains(t, stdout, "Invariant: 0 passed, 1 failed")
+	assert.Contains(t, stdout, "[FAIL] check-fail: Always fails")
 }
 
-func TestStatusMarkdownWithMessage(t *testing.T) {
+func TestStatusDefaultTextWithMessage(t *testing.T) {
 	t.Chdir(t.TempDir())
 	writeWorkflowFixture(t, "release", fiveJobWorkflow)
 	writePipelineFixture(t, testInstanceID, pipelineAtRunTestsWithMessage)
 
-	cmd := newStatusCmd()
-	buf := new(bytes.Buffer)
-	cmd.SetOut(buf)
-	cmd.SilenceErrors = true
-	cmd.SilenceUsage = true
-	cmd.SetArgs([]string{"--markdown"})
-
-	err := cmd.Execute()
+	stdout, stderr, err := executeTextCommand(t, newStatusCmd())
 	require.NoError(t, err)
+	assert.Empty(t, stderr)
 
-	output := buf.String()
-	assert.Contains(t, output, "[done] lint - lint passed cleanly")
+	assert.Contains(t, stdout, "[done] lint - lint passed cleanly")
 }
 
 const pipelineWithRefsAtStep2 = `version: v0.1.0

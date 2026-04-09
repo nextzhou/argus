@@ -1,9 +1,7 @@
 package main
 
 import (
-	"bytes"
 	"encoding/json"
-	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -15,29 +13,10 @@ import (
 )
 
 // executeStartCmd runs the workflow start command and captures stdout output.
-// Tests using this helper must NOT call t.Parallel since os.Stdout is redirected.
 func executeStartCmd(t *testing.T, args ...string) ([]byte, error) {
 	t.Helper()
 
-	old := os.Stdout
-	r, w, err := os.Pipe()
-	require.NoError(t, err)
-	os.Stdout = w
-
-	cmd := newWorkflowStartCmd()
-	cmd.SilenceErrors = true
-	cmd.SilenceUsage = true
-	cmd.SetArgs(args)
-	cmdErr := cmd.Execute()
-
-	require.NoError(t, w.Close())
-	os.Stdout = old
-
-	out, err := io.ReadAll(r)
-	require.NoError(t, err)
-	require.NoError(t, r.Close())
-
-	return out, cmdErr
+	return executeJSONCommand(t, newWorkflowStartCmd(), args...)
 }
 
 func writeWorkflowFixture(t *testing.T, id, yamlContent string) {
@@ -188,11 +167,11 @@ jobs:
 	}
 }
 
-func TestWorkflowStartMarkdown(t *testing.T) {
+func TestWorkflowStartDefaultText(t *testing.T) {
 	t.Chdir(t.TempDir())
 	writeWorkflowFixture(t, "md-test", `version: v0.1.0
 id: md-test
-description: Markdown test
+description: Default text test
 jobs:
   - id: lint
     prompt: "Run linting"
@@ -201,26 +180,19 @@ jobs:
     prompt: "Build project"
 `)
 
-	cmd := newWorkflowStartCmd()
-	buf := new(bytes.Buffer)
-	cmd.SetOut(buf)
-	cmd.SilenceErrors = true
-	cmd.SilenceUsage = true
-	cmd.SetArgs([]string{"md-test", "--markdown"})
-
-	err := cmd.Execute()
+	stdout, stderr, err := executeTextCommand(t, newWorkflowStartCmd(), "md-test")
 	require.NoError(t, err)
+	assert.Empty(t, stderr)
 
-	output := buf.String()
-	assert.Contains(t, output, "Argus: Pipeline")
-	assert.Contains(t, output, "已启动 (1/2)")
-	assert.Contains(t, output, "当前 Job: lint")
-	assert.Contains(t, output, "Prompt: Run linting")
-	assert.Contains(t, output, "Skill: argus-lint")
-	assert.Contains(t, output, `argus job-done --message "执行结果摘要"`)
+	assert.Contains(t, stdout, "Argus: Pipeline")
+	assert.Contains(t, stdout, "已启动 (1/2)")
+	assert.Contains(t, stdout, "当前 Job: lint")
+	assert.Contains(t, stdout, "Prompt: Run linting")
+	assert.Contains(t, stdout, "Skill: argus-lint")
+	assert.Contains(t, stdout, `argus job-done --message "执行结果摘要"`)
 }
 
-func TestWorkflowStartMarkdownNoSkill(t *testing.T) {
+func TestWorkflowStartDefaultTextNoSkill(t *testing.T) {
 	t.Chdir(t.TempDir())
 	writeWorkflowFixture(t, "md-no-skill", `version: v0.1.0
 id: md-no-skill
@@ -229,19 +201,12 @@ jobs:
     prompt: "Review code"
 `)
 
-	cmd := newWorkflowStartCmd()
-	buf := new(bytes.Buffer)
-	cmd.SetOut(buf)
-	cmd.SilenceErrors = true
-	cmd.SilenceUsage = true
-	cmd.SetArgs([]string{"md-no-skill", "--markdown"})
-
-	err := cmd.Execute()
+	stdout, stderr, err := executeTextCommand(t, newWorkflowStartCmd(), "md-no-skill")
 	require.NoError(t, err)
+	assert.Empty(t, stderr)
 
-	output := buf.String()
-	assert.Contains(t, output, "当前 Job: review")
-	assert.NotContains(t, output, "Skill:")
+	assert.Contains(t, stdout, "当前 Job: review")
+	assert.NotContains(t, stdout, "Skill:")
 }
 
 func writeSharedFixture(t *testing.T, yamlContent string) {

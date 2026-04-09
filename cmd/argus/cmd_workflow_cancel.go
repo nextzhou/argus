@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"os"
+	"io"
 	"path/filepath"
 	"time"
 
@@ -17,26 +17,24 @@ type workflowCancelOutput struct {
 
 // SEQUENCE-TEST: consumes state from workflow start — see cmd_pipeline_lifecycle_test.go
 func newWorkflowCancelCmd() *cobra.Command {
-	return &cobra.Command{
+	var jsonFlag bool
+
+	cmd := &cobra.Command{
 		Use:   "cancel",
 		Short: "Cancel the active pipeline",
 		Args:  cobra.NoArgs,
-		RunE: func(_ *cobra.Command, _ []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			pipelinesDir := filepath.Join(".argus", "pipelines")
 
 			actives, _, err := pipeline.ScanActivePipelines(pipelinesDir)
 			if err != nil {
-				errBytes, _ := core.ErrorEnvelope(err.Error())
-				_, _ = os.Stdout.Write(errBytes)
-				_, _ = os.Stdout.WriteString("\n")
+				writeCommandError(cmd, jsonFlag, err.Error())
 				return fmt.Errorf("workflow cancel failed: %w", err)
 			}
 
 			if len(actives) == 0 {
 				msg := "当前没有活跃的 Pipeline。"
-				errBytes, _ := core.ErrorEnvelope(msg)
-				_, _ = os.Stdout.Write(errBytes)
-				_, _ = os.Stdout.WriteString("\n")
+				writeCommandError(cmd, jsonFlag, msg)
 				return fmt.Errorf("workflow cancel failed: %w", core.ErrNoActivePipeline)
 			}
 
@@ -51,13 +49,23 @@ func newWorkflowCancelCmd() *cobra.Command {
 				cancelled = append(cancelled, active.InstanceID)
 			}
 
-			outBytes, err := core.OKEnvelope(workflowCancelOutput{Cancelled: cancelled})
-			if err != nil {
-				return fmt.Errorf("marshaling output: %w", err)
+			out := workflowCancelOutput{Cancelled: cancelled}
+			if jsonFlag {
+				return writeJSONOK(cmd, out)
 			}
-			_, _ = os.Stdout.Write(outBytes)
-			_, _ = os.Stdout.WriteString("\n")
+
+			renderWorkflowCancelText(cmd.OutOrStdout(), cancelled)
 			return nil
 		},
+	}
+
+	bindJSONFlag(cmd, &jsonFlag)
+	return cmd
+}
+
+func renderWorkflowCancelText(w io.Writer, cancelled []string) {
+	_, _ = fmt.Fprintf(w, "Argus: Cancelled %d pipeline(s).\n", len(cancelled))
+	for _, instanceID := range cancelled {
+		_, _ = fmt.Fprintf(w, "- %s\n", instanceID)
 	}
 }

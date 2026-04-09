@@ -1,16 +1,15 @@
 package main
 
 import (
-	"context"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 
-	"github.com/nextzhou/argus/internal/core"
 	"github.com/nextzhou/argus/internal/invariant"
 	"github.com/spf13/cobra"
 )
@@ -40,7 +39,9 @@ type invariantCheckOutput struct {
 }
 
 func newInvariantCheckCmd() *cobra.Command {
-	return &cobra.Command{
+	var jsonFlag bool
+
+	cmd := &cobra.Command{
 		Use:   "check [id]",
 		Short: "Run invariant checks",
 		Args:  cobra.MaximumNArgs(1),
@@ -48,40 +49,39 @@ func newInvariantCheckCmd() *cobra.Command {
 			invariantsDir := filepath.Join(".argus", "invariants")
 
 			if len(args) == 1 {
-				return runSingleCheck(cmd.Context(), args[0], invariantsDir)
+				return runSingleCheck(cmd, jsonFlag, args[0], invariantsDir)
 			}
-			return runAllChecks(cmd.Context(), invariantsDir)
+			return runAllChecks(cmd, jsonFlag, invariantsDir)
 		},
 	}
+
+	bindJSONFlag(cmd, &jsonFlag)
+	return cmd
 }
 
-func runSingleCheck(ctx context.Context, id, invariantsDir string) error {
+func runSingleCheck(cmd *cobra.Command, jsonOutput bool, id, invariantsDir string) error {
 	filePath := filepath.Join(invariantsDir, id+".yaml")
 	inv, err := invariant.ParseInvariantFile(filePath)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
-			errBytes, _ := core.ErrorEnvelope("invariant not found")
-			_, _ = os.Stdout.Write(errBytes)
-			_, _ = os.Stdout.WriteString("\n")
+			writeCommandError(cmd, jsonOutput, "invariant not found")
 			return fmt.Errorf("invariant check failed: invariant %q not found", id)
 		}
-		errBytes, _ := core.ErrorEnvelope(err.Error())
-		_, _ = os.Stdout.Write(errBytes)
-		_, _ = os.Stdout.WriteString("\n")
+		writeCommandError(cmd, jsonOutput, err.Error())
 		return fmt.Errorf("invariant check failed: %w", err)
 	}
 
-	result := invariant.RunCheck(ctx, inv, ".")
+	result := invariant.RunCheck(cmd.Context(), inv, ".")
 	output := buildCheckOutput(inv, result)
 
-	return writeCheckOutput([]checkResultOutput{output})
+	return writeCheckOutput(cmd, jsonOutput, []checkResultOutput{output})
 }
 
-func runAllChecks(ctx context.Context, invariantsDir string) error {
+func runAllChecks(cmd *cobra.Command, jsonOutput bool, invariantsDir string) error {
 	entries, err := os.ReadDir(invariantsDir)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
-			return writeCheckOutput(nil)
+			return writeCheckOutput(cmd, jsonOutput, nil)
 		}
 		return fmt.Errorf("reading invariants directory: %w", err)
 	}
@@ -99,7 +99,7 @@ func runAllChecks(ctx context.Context, invariantsDir string) error {
 			continue
 		}
 
-		result := invariant.RunCheck(ctx, inv, ".")
+		result := invariant.RunCheck(cmd.Context(), inv, ".")
 		results = append(results, buildCheckOutput(inv, result))
 	}
 
@@ -107,7 +107,7 @@ func runAllChecks(ctx context.Context, invariantsDir string) error {
 		return strings.Compare(a.ID, b.ID)
 	})
 
-	return writeCheckOutput(results)
+	return writeCheckOutput(cmd, jsonOutput, results)
 }
 
 func buildCheckOutput(inv *invariant.Invariant, result *invariant.CheckResult) checkResultOutput {
@@ -155,7 +155,7 @@ func invariantDescription(inv *invariant.Invariant) string {
 	return strings.Join(shells, "; ")
 }
 
-func writeCheckOutput(results []checkResultOutput) error {
+func writeCheckOutput(cmd *cobra.Command, jsonOutput bool, results []checkResultOutput) error {
 	if results == nil {
 		results = []checkResultOutput{}
 	}
@@ -170,15 +170,56 @@ func writeCheckOutput(results []checkResultOutput) error {
 		}
 	}
 
-	outBytes, err := core.OKEnvelope(invariantCheckOutput{
+	out := invariantCheckOutput{
 		Passed:  passed,
 		Failed:  failed,
 		Results: results,
-	})
-	if err != nil {
-		return fmt.Errorf("marshaling output: %w", err)
 	}
-	_, _ = os.Stdout.Write(outBytes)
-	_, _ = os.Stdout.WriteString("\n")
+
+	if jsonOutput {
+		return writeJSONOK(cmd, out)
+	}
+
+	renderInvariantCheckText(cmd.OutOrStdout(), out)
 	return nil
+}
+
+func renderInvariantCheckText(w io.Writer, out invariantCheckOutput) {
+	_, _ = fmt.Fprintln(w, "Argus: Invariant check")
+	_, _ = fmt.Fprintln(w)
+	_, _ = fmt.Fprintf(w, "Summary: %d passed, %d failed\n", out.Passed, out.Failed)
+
+	if len(out.Results) == 0 {
+		_, _ = fmt.Fprintln(w)
+		_, _ = fmt.Fprintln(w, "No invariants found.")
+		return
+	}
+
+	if out.Failed == 0 {
+		_, _ = fmt.Fprintln(w)
+		_, _ = fmt.Fprintf(w, "All %d invariants passed.\n", out.Passed)
+		return
+	}
+
+	_, _ = fmt.Fprintln(w)
+	_, _ = fmt.Fprintln(w, "Failed invariants:")
+	for _, result := range out.Results {
+		if result.Status != "failed" {
+			continue
+		}
+
+		_, _ = fmt.Fprintf(w, "- %s: %s\n", result.ID, result.Description)
+		for _, step := range result.Steps {
+			_, _ = fmt.Fprintf(w, "  Step [%s]: %s\n", step.Status, step.Description)
+			if step.Output != "" {
+				_, _ = fmt.Fprintf(w, "  Output: %s\n", step.Output)
+			}
+		}
+		if result.Workflow != nil {
+			_, _ = fmt.Fprintf(w, "  Workflow: %s\n", *result.Workflow)
+		}
+		if result.Prompt != nil {
+			_, _ = fmt.Fprintf(w, "  Prompt: %s\n", *result.Prompt)
+		}
+	}
 }

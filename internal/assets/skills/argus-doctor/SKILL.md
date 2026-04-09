@@ -26,6 +26,11 @@ Diagnose and troubleshoot Argus installation and configuration issues.
 
 This skill works even when the `argus` binary is unavailable. Use file reading and basic shell commands to diagnose.
 
+## Output Mode
+
+- `argus doctor` defaults to a readable report for both humans and agents.
+- Use `argus doctor --json` only when another tool needs structured results.
+
 ## Common Issues
 
 - Missing `.argus/` directory: run `argus install`

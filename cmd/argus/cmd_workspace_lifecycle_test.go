@@ -21,25 +21,7 @@ func executeWorkspaceInstallCmd(t *testing.T, workspacePath string) ([]byte, err
 func executeWorkspaceInstallCmdWithArgs(t *testing.T, workspacePath string, args ...string) ([]byte, error) {
 	t.Helper()
 
-	old := os.Stdout
-	r, w, err := os.Pipe()
-	require.NoError(t, err)
-	os.Stdout = w
-
-	cmd := newInstallCmd()
-	cmd.SilenceErrors = true
-	cmd.SilenceUsage = true
-	cmd.SetArgs(append(args, "--workspace", workspacePath))
-	cmdErr := cmd.Execute()
-
-	require.NoError(t, w.Close())
-	os.Stdout = old
-
-	out, err := io.ReadAll(r)
-	require.NoError(t, err)
-	require.NoError(t, r.Close())
-
-	return out, cmdErr
+	return executeJSONCommand(t, newInstallCmd(), append(args, "--workspace", workspacePath)...)
 }
 
 func executeWorkspaceUninstallCmd(t *testing.T, workspacePath string) ([]byte, error) {
@@ -49,25 +31,7 @@ func executeWorkspaceUninstallCmd(t *testing.T, workspacePath string) ([]byte, e
 func executeWorkspaceUninstallCmdWithArgs(t *testing.T, workspacePath string, args ...string) ([]byte, error) {
 	t.Helper()
 
-	old := os.Stdout
-	r, w, err := os.Pipe()
-	require.NoError(t, err)
-	os.Stdout = w
-
-	cmd := newUninstallCmd()
-	cmd.SilenceErrors = true
-	cmd.SilenceUsage = true
-	cmd.SetArgs(append(args, "--workspace", workspacePath))
-	cmdErr := cmd.Execute()
-
-	require.NoError(t, w.Close())
-	os.Stdout = old
-
-	out, err := io.ReadAll(r)
-	require.NoError(t, err)
-	require.NoError(t, r.Close())
-
-	return out, cmdErr
+	return executeJSONCommand(t, newUninstallCmd(), append(args, "--workspace", workspacePath)...)
 }
 
 func executeGlobalTickCmd(t *testing.T, stdinJSON string) ([]byte, error) {

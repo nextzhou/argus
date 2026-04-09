@@ -1,9 +1,7 @@
 package main
 
 import (
-	"bytes"
 	"encoding/json"
-	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -13,29 +11,10 @@ import (
 )
 
 // executeJobDoneCmd runs the job-done command and captures stdout output.
-// Tests using this helper must NOT call t.Parallel since os.Stdout is redirected.
 func executeJobDoneCmd(t *testing.T, args ...string) ([]byte, error) {
 	t.Helper()
 
-	old := os.Stdout
-	r, w, err := os.Pipe()
-	require.NoError(t, err)
-	os.Stdout = w
-
-	cmd := newJobDoneCmd()
-	cmd.SilenceErrors = true
-	cmd.SilenceUsage = true
-	cmd.SetArgs(args)
-	cmdErr := cmd.Execute()
-
-	require.NoError(t, w.Close())
-	os.Stdout = old
-
-	out, err := io.ReadAll(r)
-	require.NoError(t, err)
-	require.NoError(t, r.Close())
-
-	return out, cmdErr
+	return executeJSONCommand(t, newJobDoneCmd(), args...)
 }
 
 func writePipelineFixture(t *testing.T, instanceID, yamlContent string) {
@@ -218,30 +197,23 @@ func TestJobDone(t *testing.T) {
 	}
 }
 
-func TestJobDoneMarkdownNextJob(t *testing.T) {
+func TestJobDoneDefaultTextNextJob(t *testing.T) {
 	t.Chdir(t.TempDir())
 	writeWorkflowFixture(t, "release", fiveJobWorkflow)
 	writePipelineFixture(t, testInstanceID, pipelineAtRunTests)
 
-	cmd := newJobDoneCmd()
-	buf := new(bytes.Buffer)
-	cmd.SetOut(buf)
-	cmd.SilenceErrors = true
-	cmd.SilenceUsage = true
-	cmd.SetArgs([]string{"--markdown"})
-
-	err := cmd.Execute()
+	stdout, stderr, err := executeTextCommand(t, newJobDoneCmd())
 	require.NoError(t, err)
+	assert.Empty(t, stderr)
 
-	output := buf.String()
-	assert.Contains(t, output, "Argus: Job run_tests 完成 (2/5)")
-	assert.Contains(t, output, "下一个 Job: build")
-	assert.Contains(t, output, "Prompt: Build the project")
-	assert.NotContains(t, output, "Skill:")
-	assert.Contains(t, output, `argus job-done --message "执行结果摘要"`)
+	assert.Contains(t, stdout, "Argus: Job run_tests 完成 (2/5)")
+	assert.Contains(t, stdout, "下一个 Job: build")
+	assert.Contains(t, stdout, "Prompt: Build the project")
+	assert.NotContains(t, stdout, "Skill:")
+	assert.Contains(t, stdout, `argus job-done --message "执行结果摘要"`)
 }
 
-func TestJobDoneMarkdownNextJobWithSkill(t *testing.T) {
+func TestJobDoneDefaultTextNextJobWithSkill(t *testing.T) {
 	t.Chdir(t.TempDir())
 	writeWorkflowFixture(t, "skill-wf", `version: v0.1.0
 id: skill-wf
@@ -262,116 +234,74 @@ jobs:
     started_at: "20240101T000000Z"
 `)
 
-	cmd := newJobDoneCmd()
-	buf := new(bytes.Buffer)
-	cmd.SetOut(buf)
-	cmd.SilenceErrors = true
-	cmd.SilenceUsage = true
-	cmd.SetArgs([]string{"--markdown"})
-
-	err := cmd.Execute()
+	stdout, stderr, err := executeTextCommand(t, newJobDoneCmd())
 	require.NoError(t, err)
+	assert.Empty(t, stderr)
 
-	output := buf.String()
-	assert.Contains(t, output, "下一个 Job: step2")
-	assert.Contains(t, output, "Skill: argus-deploy")
+	assert.Contains(t, stdout, "下一个 Job: step2")
+	assert.Contains(t, stdout, "Skill: argus-deploy")
 }
 
-func TestJobDoneMarkdownCompleted(t *testing.T) {
+func TestJobDoneDefaultTextCompleted(t *testing.T) {
 	t.Chdir(t.TempDir())
 	writeWorkflowFixture(t, "release", fiveJobWorkflow)
 	writePipelineFixture(t, testInstanceID, pipelineAtVerify)
 
-	cmd := newJobDoneCmd()
-	buf := new(bytes.Buffer)
-	cmd.SetOut(buf)
-	cmd.SilenceErrors = true
-	cmd.SilenceUsage = true
-	cmd.SetArgs([]string{"--markdown"})
-
-	err := cmd.Execute()
+	stdout, stderr, err := executeTextCommand(t, newJobDoneCmd())
 	require.NoError(t, err)
+	assert.Empty(t, stderr)
 
-	output := buf.String()
-	assert.Contains(t, output, "Argus: Job verify 完成 (5/5)")
-	assert.Contains(t, output, "Pipeline release-20240101T000000Z 已全部完成。")
+	assert.Contains(t, stdout, "Argus: Job verify 完成 (5/5)")
+	assert.Contains(t, stdout, "Pipeline release-20240101T000000Z 已全部完成。")
 }
 
-func TestJobDoneMarkdownFailed(t *testing.T) {
+func TestJobDoneDefaultTextFailed(t *testing.T) {
 	t.Chdir(t.TempDir())
 	writeWorkflowFixture(t, "release", fiveJobWorkflow)
 	writePipelineFixture(t, testInstanceID, pipelineAtRunTests)
 
-	cmd := newJobDoneCmd()
-	buf := new(bytes.Buffer)
-	cmd.SetOut(buf)
-	cmd.SilenceErrors = true
-	cmd.SilenceUsage = true
-	cmd.SetArgs([]string{"--fail", "--markdown"})
-
-	err := cmd.Execute()
+	stdout, stderr, err := executeTextCommand(t, newJobDoneCmd(), "--fail")
 	require.NoError(t, err)
+	assert.Empty(t, stderr)
 
-	output := buf.String()
-	assert.Contains(t, output, "Argus: Job run_tests 标记为失败，Pipeline 已停止 (2/5)。")
-	assert.Contains(t, output, "- 重新开始：argus workflow start release")
-	assert.Contains(t, output, "- 取消：argus workflow cancel")
+	assert.Contains(t, stdout, "Argus: Job run_tests 标记为失败，Pipeline 已停止 (2/5)。")
+	assert.Contains(t, stdout, "- 重新开始：argus workflow start release")
+	assert.Contains(t, stdout, "- 取消：argus workflow cancel")
 }
 
-func TestJobDoneMarkdownFailedEarlyExit(t *testing.T) {
+func TestJobDoneDefaultTextFailedEarlyExit(t *testing.T) {
 	t.Chdir(t.TempDir())
 	writeWorkflowFixture(t, "release", fiveJobWorkflow)
 	writePipelineFixture(t, testInstanceID, pipelineAtRunTests)
 
-	cmd := newJobDoneCmd()
-	buf := new(bytes.Buffer)
-	cmd.SetOut(buf)
-	cmd.SilenceErrors = true
-	cmd.SilenceUsage = true
-	cmd.SetArgs([]string{"--fail", "--end-pipeline", "--markdown"})
-
-	err := cmd.Execute()
+	stdout, stderr, err := executeTextCommand(t, newJobDoneCmd(), "--fail", "--end-pipeline")
 	require.NoError(t, err)
+	assert.Empty(t, stderr)
 
-	output := buf.String()
-	assert.Contains(t, output, "Argus: Job run_tests 标记为失败，Pipeline 提前结束 (2/5)。")
-	assert.Contains(t, output, "- 重新开始：argus workflow start release")
+	assert.Contains(t, stdout, "Argus: Job run_tests 标记为失败，Pipeline 提前结束 (2/5)。")
+	assert.Contains(t, stdout, "- 重新开始：argus workflow start release")
 }
 
-func TestJobDoneMarkdownEarlyExit(t *testing.T) {
+func TestJobDoneDefaultTextEarlyExit(t *testing.T) {
 	t.Chdir(t.TempDir())
 	writeWorkflowFixture(t, "release", fiveJobWorkflow)
 	writePipelineFixture(t, testInstanceID, pipelineAtRunTests)
 
-	cmd := newJobDoneCmd()
-	buf := new(bytes.Buffer)
-	cmd.SetOut(buf)
-	cmd.SilenceErrors = true
-	cmd.SilenceUsage = true
-	cmd.SetArgs([]string{"--end-pipeline", "--markdown"})
-
-	err := cmd.Execute()
+	stdout, stderr, err := executeTextCommand(t, newJobDoneCmd(), "--end-pipeline")
 	require.NoError(t, err)
+	assert.Empty(t, stderr)
 
-	output := buf.String()
-	assert.Contains(t, output, "Argus: Job run_tests 完成，Pipeline 提前结束 (2/5)。")
+	assert.Contains(t, stdout, "Argus: Job run_tests 完成，Pipeline 提前结束 (2/5)。")
 }
 
-func TestJobDoneMarkdownNoPipeline(t *testing.T) {
+func TestJobDoneDefaultTextNoPipeline(t *testing.T) {
 	t.Chdir(t.TempDir())
 	writeWorkflowFixture(t, "release", fiveJobWorkflow)
 
-	cmd := newJobDoneCmd()
-	buf := new(bytes.Buffer)
-	cmd.SetOut(buf)
-	cmd.SilenceErrors = true
-	cmd.SilenceUsage = true
-	cmd.SetArgs([]string{"--markdown"})
-
-	err := cmd.Execute()
+	stdout, stderr, err := executeTextCommand(t, newJobDoneCmd())
 	assert.Error(t, err)
+	assert.Empty(t, stdout)
 
-	output := buf.String()
-	assert.Contains(t, output, "Argus: 当前没有活跃的 Pipeline。")
-	assert.Contains(t, output, "可以使用 argus workflow start <workflow-id> 启动一个 workflow。")
+	assert.Contains(t, stderr, "Argus: 当前没有活跃的 Pipeline。")
+	assert.Contains(t, stderr, "可以使用 argus workflow start <workflow-id> 启动一个 workflow。")
 }

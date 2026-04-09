@@ -3,13 +3,13 @@ package main
 import (
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 
-	"github.com/nextzhou/argus/internal/core"
 	"github.com/nextzhou/argus/internal/workflow"
 	"github.com/spf13/cobra"
 )
@@ -25,17 +25,19 @@ type workflowListOutput struct {
 }
 
 func newWorkflowListCmd() *cobra.Command {
-	return &cobra.Command{
+	var jsonFlag bool
+
+	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "List available workflows",
 		Args:  cobra.NoArgs,
-		RunE: func(_ *cobra.Command, _ []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			workflowsDir := filepath.Join(".argus", "workflows")
 
 			entries, err := os.ReadDir(workflowsDir)
 			if err != nil {
 				if errors.Is(err, fs.ErrNotExist) {
-					return writeListOutput(nil)
+					return writeListOutput(cmd, nil, jsonFlag)
 				}
 				return fmt.Errorf("reading workflows directory: %w", err)
 			}
@@ -71,20 +73,41 @@ func newWorkflowListCmd() *cobra.Command {
 				return strings.Compare(a.ID, b.ID)
 			})
 
-			return writeListOutput(result)
+			return writeListOutput(cmd, result, jsonFlag)
 		},
 	}
+
+	bindJSONFlag(cmd, &jsonFlag)
+	return cmd
 }
 
-func writeListOutput(workflows []workflowListEntry) error {
+func writeListOutput(cmd *cobra.Command, workflows []workflowListEntry, jsonOutput bool) error {
 	if workflows == nil {
 		workflows = []workflowListEntry{}
 	}
-	outBytes, err := core.OKEnvelope(workflowListOutput{Workflows: workflows})
-	if err != nil {
-		return fmt.Errorf("marshaling output: %w", err)
+
+	if jsonOutput {
+		return writeJSONOK(cmd, workflowListOutput{Workflows: workflows})
 	}
-	_, _ = os.Stdout.Write(outBytes)
-	_, _ = os.Stdout.WriteString("\n")
+
+	renderWorkflowListText(cmd.OutOrStdout(), workflows)
 	return nil
+}
+
+func renderWorkflowListText(w io.Writer, workflows []workflowListEntry) {
+	_, _ = fmt.Fprintln(w, "Argus: Workflows")
+	_, _ = fmt.Fprintln(w)
+
+	if len(workflows) == 0 {
+		_, _ = fmt.Fprintln(w, "No workflows found.")
+		return
+	}
+
+	for _, workflow := range workflows {
+		_, _ = fmt.Fprintf(w, "- %s", workflow.ID)
+		if workflow.Description != "" {
+			_, _ = fmt.Fprintf(w, " — %s", workflow.Description)
+		}
+		_, _ = fmt.Fprintf(w, " (%d jobs)\n", workflow.Jobs)
+	}
 }

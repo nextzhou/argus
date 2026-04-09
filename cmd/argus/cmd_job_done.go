@@ -33,7 +33,7 @@ func newJobDoneCmd() *cobra.Command {
 		failFlag        bool
 		endPipelineFlag bool
 		messageFlag     string
-		markdownFlag    bool
+		jsonFlag        bool
 	)
 
 	cmd := &cobra.Command{
@@ -46,29 +46,23 @@ func newJobDoneCmd() *cobra.Command {
 
 			actives, _, err := pipeline.ScanActivePipelines(pipelinesDir)
 			if err != nil {
-				errBytes, _ := core.ErrorEnvelope(err.Error())
-				_, _ = os.Stdout.Write(errBytes)
-				_, _ = os.Stdout.WriteString("\n")
+				writeCommandError(cmd, jsonFlag, err.Error())
 				return fmt.Errorf("job-done failed: %w", err)
 			}
 
 			if len(actives) == 0 {
 				msg := "当前没有活跃的 Pipeline。可以使用 argus workflow start <workflow-id> 启动一个 workflow。"
-				if markdownFlag {
-					renderNoPipelineMarkdown(cmd.OutOrStdout())
+				if jsonFlag {
+					writeCommandError(cmd, true, msg)
 				} else {
-					errBytes, _ := core.ErrorEnvelope(msg)
-					_, _ = os.Stdout.Write(errBytes)
-					_, _ = os.Stdout.WriteString("\n")
+					renderNoPipelineText(cmd.ErrOrStderr())
 				}
 				return fmt.Errorf("job-done failed: %w", core.ErrNoActivePipeline)
 			}
 
 			if len(actives) > 1 {
 				msg := "检测到多个活跃的 Pipeline（异常状态）。"
-				errBytes, _ := core.ErrorEnvelope(msg)
-				_, _ = os.Stdout.Write(errBytes)
-				_, _ = os.Stdout.WriteString("\n")
+				writeCommandError(cmd, jsonFlag, msg)
 				return fmt.Errorf("job-done failed: multiple active pipelines")
 			}
 
@@ -81,16 +75,12 @@ func newJobDoneCmd() *cobra.Command {
 
 			wf, err := workflow.ParseWorkflowFile(workflowPath)
 			if err != nil {
-				errBytes, _ := core.ErrorEnvelope(err.Error())
-				_, _ = os.Stdout.Write(errBytes)
-				_, _ = os.Stdout.WriteString("\n")
+				writeCommandError(cmd, jsonFlag, err.Error())
 				return fmt.Errorf("job-done failed: %w", err)
 			}
 
 			if err := resolveRefs(workflowsDir, workflowPath, wf); err != nil {
-				errBytes, _ := core.ErrorEnvelope(err.Error())
-				_, _ = os.Stdout.Write(errBytes)
-				_, _ = os.Stdout.WriteString("\n")
+				writeCommandError(cmd, jsonFlag, err.Error())
 				return fmt.Errorf("job-done failed: %w", err)
 			}
 
@@ -108,9 +98,7 @@ func newJobDoneCmd() *cobra.Command {
 			}
 
 			if err := pipeline.AdvanceJob(p, wf, opts); err != nil {
-				errBytes, _ := core.ErrorEnvelope(err.Error())
-				_, _ = os.Stdout.Write(errBytes)
-				_, _ = os.Stdout.WriteString("\n")
+				writeCommandError(cmd, jsonFlag, err.Error())
 				return fmt.Errorf("job-done failed: %w", err)
 			}
 
@@ -144,21 +132,6 @@ func newJobDoneCmd() *cobra.Command {
 				}
 			}
 
-			if markdownFlag {
-				w := cmd.OutOrStdout()
-				switch {
-				case failFlag:
-					renderFailedMarkdown(w, completedJobID, progress, wf.ID, endPipelineFlag)
-				case p.Status == pipeline.StatusCompleted && endPipelineFlag:
-					renderEarlyExitMarkdown(w, completedJobID, progress)
-				case p.Status == pipeline.StatusCompleted:
-					renderCompletedMarkdown(w, completedJobID, progress, instanceID)
-				case p.Status == pipeline.StatusRunning:
-					renderNextJobMarkdown(w, completedJobID, progress, nextJob, renderedPrompt)
-				}
-				return nil
-			}
-
 			out := jobDoneOutput{
 				PipelineStatus: p.Status,
 				Progress:       progress,
@@ -185,12 +158,21 @@ func newJobDoneCmd() *cobra.Command {
 				}
 			}
 
-			outBytes, err := core.OKEnvelope(out)
-			if err != nil {
-				return fmt.Errorf("marshaling output: %w", err)
+			if jsonFlag {
+				return writeJSONOK(cmd, out)
 			}
-			_, _ = os.Stdout.Write(outBytes)
-			_, _ = os.Stdout.WriteString("\n")
+
+			w := cmd.OutOrStdout()
+			switch {
+			case failFlag:
+				renderFailedText(w, completedJobID, progress, wf.ID, endPipelineFlag)
+			case p.Status == pipeline.StatusCompleted && endPipelineFlag:
+				renderEarlyExitText(w, completedJobID, progress)
+			case p.Status == pipeline.StatusCompleted:
+				renderCompletedText(w, completedJobID, progress, instanceID)
+			case p.Status == pipeline.StatusRunning:
+				renderNextJobText(w, completedJobID, progress, nextJob, renderedPrompt)
+			}
 			return nil
 		},
 	}
@@ -198,16 +180,16 @@ func newJobDoneCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&failFlag, "fail", false, "Mark the current job as failed")
 	cmd.Flags().BoolVar(&endPipelineFlag, "end-pipeline", false, "End the pipeline early")
 	cmd.Flags().StringVar(&messageFlag, "message", "", "Message to record with the job completion")
-	cmd.Flags().BoolVar(&markdownFlag, "markdown", false, "Output human-readable markdown summary")
+	bindJSONFlag(cmd, &jsonFlag)
 	return cmd
 }
 
-func renderNoPipelineMarkdown(w io.Writer) {
+func renderNoPipelineText(w io.Writer) {
 	_, _ = fmt.Fprintf(w, "Argus: 当前没有活跃的 Pipeline。\n")
 	_, _ = fmt.Fprintf(w, "可以使用 argus workflow start <workflow-id> 启动一个 workflow。\n")
 }
 
-func renderNextJobMarkdown(w io.Writer, completedJobID, progress string, nextJob workflow.Job, renderedPrompt string) {
+func renderNextJobText(w io.Writer, completedJobID, progress string, nextJob workflow.Job, renderedPrompt string) {
 	_, _ = fmt.Fprintf(w, "Argus: Job %s 完成 (%s)\n\n", completedJobID, progress)
 	_, _ = fmt.Fprintf(w, "下一个 Job: %s\n", nextJob.ID)
 	_, _ = fmt.Fprintf(w, "Prompt: %s\n", renderedPrompt)
@@ -217,16 +199,16 @@ func renderNextJobMarkdown(w io.Writer, completedJobID, progress string, nextJob
 	_, _ = fmt.Fprintf(w, "\n完成后请调用：argus job-done --message \"执行结果摘要\"\n")
 }
 
-func renderCompletedMarkdown(w io.Writer, completedJobID, progress, instanceID string) {
+func renderCompletedText(w io.Writer, completedJobID, progress, instanceID string) {
 	_, _ = fmt.Fprintf(w, "Argus: Job %s 完成 (%s)\n", completedJobID, progress)
 	_, _ = fmt.Fprintf(w, "Pipeline %s 已全部完成。\n", instanceID)
 }
 
-func renderEarlyExitMarkdown(w io.Writer, completedJobID, progress string) {
+func renderEarlyExitText(w io.Writer, completedJobID, progress string) {
 	_, _ = fmt.Fprintf(w, "Argus: Job %s 完成，Pipeline 提前结束 (%s)。\n", completedJobID, progress)
 }
 
-func renderFailedMarkdown(w io.Writer, failedJobID, progress, workflowID string, earlyExit bool) {
+func renderFailedText(w io.Writer, failedJobID, progress, workflowID string, earlyExit bool) {
 	if earlyExit {
 		_, _ = fmt.Fprintf(w, "Argus: Job %s 标记为失败，Pipeline 提前结束 (%s)。\n", failedJobID, progress)
 	} else {

@@ -16,8 +16,13 @@ Install and initialize Argus in a project.
 
 ## Commands
 
-- `argus install [--yes]` — Install Argus in current Git project
-- `argus install --workspace <path> [--yes]` — Register a workspace and install global hooks and global skills
+- `argus install [--yes] [--json]` — Install Argus in current Git project
+- `argus install --workspace <path> [--yes] [--json]` — Register a workspace and install global hooks and global skills
+
+## Output Mode
+
+- Default output is readable text and includes a summary plus affected paths.
+- Use `--json` only when another command or script needs structured change data.
 
 ## What Install Does
 

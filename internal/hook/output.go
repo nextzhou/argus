@@ -14,7 +14,7 @@ type InvariantFailure struct {
 	Suggestion  string
 }
 
-// FormatNoPipeline returns Markdown text listing available workflows when no pipeline is active.
+// FormatNoPipeline returns readable text listing available workflows when no pipeline is active.
 // Tick output must stay plain text and must not start with '[' or '{', because
 // Codex treats those prefixes as candidate JSON in UserPromptSubmit hooks.
 // All agents therefore share the same "Argus:" text prefix.
@@ -28,7 +28,7 @@ func FormatNoPipeline(workflows []WorkflowSummary) (string, error) {
 	return renderTemplate("prompts/tick-no-pipeline.md.tmpl", data)
 }
 
-// FormatFullContext returns Markdown text with complete job context including all action commands.
+// FormatFullContext returns readable text with complete job context including all action commands.
 // It includes pipeline ID, workflow ID, progress, job ID, prompt, skill (if non-empty),
 // and action commands for job-done, snooze, and cancel.
 func FormatFullContext(pipelineID, workflowID, progress, jobID, prompt, skill, sessionID string) (string, error) {
@@ -53,7 +53,7 @@ func FormatFullContext(pipelineID, workflowID, progress, jobID, prompt, skill, s
 	return renderTemplate("prompts/tick-full-context.md.tmpl", data)
 }
 
-// FormatMinimalSummary returns a short Markdown reminder when pipeline state hasn't changed.
+// FormatMinimalSummary returns a short readable reminder when pipeline state hasn't changed.
 // It includes workflow ID, job ID, progress, and the job-done command.
 func FormatMinimalSummary(workflowID, jobID, progress string) (string, error) {
 	data := struct {
@@ -69,7 +69,7 @@ func FormatMinimalSummary(workflowID, jobID, progress string) (string, error) {
 	return renderTemplate("prompts/tick-minimal.md.tmpl", data)
 }
 
-// FormatSnoozed returns Markdown text for a snoozed pipeline.
+// FormatSnoozed returns readable text for a snoozed pipeline.
 // A snoozed pipeline is invisible to the user, so this returns the same output as FormatNoPipeline.
 func FormatSnoozed(workflows []WorkflowSummary) (string, error) {
 	return FormatNoPipeline(workflows)

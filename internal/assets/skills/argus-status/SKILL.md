@@ -16,8 +16,13 @@ Check the current state of Argus pipelines and jobs.
 
 ## Commands
 
-- `argus status` — Show current pipeline status with progress
-- `argus status --markdown` — Human-readable markdown output
+- `argus status` — Show current pipeline status with progress in readable text
+- `argus status --json` — Return structured status data for parsing
+
+## Output Mode
+
+- Default output is readable text for both humans and agents.
+- Use `--json` only when a script or workflow needs stable structured fields.
 
 ## Output
 

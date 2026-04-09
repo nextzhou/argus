@@ -7,7 +7,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/nextzhou/argus/internal/core"
 	"github.com/nextzhou/argus/internal/install"
 	"github.com/spf13/cobra"
 )
@@ -16,6 +15,7 @@ import (
 // SEQUENCE-TEST: cmd_workspace_lifecycle_test.go
 func newInstallCmd() *cobra.Command {
 	var yesFlag bool
+	var jsonFlag bool
 	var workspacePath string
 
 	cmd := &cobra.Command{
@@ -25,26 +25,26 @@ func newInstallCmd() *cobra.Command {
 			if cmd.Flags().Changed("workspace") {
 				preview, err := install.PrepareWorkspaceInstall(workspacePath)
 				if err != nil {
-					writeEnvelope(core.ErrorEnvelope(err.Error()))
+					writeCommandError(cmd, jsonFlag, err.Error())
 					return err
 				}
 
 				if !yesFlag && !preview.AlreadyRegistered {
 					confirmed, confirmErr := confirmWorkspaceInstall(cmd, preview.Path, os.Stdin, stdinIsTTY())
 					if confirmErr != nil {
-						writeEnvelope(core.ErrorEnvelope(confirmErr.Error()))
+						writeCommandError(cmd, jsonFlag, confirmErr.Error())
 						return confirmErr
 					}
 					if !confirmed {
 						cancelErr := fmt.Errorf("workspace installation cancelled")
-						writeEnvelope(core.ErrorEnvelope(cancelErr.Error()))
+						writeCommandError(cmd, jsonFlag, cancelErr.Error())
 						return cancelErr
 					}
 				}
 
 				result, err := install.InstallWorkspaceWithReport(workspacePath)
 				if err != nil {
-					writeEnvelope(core.ErrorEnvelope(err.Error()))
+					writeCommandError(cmd, jsonFlag, err.Error())
 					return err
 				}
 
@@ -53,62 +53,65 @@ func newInstallCmd() *cobra.Command {
 					message = "workspace already registered"
 				}
 
-				okBytes, err := core.OKEnvelope(lifecycleOutput{
+				output := lifecycleOutput{
 					Message: message,
 					Path:    result.Path,
 					Report:  result.Report,
-				})
-				if err != nil {
-					return fmt.Errorf("marshaling workspace install output: %w", err)
 				}
 
-				_, _ = os.Stdout.Write(okBytes)
-				_, _ = os.Stdout.WriteString("\n")
+				if jsonFlag {
+					return writeJSONOK(cmd, output)
+				}
+
+				renderLifecycleText(cmd.OutOrStdout(), output, nil)
 				return nil
 			}
 
 			projectRoot, isSubdir, err := install.CheckInstallPreconditions()
 			if err != nil {
-				writeEnvelope(core.ErrorEnvelope(err.Error()))
+				writeCommandError(cmd, jsonFlag, err.Error())
 				return err
 			}
 
 			if isSubdir && !yesFlag {
 				confirmed, confirmErr := confirmSubdirectoryInstall(cmd, projectRoot, os.Stdin, stdinIsTTY())
 				if confirmErr != nil {
-					writeEnvelope(core.ErrorEnvelope(confirmErr.Error()))
+					writeCommandError(cmd, jsonFlag, confirmErr.Error())
 					return confirmErr
 				}
 				if !confirmed {
 					cancelErr := fmt.Errorf("installation cancelled")
-					writeEnvelope(core.ErrorEnvelope(cancelErr.Error()))
+					writeCommandError(cmd, jsonFlag, cancelErr.Error())
 					return cancelErr
 				}
 			}
 
 			result, err := install.InstallWithReport(projectRoot)
 			if err != nil {
-				writeEnvelope(core.ErrorEnvelope(err.Error()))
+				writeCommandError(cmd, jsonFlag, err.Error())
 				return err
 			}
 
-			okBytes, err := core.OKEnvelope(lifecycleOutput{
+			output := lifecycleOutput{
 				Message: "Argus installed successfully",
 				Root:    result.Root,
 				Report:  result.Report,
-			})
-			if err != nil {
-				return fmt.Errorf("marshaling install output: %w", err)
 			}
 
-			_, _ = os.Stdout.Write(okBytes)
-			_, _ = os.Stdout.WriteString("\n")
+			if jsonFlag {
+				return writeJSONOK(cmd, output)
+			}
+
+			renderLifecycleText(cmd.OutOrStdout(), output, []string{
+				"Run argus workflow start argus-init to complete project initialization.",
+			})
 			return nil
 		},
 	}
 
 	cmd.Flags().BoolVar(&yesFlag, "yes", false, "Skip confirmation prompts")
 	cmd.Flags().StringVar(&workspacePath, "workspace", "", "Register a workspace path and install global hooks and skills")
+	bindJSONFlag(cmd, &jsonFlag)
 	return cmd
 }
 
@@ -165,12 +168,4 @@ func stdinIsTTY() bool {
 	}
 
 	return info.Mode()&os.ModeCharDevice != 0
-}
-
-func writeEnvelope(envelope []byte, err error) {
-	if err != nil {
-		return
-	}
-	_, _ = os.Stdout.Write(envelope)
-	_, _ = os.Stdout.WriteString("\n")
 }

@@ -248,26 +248,28 @@ Skill names follow the same convention as other identifiers: lowercase letters, 
 
 Run these directly in your terminal:
 
+These commands default to human-readable text. Add `--json` when you need structured output for scripts or field-level parsing.
+
 | Command | Description |
 |---------|-------------|
-| `argus install [--yes]` | Install Argus into the current project |
-| `argus install --workspace <path> [--yes]` | Register a workspace for cross-project discovery |
-| `argus uninstall [--yes]` | Remove Argus from the current project |
-| `argus uninstall --workspace <path> [--yes]` | Remove a registered workspace |
-| `argus doctor` | Diagnose installation and configuration issues |
-| `argus version` | Show version |
+| `argus install [--yes] [--json]` | Install Argus into the current project |
+| `argus install --workspace <path> [--yes] [--json]` | Register a workspace for cross-project discovery |
+| `argus uninstall [--yes] [--json]` | Remove Argus from the current project |
+| `argus uninstall --workspace <path> [--yes] [--json]` | Remove a registered workspace |
+| `argus doctor [--json]` | Diagnose installation and configuration issues |
+| `argus version [--json]` | Show version |
 
 ### Workflow and Pipeline Commands
 
 | Command | Description |
 |---------|-------------|
-| `argus workflow start <id>` | Start a workflow (creates a new pipeline) |
-| `argus workflow list` | List available workflows |
-| `argus workflow cancel` | Cancel the active pipeline |
-| `argus workflow snooze --session <id>` | Temporarily ignore the active pipeline in this session |
-| `argus workflow inspect [dir]` | Validate workflow YAML definitions |
-| `argus job-done [flags]` | Mark current job as done and advance the pipeline |
-| `argus status [--markdown]` | Query project status (pipeline + invariants) |
+| `argus workflow start <id> [--json]` | Start a workflow (creates a new pipeline) |
+| `argus workflow list [--json]` | List available workflows |
+| `argus workflow cancel [--json]` | Cancel the active pipeline |
+| `argus workflow snooze --session <id> [--json]` | Temporarily ignore the active pipeline in this session |
+| `argus workflow inspect [dir] [--json]` | Validate workflow YAML definitions |
+| `argus job-done [flags] [--json]` | Mark current job as done and advance the pipeline |
+| `argus status [--json]` | Query project status (pipeline + invariants) |
 
 `job-done` flags:
 
@@ -281,9 +283,9 @@ Run these directly in your terminal:
 
 | Command | Description |
 |---------|-------------|
-| `argus invariant check [id]` | Run invariant checks (all, or a specific one) |
-| `argus invariant list` | List defined invariants |
-| `argus invariant inspect [dir]` | Validate invariant YAML definitions |
+| `argus invariant check [id] [--json]` | Run invariant checks (all, or a specific one) |
+| `argus invariant list [--json]` | List defined invariants |
+| `argus invariant inspect [dir] [--json]` | Validate invariant YAML definitions |
 
 ### Toolbox
 

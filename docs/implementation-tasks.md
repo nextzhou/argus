@@ -392,7 +392,7 @@ make lint
 - 实现 `OKEnvelope(data any) ([]byte, error)`。
 - 实现 `ErrorEnvelope(msg string) ([]byte, error)`。
 - 实现 `WriteJSON(w io.Writer, data any)` 等输出辅助方法。
-- 为未来支持 `--markdown` 的命令预留渲染辅助结构。
+- 为默认文本 + `--json` 双输出模式预留渲染辅助结构。
 - 统一所有内部命令的 envelope 语义，避免每个命令自定义顶层 JSON。
 
 **测试要求**:
@@ -478,7 +478,7 @@ make lint
 - 覆盖 8 项检查：YAML 语法、必填字段、重复 ID、ref 存在、unknown keys、模板语法、版本兼容、ID/namespace 规则。
 - 识别 `_shared.yaml` 的特殊地位，不把它当作普通 workflow 文件输出。
 - 模板检查只做 parse，不做 render。
-- 输出结构要便于 CLI 原样包装成 JSON / Markdown。
+- 输出结构要便于 CLI 包装成默认文本 / `--json`。
 
 **测试要求**:
 - 先按检查项拆 fixture，避免单 fixture 同时覆盖过多错误。
@@ -497,15 +497,15 @@ make lint
 | Commit | `feat(cli): add workflow inspect command` |
 
 **实现内容**:
-- 注册 `argus workflow inspect [dir] [--markdown]`。
+- 注册 `argus workflow inspect [dir] [--json]`。
 - 默认目录为 `.argus/workflows/`。
 - JSON 输出遵循统一 envelope。
-- `--markdown` 输出为人类可读摘要，不要求完全复刻 JSON 字段名。
+- 默认文本输出为人类可读摘要，不要求完全复刻 JSON 字段名。
 - 命令只报告检查结果，不自动修复文件。
 
 **测试要求**:
 - 先写命令级测试，覆盖默认目录和显式目录两种调用。
-- 验证 JSON / Markdown 双输出路径。
+- 验证默认文本 / `--json` 双输出路径。
 - 验证校验失败时退出码与 envelope 语义一致。
 
 ---
@@ -543,10 +543,10 @@ make lint
 | Commit | `feat(cli): add invariant inspect command` |
 
 **实现内容**:
-- 注册 `argus invariant inspect [dir] [--markdown]`。
+- 注册 `argus invariant inspect [dir] [--json]`。
 - 默认目录为 `.argus/invariants/`。
 - 维持 workflow 引用始终指向当前项目 `.argus/workflows/` 的约束。
-- JSON 与 Markdown 输出行为与 workflow inspect 保持风格一致。
+- `--json` 与默认文本输出行为与 workflow inspect 保持风格一致。
 - 保持命令职责为静态检查，不引入 runtime shell 执行。
 
 **测试要求**:
@@ -723,7 +723,7 @@ make lint
 - 注册 `argus workflow start <workflow-id>`。
 - 从 `.argus/workflows/<id>.yaml` 读取定义并创建 pipeline。
 - 在启动成功后渲染首个 job prompt。
-- JSON / Markdown 输出与文档示例保持一致语义。
+- 默认文本 / `--json` 输出与文档示例保持一致语义。
 - 对已有活跃 pipeline 直接返回错误，不尝试自动取消或替换。
 
 **测试要求**:
@@ -743,7 +743,7 @@ make lint
 | Commit | `feat(cli): add job-done command with 6 completion scenarios` |
 
 **实现内容**:
-- 注册 `argus job-done [--fail] [--end-pipeline] [--message "..."] [--markdown]`。
+- 注册 `argus job-done [--fail] [--end-pipeline] [--message "..."] [--json]`。
 - 实现 6 种返回场景：成功推进、成功完成、提前结束、失败、无活跃 pipeline、提前失败结束。
 - 成功推进时返回下一 job 的渲染结果。
 - 无活跃 pipeline 时返回 error envelope，exit 1。
@@ -789,7 +789,7 @@ make lint
 | Commit | `feat(cli): add status command with pipeline state display` |
 
 **实现内容**:
-- 注册 `argus status [--markdown]`。
+- 注册 `argus status [--json]`。
 - 先只实现 pipeline 部分，invariants 字段先返回空结构或空数组占位。
 - 通过 workflow 定义 + pipeline 数据推导所有 job 的 completed / in_progress / pending 状态。
 - 处理 workflow 被修改导致 current_job 丢失的 best-effort 场景。
@@ -798,7 +798,7 @@ make lint
 **测试要求**:
 - 先写有活跃 pipeline 和无活跃 pipeline 两类输出测试。
 - 覆盖 workflow 修改后的 best-effort 输出。
-- 验证 JSON / Markdown 都能稳定展示 job 列表顺序。
+- 验证默认文本 / `--json` 都能稳定展示 job 列表顺序。
 
 ---
 
@@ -1010,7 +1010,7 @@ make lint
 
 **实现内容**:
 - 实现 `FormatNoPipeline`, `FormatFullContext`, `FormatMinimalSummary`, `FormatSnoozed`, `AppendInvariantFailed`。
-- 输出统一使用 Markdown text。
+- 输出统一使用可读文本（Markdown-like）。
 - 形成 5 种场景的文本模板语义基线。
 - 兼容后续接入运行时 prompt 模板文件时的内容结构。
 - 强调 tick 输出是文本，不是 JSON。

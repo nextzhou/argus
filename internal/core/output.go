@@ -8,12 +8,6 @@ import (
 	"log/slog"
 )
 
-// MarkdownRenderer is implemented by types that can render themselves as Markdown.
-// Reserved for future --markdown flag support. No implementation in M1.
-type MarkdownRenderer interface {
-	RenderMarkdown(w io.Writer)
-}
-
 // marshalNoHTMLEscape marshals v to JSON without escaping <, >, and & characters.
 // This is necessary because Argus outputs JSON to terminal/Agent consumers, not HTML.
 // The default json.Marshal escapes these characters as \u003c, \u003e, \u0026, which

@@ -28,7 +28,7 @@ type workflowStartNextJob struct {
 
 // SEQUENCE-TEST: output consumed by job-done, status, cancel — see cmd_pipeline_lifecycle_test.go
 func newWorkflowStartCmd() *cobra.Command {
-	var markdownFlag bool
+	var jsonFlag bool
 
 	cmd := &cobra.Command{
 		Use:   "start <workflow-id>",
@@ -38,9 +38,7 @@ func newWorkflowStartCmd() *cobra.Command {
 			workflowID := args[0]
 
 			if err := core.ValidateWorkflowID(workflowID); err != nil {
-				errBytes, _ := core.ErrorEnvelope(err.Error())
-				_, _ = os.Stdout.Write(errBytes)
-				_, _ = os.Stdout.WriteString("\n")
+				writeCommandError(cmd, jsonFlag, err.Error())
 				return fmt.Errorf("workflow start failed: %w", err)
 			}
 
@@ -50,16 +48,12 @@ func newWorkflowStartCmd() *cobra.Command {
 
 			w, err := workflow.ParseWorkflowFile(workflowPath)
 			if err != nil {
-				errBytes, _ := core.ErrorEnvelope(err.Error())
-				_, _ = os.Stdout.Write(errBytes)
-				_, _ = os.Stdout.WriteString("\n")
+				writeCommandError(cmd, jsonFlag, err.Error())
 				return fmt.Errorf("workflow start failed: %w", err)
 			}
 
 			if err := resolveRefs(workflowsDir, workflowPath, w); err != nil {
-				errBytes, _ := core.ErrorEnvelope(err.Error())
-				_, _ = os.Stdout.Write(errBytes)
-				_, _ = os.Stdout.WriteString("\n")
+				writeCommandError(cmd, jsonFlag, err.Error())
 				return fmt.Errorf("workflow start failed: %w", err)
 			}
 
@@ -69,9 +63,7 @@ func newWorkflowStartCmd() *cobra.Command {
 				if errors.Is(err, core.ErrActivePipelineExists) {
 					msg = "另一个 Pipeline 正在运行中，请先完成或取消当前 Pipeline 后再启动新的 Pipeline。"
 				}
-				errBytes, _ := core.ErrorEnvelope(msg)
-				_, _ = os.Stdout.Write(errBytes)
-				_, _ = os.Stdout.WriteString("\n")
+				writeCommandError(cmd, jsonFlag, msg)
 				return fmt.Errorf("workflow start failed: %w", err)
 			}
 
@@ -94,11 +86,6 @@ func newWorkflowStartCmd() *cobra.Command {
 
 			progress := fmt.Sprintf("1/%d", len(w.Jobs))
 
-			if markdownFlag {
-				renderStartMarkdown(cmd, instanceID, progress, firstJob, rendered)
-				return nil
-			}
-
 			var skill *string
 			if firstJob.Skill != "" {
 				skillVal := firstJob.Skill
@@ -115,21 +102,20 @@ func newWorkflowStartCmd() *cobra.Command {
 				},
 			}
 
-			outBytes, err := core.OKEnvelope(outData)
-			if err != nil {
-				return fmt.Errorf("marshaling output: %w", err)
+			if jsonFlag {
+				return writeJSONOK(cmd, outData)
 			}
-			_, _ = os.Stdout.Write(outBytes)
-			_, _ = os.Stdout.WriteString("\n")
+
+			renderStartText(cmd, instanceID, progress, firstJob, rendered)
 			return nil
 		},
 	}
 
-	cmd.Flags().BoolVar(&markdownFlag, "markdown", false, "Output human-readable markdown summary")
+	bindJSONFlag(cmd, &jsonFlag)
 	return cmd
 }
 
-func renderStartMarkdown(cmd *cobra.Command, instanceID, progress string, job workflow.Job, renderedPrompt string) {
+func renderStartText(cmd *cobra.Command, instanceID, progress string, job workflow.Job, renderedPrompt string) {
 	w := cmd.OutOrStdout()
 	_, _ = fmt.Fprintf(w, "Argus: Pipeline %s 已启动 (%s)\n\n", instanceID, progress)
 	_, _ = fmt.Fprintf(w, "当前 Job: %s\n", job.ID)

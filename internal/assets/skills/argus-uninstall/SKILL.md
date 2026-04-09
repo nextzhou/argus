@@ -15,8 +15,13 @@ Remove Argus from a project.
 
 ## Commands
 
-- `argus uninstall [--yes]` — Remove Argus from current project
-- `argus uninstall --workspace <path> [--yes]` — Remove a workspace registration and, if it is the last one, clean up global hooks and global skills
+- `argus uninstall [--yes] [--json]` — Remove Argus from current project
+- `argus uninstall --workspace <path> [--yes] [--json]` — Remove a workspace registration and, if it is the last one, clean up global hooks and global skills
+
+## Output Mode
+
+- Default output is readable text and includes a summary plus affected paths.
+- Use `--json` only when another command or script needs structured change data.
 
 ## What Uninstall Does
 

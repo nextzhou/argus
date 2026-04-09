@@ -16,10 +16,16 @@ Manage Argus workflow lifecycle.
 
 ## Commands
 
-- `argus workflow list` — List available workflows
-- `argus workflow start <id>` — Start a workflow pipeline
-- `argus workflow cancel` — Cancel active pipeline
-- `argus workflow snooze --session <id>` — Snooze pipeline for current session
+- `argus workflow list [--json]` — List available workflows
+- `argus workflow start <id> [--json]` — Start a workflow pipeline
+- `argus workflow cancel [--json]` — Cancel active pipeline
+- `argus workflow snooze --session <id> [--json]` — Snooze pipeline for current session
+- `argus job-done [--message "summary"] [--json]` — Complete the current job
+
+## Output Mode
+
+- Default output is readable text for both humans and agents.
+- Use `--json` only when you need field-level parsing or script integration.
 
 ## Workflow Lifecycle
 

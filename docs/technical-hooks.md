@@ -52,7 +52,7 @@ Agent Hook Event --> Agent 特有入口 --> argus CLI 命令 --> Go 业务逻辑
 方案 B（参数标准化）：hook 入口负责提取关键字段，通过命令行参数传给 argus（如 `argus trap --agent claude-code --tool Bash --command "git push"`）。排除理由：增加 hook 入口复杂度，每个 Agent 需要不同的提取逻辑；方案 A 更简单，归一化逻辑统一在 Go 侧。
 
 ### 输出标准化：统一文本
-`argus tick` 的输出统一为文本格式（Markdown），不按 `--agent` 区分输出格式。各 Agent 的 Hook/Plugin 层负责将文本注入到对应的上下文机制中：
+`argus tick` 的输出统一为可读文本（Markdown-like），不按 `--agent` 区分输出格式。各 Agent 的 Hook/Plugin 层负责将文本注入到对应的上下文机制中：
 
 - **Claude Code / Codex**：文本作为 `additionalContext` 字段值。
 - **OpenCode**：文本作为 `Part` 对象的 `text` 字段 push 到 `output.parts`。

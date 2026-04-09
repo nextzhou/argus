@@ -6,14 +6,13 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/nextzhou/argus/internal/core"
 	"github.com/nextzhou/argus/internal/invariant"
 	"github.com/nextzhou/argus/internal/workflow"
 	"github.com/spf13/cobra"
 )
 
 func newInvariantInspectCmd() *cobra.Command {
-	var markdownFlag bool
+	var jsonFlag bool
 
 	cmd := &cobra.Command{
 		Use:   "inspect [dir]",
@@ -29,28 +28,20 @@ func newInvariantInspectCmd() *cobra.Command {
 
 			report, err := invariant.InspectDirectory(dir, workflowChecker)
 			if err != nil {
-				errBytes, _ := core.ErrorEnvelope(err.Error())
-				_, _ = os.Stdout.Write(errBytes)
-				_, _ = os.Stdout.WriteString("\n")
+				writeCommandError(cmd, jsonFlag, err.Error())
 				return fmt.Errorf("invariant inspect failed: %w", err)
 			}
 
-			if markdownFlag {
-				renderMarkdown(cmd, report)
-				return nil
+			if jsonFlag {
+				return writeJSONOK(cmd, report)
 			}
 
-			outBytes, err := core.OKEnvelope(report)
-			if err != nil {
-				return fmt.Errorf("marshaling output: %w", err)
-			}
-			_, _ = os.Stdout.Write(outBytes)
-			_, _ = os.Stdout.WriteString("\n")
+			renderInvariantInspectText(cmd, report)
 			return nil
 		},
 	}
 
-	cmd.Flags().BoolVar(&markdownFlag, "markdown", false, "Output human-readable markdown summary")
+	bindJSONFlag(cmd, &jsonFlag)
 	return cmd
 }
 
@@ -82,7 +73,7 @@ func buildWorkflowChecker(workflowsDir string) func(id string) bool {
 	return func(id string) bool { return knownIDs[id] }
 }
 
-func renderMarkdown(cmd *cobra.Command, report *invariant.InspectReport) {
+func renderInvariantInspectText(cmd *cobra.Command, report *invariant.InspectReport) {
 	w := cmd.OutOrStdout()
 	if report.Valid {
 		_, _ = w.Write([]byte("# Invariant Inspect\n\nAll invariants valid.\n"))

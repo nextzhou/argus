@@ -248,10 +248,11 @@ Argus 遵循"不做细粒度控制"的原则：
 ### 7.1 命令用法
 
 ```bash
-argus workflow inspect [dir] [--markdown]
+argus workflow inspect [dir] [--json]
 ```
 - 始终以**目录**为单位进行校验，以确保跨文件引用（如 `_shared.yaml`）和 ID 冲突检测的准确性。
 - 默认校验 `.argus/workflows/`。
+- 默认输出可读文本；传入 `--json` 时返回结构化结果。
 
 ### 7.2 校验内容
 

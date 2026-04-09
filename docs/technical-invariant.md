@@ -244,7 +244,9 @@ invariant check 的每个 step 输出三态：
 
 ## 4.7 invariant inspect 校验规范
 
-命令格式：`argus invariant inspect [dir] [--markdown]`
+命令格式：`argus invariant inspect [dir] [--json]`
+
+- 默认输出可读文本；传入 `--json` 时返回结构化结果。
 
 校验逻辑包括：
 1. YAML 语法正确性。

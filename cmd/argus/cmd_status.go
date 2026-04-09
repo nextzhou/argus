@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/nextzhou/argus/internal/core"
 	"github.com/nextzhou/argus/internal/invariant"
 	"github.com/nextzhou/argus/internal/pipeline"
 	"github.com/nextzhou/argus/internal/workflow"
@@ -56,7 +55,7 @@ type statusInvariants struct {
 }
 
 func newStatusCmd() *cobra.Command {
-	var markdownFlag bool
+	var jsonFlag bool
 
 	cmd := &cobra.Command{
 		Use:    "status",
@@ -68,17 +67,13 @@ func newStatusCmd() *cobra.Command {
 
 			actives, _, err := pipeline.ScanActivePipelines(pipelinesDir)
 			if err != nil {
-				errBytes, _ := core.ErrorEnvelope(err.Error())
-				_, _ = os.Stdout.Write(errBytes)
-				_, _ = os.Stdout.WriteString("\n")
+				writeCommandError(cmd, jsonFlag, err.Error())
 				return fmt.Errorf("status failed: %w", err)
 			}
 
 			if len(actives) > 1 {
 				msg := "检测到多个活跃的 Pipeline（异常状态）。请运行 argus doctor 排查。"
-				errBytes, _ := core.ErrorEnvelope(msg)
-				_, _ = os.Stdout.Write(errBytes)
-				_, _ = os.Stdout.WriteString("\n")
+				writeCommandError(cmd, jsonFlag, msg)
 				return fmt.Errorf("status failed: multiple active pipelines")
 			}
 
@@ -92,16 +87,11 @@ func newStatusCmd() *cobra.Command {
 			runStatusInvariants(cmd.Context(), &out)
 
 			if len(actives) == 0 {
-				if markdownFlag {
-					renderStatusMarkdownNoPipeline(cmd.OutOrStdout(), out)
-					return nil
+				if jsonFlag {
+					return writeJSONOK(cmd, out)
 				}
-				outBytes, marshalErr := core.OKEnvelope(out)
-				if marshalErr != nil {
-					return fmt.Errorf("marshaling output: %w", marshalErr)
-				}
-				_, _ = os.Stdout.Write(outBytes)
-				_, _ = os.Stdout.WriteString("\n")
+
+				renderStatusTextNoPipeline(cmd.OutOrStdout(), out)
 				return nil
 			}
 
@@ -114,16 +104,12 @@ func newStatusCmd() *cobra.Command {
 
 			wf, err := workflow.ParseWorkflowFile(workflowPath)
 			if err != nil {
-				errBytes, _ := core.ErrorEnvelope(err.Error())
-				_, _ = os.Stdout.Write(errBytes)
-				_, _ = os.Stdout.WriteString("\n")
+				writeCommandError(cmd, jsonFlag, err.Error())
 				return fmt.Errorf("status failed: %w", err)
 			}
 
 			if err := resolveRefs(workflowsDir, workflowPath, wf); err != nil {
-				errBytes, _ := core.ErrorEnvelope(err.Error())
-				_, _ = os.Stdout.Write(errBytes)
-				_, _ = os.Stdout.WriteString("\n")
+				writeCommandError(cmd, jsonFlag, err.Error())
 				return fmt.Errorf("status failed: %w", err)
 			}
 
@@ -131,22 +117,16 @@ func newStatusCmd() *cobra.Command {
 
 			out.Pipeline = sp
 
-			if markdownFlag {
-				renderStatusMarkdownActive(cmd.OutOrStdout(), out, instanceID)
-				return nil
+			if jsonFlag {
+				return writeJSONOK(cmd, out)
 			}
 
-			outBytes, marshalErr := core.OKEnvelope(out)
-			if marshalErr != nil {
-				return fmt.Errorf("marshaling output: %w", marshalErr)
-			}
-			_, _ = os.Stdout.Write(outBytes)
-			_, _ = os.Stdout.WriteString("\n")
+			renderStatusTextActive(cmd.OutOrStdout(), out, instanceID)
 			return nil
 		},
 	}
 
-	cmd.Flags().BoolVar(&markdownFlag, "markdown", false, "Output human-readable markdown summary")
+	bindJSONFlag(cmd, &jsonFlag)
 	return cmd
 }
 
@@ -234,7 +214,7 @@ func runStatusInvariants(ctx context.Context, out *statusOutput) {
 	}
 }
 
-func renderStatusMarkdownFailedInvariants(w io.Writer, out statusOutput) {
+func renderStatusTextFailedInvariants(w io.Writer, out statusOutput) {
 	for _, d := range out.Invariants.Details {
 		if d.Status == "failed" {
 			_, _ = fmt.Fprintf(w, "  [FAIL] %s: %s\n", d.ID, d.Description)
@@ -242,14 +222,14 @@ func renderStatusMarkdownFailedInvariants(w io.Writer, out statusOutput) {
 	}
 }
 
-func renderStatusMarkdownNoPipeline(w io.Writer, out statusOutput) {
+func renderStatusTextNoPipeline(w io.Writer, out statusOutput) {
 	_, _ = fmt.Fprintf(w, "Argus: 项目状态\n\n")
 	_, _ = fmt.Fprintf(w, "Pipeline: 无活跃 Pipeline\n\n")
 	_, _ = fmt.Fprintf(w, "Invariant: %d passed, %d failed\n", out.Invariants.Passed, out.Invariants.Failed)
-	renderStatusMarkdownFailedInvariants(w, out)
+	renderStatusTextFailedInvariants(w, out)
 }
 
-func renderStatusMarkdownActive(w io.Writer, out statusOutput, instanceID string) {
+func renderStatusTextActive(w io.Writer, out statusOutput, instanceID string) {
 	_, _ = fmt.Fprintf(w, "Argus: 项目状态\n\n")
 
 	sp := out.Pipeline
@@ -275,5 +255,5 @@ func renderStatusMarkdownActive(w io.Writer, out statusOutput, instanceID string
 	}
 
 	_, _ = fmt.Fprintf(w, "\nInvariant: %d passed, %d failed\n", out.Invariants.Passed, out.Invariants.Failed)
-	renderStatusMarkdownFailedInvariants(w, out)
+	renderStatusTextFailedInvariants(w, out)
 }

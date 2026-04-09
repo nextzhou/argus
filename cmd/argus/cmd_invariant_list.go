@@ -3,13 +3,13 @@ package main
 import (
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 
-	"github.com/nextzhou/argus/internal/core"
 	"github.com/nextzhou/argus/internal/invariant"
 	"github.com/spf13/cobra"
 )
@@ -26,17 +26,19 @@ type invariantListOutput struct {
 }
 
 func newInvariantListCmd() *cobra.Command {
-	return &cobra.Command{
+	var jsonFlag bool
+
+	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "List available invariants",
 		Args:  cobra.NoArgs,
-		RunE: func(_ *cobra.Command, _ []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			invariantsDir := filepath.Join(".argus", "invariants")
 
 			entries, err := os.ReadDir(invariantsDir)
 			if err != nil {
 				if errors.Is(err, fs.ErrNotExist) {
-					return writeInvariantListOutput(nil)
+					return writeInvariantListOutput(cmd, nil, jsonFlag)
 				}
 				return fmt.Errorf("reading invariants directory: %w", err)
 			}
@@ -66,20 +68,41 @@ func newInvariantListCmd() *cobra.Command {
 				return strings.Compare(a.ID, b.ID)
 			})
 
-			return writeInvariantListOutput(result)
+			return writeInvariantListOutput(cmd, result, jsonFlag)
 		},
 	}
+
+	bindJSONFlag(cmd, &jsonFlag)
+	return cmd
 }
 
-func writeInvariantListOutput(invariants []invariantListEntry) error {
+func writeInvariantListOutput(cmd *cobra.Command, invariants []invariantListEntry, jsonOutput bool) error {
 	if invariants == nil {
 		invariants = []invariantListEntry{}
 	}
-	outBytes, err := core.OKEnvelope(invariantListOutput{Invariants: invariants})
-	if err != nil {
-		return fmt.Errorf("marshaling output: %w", err)
+
+	if jsonOutput {
+		return writeJSONOK(cmd, invariantListOutput{Invariants: invariants})
 	}
-	_, _ = os.Stdout.Write(outBytes)
-	_, _ = os.Stdout.WriteString("\n")
+
+	renderInvariantListText(cmd.OutOrStdout(), invariants)
 	return nil
+}
+
+func renderInvariantListText(w io.Writer, invariants []invariantListEntry) {
+	_, _ = fmt.Fprintln(w, "Argus: Invariants")
+	_, _ = fmt.Fprintln(w)
+
+	if len(invariants) == 0 {
+		_, _ = fmt.Fprintln(w, "No invariants found.")
+		return
+	}
+
+	for _, inv := range invariants {
+		_, _ = fmt.Fprintf(w, "- %s", inv.ID)
+		if inv.Description != "" {
+			_, _ = fmt.Fprintf(w, " — %s", inv.Description)
+		}
+		_, _ = fmt.Fprintf(w, " (auto: %s, checks: %d)\n", inv.Auto, inv.Checks)
+	}
 }
