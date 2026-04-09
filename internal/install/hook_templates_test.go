@@ -21,7 +21,7 @@ func TestClaudeCodeHookTemplate(t *testing.T) {
 
 	content := string(rendered)
 	assert.Contains(t, content, "argus tick --agent claude-code")
-	assert.Contains(t, content, "argus trap --agent claude-code")
+	assert.NotContains(t, content, "argus trap --agent claude-code")
 	assert.NotContains(t, content, "--global")
 }
 
@@ -34,8 +34,8 @@ func TestCodexHookTemplate(t *testing.T) {
 
 	content := string(rendered)
 	assert.Contains(t, content, "argus tick --agent codex")
-	assert.Contains(t, content, "argus trap --agent codex")
-	assert.Contains(t, content, `"matcher": "Bash"`)
+	assert.NotContains(t, content, "argus trap --agent codex")
+	assert.NotContains(t, content, `"matcher": "Bash"`)
 }
 
 func TestOpenCodePluginTemplate(t *testing.T) {
@@ -44,9 +44,9 @@ func TestOpenCodePluginTemplate(t *testing.T) {
 
 	content := string(rendered)
 	assert.Contains(t, content, "argus tick --agent opencode")
-	assert.Contains(t, content, "argus trap --agent opencode")
+	assert.NotContains(t, content, "argus trap --agent opencode")
 	assert.Contains(t, content, "chat.message")
-	assert.Contains(t, content, "tool.execute.before")
+	assert.NotContains(t, content, "tool.execute.before")
 	assert.Contains(t, content, "which argus")
 }
 

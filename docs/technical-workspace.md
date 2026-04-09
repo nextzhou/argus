@@ -18,7 +18,7 @@ This command registers a directory as an Argus workspace, usually a parent direc
 
 **Actions performed**:
 
-1. Write `argus tick` and `argus trap` to **global** hook configuration for supported agents
+1. Write `argus tick` to **global** hook configuration for supported agents
 2. Install global skills such as `argus-install` and `argus-doctor`
 3. **Release global artifacts**: release workspace-specific invariants such as `argus-project-init` into `~/.config/argus/invariants/`, and create the global directory structure (`invariants/`, `workflows/`, `pipelines/`, `logs/`, and so on). The `workflows/` directory is created but no workflows are released into it. Project-only invariants such as `argus-init` are not released into global scope because their remediation workflows do not exist there
 4. Record the workspace path in `~/.config/argus/config.yaml`
@@ -60,7 +60,7 @@ Workspace install and uninstall return `changes` and `affected_paths` summaries.
 
 #### Flag Meaning
 
-`--global` identifies the **source** of a hook invocation as global configuration. It is an internal source marker for `tick` and `trap`.
+`--global` identifies the **source** of a hook invocation as global configuration. It is an internal source marker for `tick`, and remains available for any future reserved `trap` invocation.
 
 ### 10.3 Scope Model and Arbitration
 

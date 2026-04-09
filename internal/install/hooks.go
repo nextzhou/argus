@@ -23,6 +23,8 @@ const (
 	codexConfigRelativePath    = ".codex/config.toml"
 )
 
+// Keep PreToolUse in the managed event set so reinstall/uninstall can remove
+// legacy argus trap entries even though new installs only add UserPromptSubmit.
 var claudeCodeHookEvents = []string{"UserPromptSubmit", "PreToolUse"}
 
 // InstallHooks installs Argus-managed hook files for the requested agents.
@@ -116,7 +118,13 @@ func installClaudeCodeHooksAt(settingsPath string, global bool, tracker *mutatio
 			return fmt.Errorf("cleaning claude code %s hooks: %w", event, err)
 		}
 
-		hooks[event] = append(cleanedEntries, desiredEvents[event]...)
+		cleanedEntries = append(cleanedEntries, desiredEvents[event]...)
+		if len(cleanedEntries) == 0 {
+			delete(hooks, event)
+			continue
+		}
+
+		hooks[event] = cleanedEntries
 	}
 
 	return writeJSONObjectTracked(settingsPath, settings, tracker)

@@ -359,8 +359,7 @@ func writeClaudeHooks(t *testing.T, projectRoot string) {
 	t.Helper()
 	writeRepoFile(t, projectRoot, filepath.Join(".claude", "settings.json"), `{
 	  "hooks": {
-	    "UserPromptSubmit": [{"hooks": [{"type": "command", "command": "argus tick --agent claude-code"}]}],
-	    "PreToolUse": [{"hooks": [{"type": "command", "command": "argus trap --agent claude-code"}]}]
+	    "UserPromptSubmit": [{"hooks": [{"type": "command", "command": "argus tick --agent claude-code"}]}]
 	  }
 	}`)
 }
@@ -369,15 +368,14 @@ func writeCodexHooks(t *testing.T, projectRoot string) {
 	t.Helper()
 	writeRepoFile(t, projectRoot, filepath.Join(".codex", "hooks.json"), `{
 	  "hooks": {
-	    "UserPromptSubmit": [{"hooks": [{"type": "command", "command": "argus tick --agent codex"}]}],
-	    "PreToolUse": [{"hooks": [{"type": "command", "command": "argus trap --agent codex"}]}]
+	    "UserPromptSubmit": [{"hooks": [{"type": "command", "command": "argus tick --agent codex"}]}]
 	  }
 	}`)
 }
 
 func writeOpenCodePlugin(t *testing.T, projectRoot string) {
 	t.Helper()
-	writeRepoFile(t, projectRoot, filepath.Join(".opencode", "plugins", "argus.ts"), "export default {\n  setup() {\n    \"argus tick --agent opencode\"\n    \"argus trap --agent opencode\"\n  },\n}\n")
+	writeRepoFile(t, projectRoot, filepath.Join(".opencode", "plugins", "argus.ts"), "export default {\n  setup() {\n    \"argus tick --agent opencode\"\n  },\n}\n")
 }
 
 func writeHomeFile(t *testing.T, homeDir string, relPath string, content string) {

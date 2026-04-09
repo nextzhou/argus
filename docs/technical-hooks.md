@@ -1,6 +1,6 @@
 # Agent Hook Integration (Technical Hooks)
 
-This document explains how Argus integrates with supported AI agents through their hook or plugin systems. The goal is to provide one orchestration entry point with state-aware context injection and operation gating.
+This document explains how Argus integrates with supported AI agents through their hook or plugin systems. The current goal is to provide one orchestration entry point for state-aware context injection, while keeping a reserved internal surface for future operation gating.
 
 ---
 
@@ -17,7 +17,7 @@ This heterogeneity makes it easy for logic to drift if orchestration behavior is
 
 ### Core Approach
 
-Argus uses a forwarding model. Each agent-specific hook acts only as a wrapper that forwards event context to `argus tick` or `argus trap`. All business logic and state evaluation live in the Go CLI.
+Argus uses a forwarding model. Each installed agent-specific hook acts only as a wrapper that forwards event context to `argus tick`. `argus trap` remains a reserved internal command, but `argus install` does not wire tool-use hooks in Phase 1. All business logic and state evaluation live in the Go CLI.
 
 ```text
 Agent Hook Event -> Agent-specific wrapper -> argus CLI command -> Go business logic
@@ -38,7 +38,7 @@ This keeps orchestration logic as a single source of truth. Regardless of which 
 **Practical implications**:
 
 - Wrappers should not contain orchestration logic.
-- Minimal agent-specific output adaptation is allowed when the host requires it, for example trap allow/deny response formatting.
+- Minimal agent-specific output adaptation is allowed when the host requires it, for example OpenCode appending a text part or a future `trap` rollout formatting allow/deny responses.
 - The only wrapper-side “smart” behavior should be collecting agent-native context that Argus cannot infer by itself, such as OpenCode fetching `parentID` through its SDK.
 
 ### Sub-Agent Suppression
@@ -61,7 +61,7 @@ Different agents emit different JSON shapes. Argus uses pipe passthrough: the or
 
 Rejected alternative:
 
-- **Argument normalization in the wrapper**: the wrapper could extract fields and pass them as CLI flags, for example `argus trap --tool Bash --command "git push"`. This was rejected because it makes each wrapper more complex and spreads parsing logic across agent-specific code. Passthrough keeps normalization centralized in Go.
+- **Argument normalization in the wrapper**: the wrapper could extract fields and pass them as many CLI flags instead of forwarding the original JSON payload. This was rejected because it makes each wrapper more complex and spreads parsing logic across agent-specific code. Passthrough keeps normalization centralized in Go.
 
 ### Output Normalization: One Text Format for `tick`
 
@@ -209,15 +209,15 @@ Future versions may benefit from:
 - `experimental.chat.system.transform` for persistent state injection into the system prompt
 - `experimental.session.compacting` to preserve state across context compaction
 
-Phase 1 only requires `chat.message` and `tool.execute.before`.
+Phase 1 only requires `chat.message`.
 
 ---
 
 ## 9.3 `trap` Implementation
 
-`trap` is the operation-gating entry point. It evaluates tool invocations against workflow rules and current pipeline state.
+`trap` is the reserved operation-gating entry point. It stays in the CLI as a hidden internal command, but `argus install` and `argus install --workspace` do not install tool-use hooks in Phase 1.
 
-**Phase 1 note**: gating logic is not enforced yet. The command defaults to allow. The hook entry points are still installed now so future versions can enable real gating without forcing users to reinstall their hook configuration.
+**Phase 1 note**: gating logic is not enforced yet. The command defaults to allow. Argus deliberately avoids wiring a no-op gate into agent configs, because that would add hook surface area without changing behavior.
 
 ### Allow Output in Phase 1
 
@@ -241,123 +241,19 @@ Allow output used by Claude Code and OpenCode:
 
 Pre-commit quality checks such as lint or test enforcement belong in Git hooks, not in `trap`. `trap` is meant for pipeline-state-aware operation gating, not as a generic code-quality gate.
 
-### Claude Code
+### Why Keep the Command
 
-Claude Code uses `PreToolUse` and can intercept:
+Keeping `trap` as a stable internal command preserves the CLI surface and its output contract while the actual gating policy is still empty. That lets future versions add real tool gating without redesigning the command boundary itself.
 
-- bash commands
-- file edits
-- writes
-- MCP and other tool operations
+### Legacy Cleanup
 
-#### Example Configuration
-
-```json
-{
-  "hooks": {
-    "PreToolUse": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "argus trap --agent claude-code",
-            "timeout": 10,
-            "statusMessage": "Argus"
-          }
-        ]
-      }
-    ]
-  }
-}
-```
-
-Claude Code supports `deny`, `allow`, and `ask` through `permissionDecision`.
-
-#### Example Deny Output
-
-```json
-{
-  "hookSpecificOutput": {
-    "hookEventName": "PreToolUse",
-    "permissionDecision": "deny",
-    "permissionDecisionReason": "Argus: This operation is not allowed in the current stage"
-  }
-}
-```
-
-### Codex
-
-Codex also supports `PreToolUse`, but currently only for Bash tools. It cannot reliably block file edits, so it should be treated as a useful warning layer rather than a hard execution boundary.
-
-Additional Codex limitations:
-
-- no `if` field, so command filtering must happen inside Argus
-- the agent can work around bash interception by writing a script file and then executing it
-- allow output must be empty stdout rather than a structured `permissionDecision: "allow"` response
-
-#### Example Configuration
-
-```json
-{
-  "hooks": {
-    "PreToolUse": [
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "argus trap --agent codex",
-            "timeout": 10,
-            "statusMessage": "Argus"
-          }
-        ]
-      }
-    ]
-  }
-}
-```
-
-### OpenCode
-
-OpenCode provides two relevant layers:
-
-- `tool.execute.before` to inspect or modify tool parameters before execution
-- `permission.ask` for richer permission decisions
-
-#### Example Implementation
-
-```typescript
-"tool.execute.before": async (input, output) => {
-  try {
-    const payload = JSON.stringify({ tool: input.tool, args: output.args });
-    const result = await $`echo ${payload} | argus trap --agent opencode`
-      .quiet()
-      .nothrow();
-    if (result.exitCode !== 0) {
-      // Argus execution failed, fail open
-      return;
-    }
-    const trapData = JSON.parse(result.text());
-    if (trapData.hookSpecificOutput?.permissionDecision === "deny") {
-      throw new Error(
-        trapData.hookSpecificOutput.permissionDecisionReason ??
-          "Argus: Operation denied"
-      );
-    }
-  } catch (e: any) {
-    if (typeof e?.message === "string" && e.message.startsWith("Argus:")) {
-      throw e;
-    }
-    // JSON parsing or other wrapper failures: fail open
-  }
-}
-```
+Older Argus installs may already contain `PreToolUse` or equivalent `argus trap` entries. Reinstall and uninstall continue to recognize and remove those legacy entries so repositories converge toward the new tick-only configuration.
 
 ---
 
 ## 9.4 Install and Uninstall
 
-`argus install` injects hook configuration into each agent-specific location.
+`argus install` injects context-injection (`tick`) hook configuration into each agent-specific location.
 
 ### Write Locations
 
@@ -386,7 +282,7 @@ For Codex, Argus intentionally **does not** disable the global `codex_hooks` tog
 
 Install and uninstall must merge or remove Argus-owned entries safely.
 
-- **Claude Code / Codex**: identify entries by matching hook command content. The command field should be checked for `argus tick` or `argus trap`, using substring matching rather than exact-match equality because users may install `argus` via absolute paths.
+- **Claude Code / Codex**: identify entries by matching hook command content. The command field should be checked for `argus tick` or legacy `argus trap`, using substring matching rather than exact-match equality because users may install `argus` via absolute paths.
 - **OpenCode**: identify by filename. Argus owns `.opencode/plugins/argus.ts`.
 
 ---
@@ -435,10 +331,12 @@ Argus prefers inline hook logic over extra wrapper scripts to reduce file lookup
 
 ## 9.6 Capability Matrix
 
+Current installers wire only `tick`. The interception-oriented rows below describe host-agent capabilities that matter to a future `trap` rollout; they are not active Argus integrations in Phase 1.
+
 | Capability Area | Feature | Claude Code | Codex | OpenCode |
 | :--- | :--- | :---: | :---: | :---: |
 | **Basic triggers** | `tick` (context injection) | Yes | Yes | Excellent |
-| | `trap` (operation gating) | Excellent | Bash only | Excellent |
+| | Reserved `trap` rollout | Supported | Bash only | Supported |
 | **Interception scope** | Bash command interception | Yes | Yes | Yes |
 | | File read/write interception | Yes | No | Yes |
 | | MCP tool interception | Yes | No | Yes |
@@ -461,7 +359,7 @@ Argus prefers inline hook logic over extra wrapper scripts to reduce file lookup
 
 ### Interception Limits
 
-Codex `PreToolUse` cannot intercept file edits. If a workflow requires hard protection over certain files, Codex can only receive soft constraints through `tick`, and the agent may still ignore them.
+If Argus later enables `trap`, Codex `PreToolUse` still cannot intercept file edits. A workflow that requires hard protection over certain files would therefore need additional enforcement beyond Codex tool hooks alone.
 
 Possible workarounds:
 
@@ -478,8 +376,8 @@ OpenCode plugins require a JS or TS runtime. OpenCode ships with Bun, so Argus c
 Each agent interprets stdout and exit codes differently. Argus keeps:
 
 - **`tick`**: plain text across all agents
-- **deny responses in `trap`**: JSON with fields such as `permissionDecision`
-- **allow responses in `trap`**: agent-specific, because Codex requires empty stdout while Claude Code and OpenCode can accept allow JSON
+- **deny responses in a future `trap` rollout**: JSON with fields such as `permissionDecision`
+- **allow responses in a future `trap` rollout**: agent-specific, because Codex requires empty stdout while Claude Code and OpenCode can accept allow JSON
 
 ---
 

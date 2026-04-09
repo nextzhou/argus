@@ -11,19 +11,6 @@
           }
         ]
       }
-    ],
-    "PreToolUse": [
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "argus trap --agent codex{{ if .Global }} --global{{ end }}",
-            "timeout": 10,
-            "statusMessage": "Argus"
-          }
-        ]
-      }
     ]
   }
 }

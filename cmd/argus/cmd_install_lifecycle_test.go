@@ -217,6 +217,7 @@ func TestInstallEdgeCases(t *testing.T) {
 
 		settingsData, err := os.ReadFile(filepath.Join(".claude", "settings.json"))
 		require.NoError(t, err)
+		assert.NotContains(t, string(settingsData), "argus trap", "project install should not configure argus trap")
 
 		var settings map[string]any
 		require.NoError(t, json.Unmarshal(settingsData, &settings))

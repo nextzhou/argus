@@ -23,7 +23,7 @@ func TestClaudeCodeHookInstallUninstall(t *testing.T) {
 	settings := readJSONFile(t, settingsPath)
 
 	assert.Equal(t, []string{"argus tick --agent claude-code"}, hookCommandsForEvent(t, settings, "UserPromptSubmit"))
-	assert.Equal(t, []string{"argus trap --agent claude-code"}, hookCommandsForEvent(t, settings, "PreToolUse"))
+	assert.Empty(t, hookCommandsForEvent(t, settings, "PreToolUse"))
 
 	require.NoError(t, UninstallHooks(projectRoot, []string{"claude-code"}))
 
@@ -59,6 +59,24 @@ func TestClaudeCodePreserveNonArgusHooks(t *testing.T) {
 	          }
 	        ]
 	      }
+	    ],
+	    "PreToolUse": [
+	      {
+	        "hooks": [
+	          {
+	            "type": "command",
+	            "command": "custom pre-tool",
+	            "timeout": 5,
+	            "statusMessage": "Custom PreTool"
+	          },
+	          {
+	            "type": "command",
+	            "command": "/tmp/bin/argus trap --agent claude-code",
+	            "timeout": 5,
+	            "statusMessage": "Old Argus Trap"
+	          }
+	        ]
+	      }
 	    ]
 	  }
 	}`)
@@ -72,16 +90,15 @@ func TestClaudeCodePreserveNonArgusHooks(t *testing.T) {
 
 	settings := readJSONFile(t, settingsPath)
 	assert.Equal(t, []string{"custom <hook>", "argus tick --agent claude-code"}, hookCommandsForEvent(t, settings, "UserPromptSubmit"))
+	assert.Equal(t, []string{"custom pre-tool"}, hookCommandsForEvent(t, settings, "PreToolUse"))
 	assert.Equal(t, map[string]any{"allow": []any{"Read"}}, settings["permissions"])
 
 	require.NoError(t, UninstallHooks(projectRoot, []string{"claude-code"}))
 
 	settings = readJSONFile(t, settingsPath)
 	assert.Equal(t, []string{"custom <hook>"}, hookCommandsForEvent(t, settings, "UserPromptSubmit"))
+	assert.Equal(t, []string{"custom pre-tool"}, hookCommandsForEvent(t, settings, "PreToolUse"))
 	assert.Equal(t, map[string]any{"allow": []any{"Read"}}, settings["permissions"])
-
-	hooks := requireJSONMap(t, settings["hooks"])
-	assert.NotContains(t, hooks, "PreToolUse")
 }
 
 func TestIdempotentInstall(t *testing.T) {
@@ -93,7 +110,7 @@ func TestIdempotentInstall(t *testing.T) {
 
 	settings := readJSONFile(t, filepath.Join(projectRoot, ".claude", "settings.json"))
 	assert.Equal(t, []string{"argus tick --agent claude-code"}, hookCommandsForEvent(t, settings, "UserPromptSubmit"))
-	assert.Equal(t, []string{"argus trap --agent claude-code"}, hookCommandsForEvent(t, settings, "PreToolUse"))
+	assert.Empty(t, hookCommandsForEvent(t, settings, "PreToolUse"))
 }
 
 func TestClaudeCodeSettingsNotExists(t *testing.T) {
@@ -156,7 +173,7 @@ func TestCodexHooksJson(t *testing.T) {
 	hooksPath := filepath.Join(projectRoot, ".codex", "hooks.json")
 	hooks := readJSONFile(t, hooksPath)
 	assert.Equal(t, []string{"argus tick --agent codex"}, hookCommandsForEvent(t, hooks, "UserPromptSubmit"))
-	assert.Equal(t, []string{"argus trap --agent codex"}, hookCommandsForEvent(t, hooks, "PreToolUse"))
+	assert.Empty(t, hookCommandsForEvent(t, hooks, "PreToolUse"))
 
 	require.NoError(t, UninstallHooks(projectRoot, []string{"codex"}))
 
@@ -177,7 +194,7 @@ func TestOpenCodePlugin(t *testing.T) {
 	pluginContent, err := os.ReadFile(pluginPath)
 	require.NoError(t, err)
 	assert.Contains(t, string(pluginContent), "argus tick --agent opencode")
-	assert.Contains(t, string(pluginContent), "argus trap --agent opencode")
+	assert.NotContains(t, string(pluginContent), "argus trap --agent opencode")
 
 	require.NoError(t, UninstallHooks(projectRoot, []string{"opencode"}))
 

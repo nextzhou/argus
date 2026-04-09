@@ -27,7 +27,7 @@ Remove Argus from a project.
 
 1. Removes `.argus/` directory
 2. Removes `argus-*` prefixed skills from the project-level `.agents/skills/` and `.claude/skills/` paths
-3. Removes Agent hook configurations
+3. Removes Argus-managed `tick` hook configurations
 4. Preserves non-argus user skills
 
 Workspace uninstall (`argus uninstall --workspace <path>`) instead:

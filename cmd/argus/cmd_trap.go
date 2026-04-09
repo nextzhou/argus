@@ -14,7 +14,7 @@ func newTrapCmd() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:    "trap",
-		Short:  "Gate tool-use requests from AI agents (Phase 1: always allow)",
+		Short:  "Reserved tool-use hook entry point (not installed in Phase 1)",
 		Hidden: true,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			// Read stdin (may be empty) but don't process in Phase 1

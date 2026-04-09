@@ -142,7 +142,6 @@ func CheckHookConfig(projectRoot string) CheckResult {
 		agent        string
 		path         string
 		tickCommand  string
-		trapCommand  string
 		contentCheck bool
 	}
 
@@ -151,19 +150,16 @@ func CheckHookConfig(projectRoot string) CheckResult {
 			agent:       "claude-code",
 			path:        filepath.Join(projectRoot, projectClaudeSettingsPath),
 			tickCommand: "argus tick --agent claude-code",
-			trapCommand: "argus trap --agent claude-code",
 		},
 		{
 			agent:       "codex",
 			path:        filepath.Join(projectRoot, projectCodexHooksPath),
 			tickCommand: "argus tick --agent codex",
-			trapCommand: "argus trap --agent codex",
 		},
 		{
 			agent:        "opencode",
 			path:         filepath.Join(projectRoot, projectOpenCodePluginPath),
 			tickCommand:  "argus tick --agent opencode",
-			trapCommand:  "argus trap --agent opencode",
 			contentCheck: true,
 		},
 	}
@@ -181,8 +177,8 @@ func CheckHookConfig(projectRoot string) CheckResult {
 				issues = append(issues, fmt.Sprintf("%s: reading %s: %v", cfg.agent, filepath.Base(cfg.path), err))
 				continue
 			}
-			if !strings.Contains(string(data), cfg.tickCommand) || !strings.Contains(string(data), cfg.trapCommand) {
-				issues = append(issues, fmt.Sprintf("%s: missing argus tick/trap entries", cfg.agent))
+			if !strings.Contains(string(data), cfg.tickCommand) {
+				issues = append(issues, fmt.Sprintf("%s: missing argus tick entry", cfg.agent))
 				continue
 			}
 		} else {
@@ -191,8 +187,8 @@ func CheckHookConfig(projectRoot string) CheckResult {
 				issues = append(issues, fmt.Sprintf("%s: %v", cfg.agent, err))
 				continue
 			}
-			if !slices.Contains(commands, cfg.tickCommand) || !slices.Contains(commands, cfg.trapCommand) {
-				issues = append(issues, fmt.Sprintf("%s: missing argus tick/trap entries", cfg.agent))
+			if !slices.Contains(commands, cfg.tickCommand) {
+				issues = append(issues, fmt.Sprintf("%s: missing argus tick entry", cfg.agent))
 				continue
 			}
 		}

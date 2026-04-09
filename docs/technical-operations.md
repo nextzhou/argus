@@ -28,7 +28,7 @@ Doctor covers the following 13 dimensions.
 #### 2. Hook Configuration Validation
 
 - **Agent scope rule**: only validate agents for which Argus-owned hook artifacts already exist. If an agent’s config file does not exist, treat that agent as not enabled and skip it without error
-- verify that `argus tick` and `argus trap` entries exist where expected
+- verify that `argus tick` entries exist where expected
 - verify that the `argus` binary is discoverable on `PATH`
 
 #### 3. Workflow File Validation

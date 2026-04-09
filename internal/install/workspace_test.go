@@ -49,16 +49,16 @@ func TestInstallWorkspace_Success(t *testing.T) {
 
 	settings := readJSONFile(t, filepath.Join(homeDir, claudeSettingsRelativePath))
 	assert.Equal(t, []string{"argus tick --agent claude-code --global"}, hookCommandsForEvent(t, settings, "UserPromptSubmit"))
-	assert.Equal(t, []string{"argus trap --agent claude-code --global"}, hookCommandsForEvent(t, settings, "PreToolUse"))
+	assert.Empty(t, hookCommandsForEvent(t, settings, "PreToolUse"))
 
 	codexHooks := readJSONFile(t, filepath.Join(homeDir, codexHooksRelativePath))
 	assert.Equal(t, []string{"argus tick --agent codex --global"}, hookCommandsForEvent(t, codexHooks, "UserPromptSubmit"))
-	assert.Equal(t, []string{"argus trap --agent codex --global"}, hookCommandsForEvent(t, codexHooks, "PreToolUse"))
+	assert.Empty(t, hookCommandsForEvent(t, codexHooks, "PreToolUse"))
 
 	opencodePlugin, err := os.ReadFile(filepath.Join(homeDir, ".config", "opencode", "plugins", "argus.ts"))
 	require.NoError(t, err)
 	assert.Contains(t, string(opencodePlugin), "argus tick --agent opencode --global")
-	assert.Contains(t, string(opencodePlugin), "argus trap --agent opencode --global")
+	assert.NotContains(t, string(opencodePlugin), "argus trap --agent opencode --global")
 
 	assertGlobalSkillsReleased(t)
 }
@@ -184,7 +184,7 @@ func TestInstallGlobalHooks_ClaudeCode(t *testing.T) {
 
 	settings := readJSONFile(t, filepath.Join(homeDir, claudeSettingsRelativePath))
 	assert.Equal(t, []string{"argus tick --agent claude-code --global"}, hookCommandsForEvent(t, settings, "UserPromptSubmit"))
-	assert.Equal(t, []string{"argus trap --agent claude-code --global"}, hookCommandsForEvent(t, settings, "PreToolUse"))
+	assert.Empty(t, hookCommandsForEvent(t, settings, "PreToolUse"))
 }
 
 func TestInstallGlobalHooks_Codex(t *testing.T) {
@@ -195,7 +195,7 @@ func TestInstallGlobalHooks_Codex(t *testing.T) {
 
 	hooks := readJSONFile(t, filepath.Join(homeDir, codexHooksRelativePath))
 	assert.Equal(t, []string{"argus tick --agent codex --global"}, hookCommandsForEvent(t, hooks, "UserPromptSubmit"))
-	assert.Equal(t, []string{"argus trap --agent codex --global"}, hookCommandsForEvent(t, hooks, "PreToolUse"))
+	assert.Empty(t, hookCommandsForEvent(t, hooks, "PreToolUse"))
 
 	config := readTOMLFile(t, filepath.Join(homeDir, codexConfigRelativePath))
 	assert.Equal(t, true, config["codex_hooks"])
@@ -211,7 +211,7 @@ func TestInstallGlobalHooks_OpenCode(t *testing.T) {
 	plugin, err := os.ReadFile(pluginPath)
 	require.NoError(t, err)
 	assert.Contains(t, string(plugin), "argus tick --agent opencode --global")
-	assert.Contains(t, string(plugin), "argus trap --agent opencode --global")
+	assert.NotContains(t, string(plugin), "argus trap --agent opencode --global")
 }
 
 func TestInstallGlobalSkills(t *testing.T) {

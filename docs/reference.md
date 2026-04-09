@@ -300,12 +300,12 @@ Built-in portable tools (no external dependencies required):
 
 ### Hook Commands
 
-Called automatically by agent hooks — you don't need to run these manually:
+Called automatically by installed agent hooks, or reserved for internal integration:
 
 | Command | Description |
 |---------|-------------|
 | `argus tick --agent <name>` | Context injection (on every user message) |
-| `argus trap --agent <name>` | Operation gating (before tool execution) |
+| `argus trap --agent <name>` | Reserved operation-gating entry point; not installed by default in Phase 1 |
 
 ## Built-in Content
 
