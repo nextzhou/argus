@@ -2,6 +2,7 @@ version: "2"
 
 run:
   go: "1.26"
+  modules-download-mode: readonly
 
 linters:
   default: none
@@ -16,19 +17,20 @@ linters:
     - nolintlint
     - unconvert
     - unparam
+    - unused
     - gochecknoinits
+    - gochecknoglobals
+    - noctx
+    - errorlint
+    - testifylint
+    - gosec
     - forbidigo
   exclusions:
-    rules:
-      - path: '^cmd/argus/main\.go$'
-        linters:
-          - errcheck
-        text: 'Error return value of `os.Stdout.WriteString` is not checked'
-      - path: '^cmd/argus/main\.go$'
-        linters:
-          - revive
-        text: package-comments
+    warn-unused: true
   settings:
+    nolintlint:
+      require-explanation: true
+      require-specific: true
     forbidigo:
       forbid:
         - pattern: 'fmt\.Print'

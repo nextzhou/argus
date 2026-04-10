@@ -20,12 +20,6 @@ func executeInstallCmd(t *testing.T, args ...string) ([]byte, error) {
 	return executeJSONCommand(t, newInstallCmd(), args...)
 }
 
-func executeInstallCmdWithInput(t *testing.T, input *bytes.Buffer, args ...string) ([]byte, error) {
-	t.Helper()
-
-	return executeJSONCommandWithInput(t, newInstallCmd(), input, args...)
-}
-
 // executeUninstallCmd runs the uninstall command and captures stdout output.
 func executeUninstallCmd(t *testing.T, args ...string) ([]byte, error) {
 	t.Helper()
@@ -41,7 +35,7 @@ func executeUninstallCmdWithInput(t *testing.T, input *bytes.Buffer, args ...str
 
 func initGitRepo(t *testing.T) {
 	t.Helper()
-	require.NoError(t, os.MkdirAll(".git", 0o755))
+	require.NoError(t, os.MkdirAll(".git", 0o700))
 }
 
 func parseLifecycleOutput(t *testing.T, output []byte) map[string]any {
@@ -106,11 +100,11 @@ func TestInstallLifecycle(t *testing.T) {
 
 	for _, dir := range []string{"workflows", "invariants", "rules", "pipelines", "logs", "data", "tmp"} {
 		_, err := os.Stat(filepath.Join(".argus", dir))
-		assert.NoError(t, err, ".argus/%s should exist", dir)
+		require.NoError(t, err, ".argus/%s should exist", dir)
 	}
 
 	_, err := os.Stat(filepath.Join(".argus", "workflows", "argus-init.yaml"))
-	assert.NoError(t, err, "argus-init.yaml should exist")
+	require.NoError(t, err, "argus-init.yaml should exist")
 
 	skillEntries, err := os.ReadDir(filepath.Join(".agents", "skills"))
 	require.NoError(t, err)
@@ -118,7 +112,7 @@ func TestInstallLifecycle(t *testing.T) {
 
 	for _, skillPath := range install.SkillPaths() {
 		_, err = os.Stat(filepath.Join(skillPath, "argus-doctor", "SKILL.md"))
-		assert.NoError(t, err, "%s/argus-doctor/SKILL.md should exist", skillPath)
+		require.NoError(t, err, "%s/argus-doctor/SKILL.md should exist", skillPath)
 	}
 
 	output, cmdErr = executeUninstallCmd(t, "--yes")
@@ -156,14 +150,14 @@ func TestInstallEdgeCases(t *testing.T) {
 		t.Setenv("HOME", t.TempDir())
 
 		output, cmdErr := executeInstallCmd(t, "--yes")
-		assert.Error(t, cmdErr)
+		require.Error(t, cmdErr)
 
 		data := parseLifecycleOutput(t, output)
 		assert.Equal(t, "error", data["status"])
 
 		msg, ok := data["message"].(string)
 		require.True(t, ok, "message should be a string")
-		assert.True(t, strings.Contains(strings.ToLower(msg), "git"),
+		assert.Contains(t, strings.ToLower(msg), "git",
 			"error message should mention git, got: %s", msg)
 	})
 
@@ -176,11 +170,11 @@ func TestInstallEdgeCases(t *testing.T) {
 		require.NoError(t, cmdErr)
 
 		subdir := filepath.Join("sub", "dir")
-		require.NoError(t, os.MkdirAll(subdir, 0o755))
+		require.NoError(t, os.MkdirAll(subdir, 0o700))
 		t.Chdir(subdir)
 
 		output, cmdErr := executeInstallCmd(t, "--yes")
-		assert.Error(t, cmdErr)
+		require.Error(t, cmdErr)
 
 		data := parseLifecycleOutput(t, output)
 		assert.Equal(t, "error", data["status"])
@@ -239,29 +233,29 @@ func TestInstallEdgeCases(t *testing.T) {
 		require.NoError(t, cmdErr)
 
 		customSkillDir := filepath.Join(".agents", "skills", "my-custom")
-		require.NoError(t, os.MkdirAll(customSkillDir, 0o755))
+		require.NoError(t, os.MkdirAll(customSkillDir, 0o700))
 		require.NoError(t, os.WriteFile(
 			filepath.Join(customSkillDir, "SKILL.md"),
 			[]byte("# My Custom Skill\n"),
-			0o644,
+			0o600,
 		))
 
 		claudeCustomSkillDir := filepath.Join(".claude", "skills", "my-custom")
-		require.NoError(t, os.MkdirAll(claudeCustomSkillDir, 0o755))
+		require.NoError(t, os.MkdirAll(claudeCustomSkillDir, 0o700))
 		require.NoError(t, os.WriteFile(
 			filepath.Join(claudeCustomSkillDir, "SKILL.md"),
 			[]byte("# My Claude Custom Skill\n"),
-			0o644,
+			0o600,
 		))
 
 		_, cmdErr = executeUninstallCmd(t, "--yes")
 		require.NoError(t, cmdErr)
 
 		_, err := os.Stat(filepath.Join(".agents", "skills", "my-custom", "SKILL.md"))
-		assert.NoError(t, err, "non-argus skill should be preserved after uninstall")
+		require.NoError(t, err, "non-argus skill should be preserved after uninstall")
 
 		_, err = os.Stat(filepath.Join(".claude", "skills", "my-custom", "SKILL.md"))
-		assert.NoError(t, err, "non-argus Claude skill should be preserved after uninstall")
+		require.NoError(t, err, "non-argus Claude skill should be preserved after uninstall")
 
 		for _, skillPath := range install.SkillPaths() {
 			_, err = os.Stat(filepath.Join(skillPath, "argus-doctor"))
@@ -274,7 +268,7 @@ func TestInstallEdgeCases(t *testing.T) {
 		t.Setenv("HOME", t.TempDir())
 		initGitRepo(t)
 
-		require.NoError(t, os.MkdirAll(".claude", 0o755))
+		require.NoError(t, os.MkdirAll(".claude", 0o700))
 		preExisting := map[string]any{
 			"hooks": map[string]any{
 				"UserPromptSubmit": []any{
@@ -295,7 +289,7 @@ func TestInstallEdgeCases(t *testing.T) {
 		require.NoError(t, os.WriteFile(
 			filepath.Join(".claude", "settings.json"),
 			preExistingJSON,
-			0o644,
+			0o600,
 		))
 
 		_, cmdErr := executeInstallCmd(t, "--yes")

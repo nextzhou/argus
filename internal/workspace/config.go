@@ -32,6 +32,7 @@ func DeduplicateWorkspaces(workspaces []string) []string {
 
 // LoadConfig reads a workspace config file, rejecting unknown fields.
 func LoadConfig(path string) (*Config, error) {
+	//nolint:gosec // LoadConfig intentionally reads the exact config path selected by the caller.
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("opening config file %q: %w", path, err)
@@ -51,7 +52,7 @@ func LoadConfig(path string) (*Config, error) {
 
 // SaveConfig writes a workspace config file, creating parent directories as needed.
 func SaveConfig(path string, c *Config) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return fmt.Errorf("creating config directory: %w", err)
 	}
 
@@ -60,7 +61,7 @@ func SaveConfig(path string, c *Config) error {
 		return fmt.Errorf("marshaling config: %w", err)
 	}
 
-	if err := os.WriteFile(path, data, 0o644); err != nil {
+	if err := os.WriteFile(path, data, 0o600); err != nil {
 		return fmt.Errorf("writing config file %q: %w", path, err)
 	}
 

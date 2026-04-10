@@ -332,7 +332,7 @@ func CheckGitignore(projectRoot string) CheckResult {
 		return skippedProjectCheck(checkGitignore)
 	}
 
-	data, err := os.ReadFile(filepath.Join(projectRoot, ".gitignore"))
+	data, err := readProjectFile(projectRoot, ".gitignore")
 	if err != nil {
 		return failResult(checkGitignore, fmt.Sprintf("reading .gitignore: %v", err), "add the required Argus local-only paths to .gitignore")
 	}
@@ -405,7 +405,7 @@ func CheckVersionCompat(projectRoot string) CheckResult {
 
 // CheckTmpPermissions verifies /tmp/argus can be written.
 func CheckTmpPermissions() CheckResult {
-	if err := os.MkdirAll(tmpArgusDir, 0o755); err != nil {
+	if err := os.MkdirAll(tmpArgusDir, 0o700); err != nil {
 		return failResult(checkTmpPermissions, fmt.Sprintf("creating %s: %v", tmpArgusDir, err), "fix the temporary directory permissions for /tmp/argus")
 	}
 
@@ -535,6 +535,21 @@ func failResult(name string, message string, suggestion string) CheckResult {
 	return CheckResult{Name: name, Status: statusFail, Message: message, Suggestion: suggestion}
 }
 
+func readProjectFile(projectRoot string, relativePath string) ([]byte, error) {
+	path := filepath.Join(projectRoot, relativePath)
+	if err := core.ValidatePath(projectRoot, path); err != nil {
+		return nil, fmt.Errorf("validating %s path: %w", relativePath, err)
+	}
+
+	//nolint:gosec // The file path is constrained to the resolved project root via ValidatePath.
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	return data, nil
+}
+
 func skipResult(name string, message string) CheckResult {
 	return CheckResult{Name: name, Status: statusSkip, Message: message}
 }
@@ -554,6 +569,7 @@ func isExistingFile(path string) bool {
 }
 
 func readCommandFields(path string) ([]string, error) {
+	//nolint:gosec // The caller resolves concrete config file paths before readCommandFields parses them.
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("reading %s: %w", filepath.Base(path), err)
@@ -690,6 +706,7 @@ func readDoctorLog(projectRoot string) (string, []byte, error) {
 	paths = append(paths, filepath.Join(homeDir, ".config", "argus", "logs", "hook.log"))
 
 	for _, path := range paths {
+		//nolint:gosec // readDoctorLog only inspects known Argus-managed log paths.
 		data, readErr := os.ReadFile(path)
 		if readErr == nil {
 			return path, data, nil
@@ -732,6 +749,7 @@ func workflowSharedFileName() string {
 }
 
 func readVersionField(path string) (string, error) {
+	//nolint:gosec // collectVersionedFiles enumerates concrete Argus-managed files before readVersionField reads them.
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return "", fmt.Errorf("reading versioned file: %w", err)

@@ -129,7 +129,7 @@ func TestInvariantInspect(t *testing.T) {
 			name:       "empty directory produces valid report",
 			wantStatus: "ok",
 			setup: func(t *testing.T) {
-				require.NoError(t, os.MkdirAll(filepath.Join(".argus", "invariants"), 0o755))
+				require.NoError(t, os.MkdirAll(filepath.Join(".argus", "invariants"), 0o700))
 			},
 			checkJSON: func(t *testing.T, data map[string]any) {
 				assert.Equal(t, true, data["valid"])
@@ -194,10 +194,10 @@ func TestInvariantInspect(t *testing.T) {
 			name: "custom dir argument",
 			args: []string{"custom-invariants"},
 			setup: func(t *testing.T) {
-				require.NoError(t, os.MkdirAll("custom-invariants", 0o755))
+				require.NoError(t, os.MkdirAll("custom-invariants", 0o700))
 				require.NoError(t, os.WriteFile(
 					filepath.Join("custom-invariants", "my-check.yaml"),
-					[]byte(validInvariantForInspect), 0o644,
+					[]byte(validInvariantForInspect), 0o600,
 				))
 			},
 			wantStatus: "ok",
@@ -221,7 +221,7 @@ func TestInvariantInspect(t *testing.T) {
 			output, cmdErr := executeInvariantInspectCmd(t, tt.args...)
 
 			if tt.wantErr {
-				assert.Error(t, cmdErr)
+				require.Error(t, cmdErr)
 			} else {
 				require.NoError(t, cmdErr)
 			}
@@ -299,10 +299,10 @@ func TestBuildWorkflowChecker(t *testing.T) {
 			name: "valid workflows dir with workflows",
 			setup: func(t *testing.T) string {
 				dir := filepath.Join(t.TempDir(), "workflows")
-				require.NoError(t, os.MkdirAll(dir, 0o755))
+				require.NoError(t, os.MkdirAll(dir, 0o700))
 				require.NoError(t, os.WriteFile(
 					filepath.Join(dir, "my-workflow.yaml"),
-					[]byte(validWorkflowForInspect), 0o644,
+					[]byte(validWorkflowForInspect), 0o600,
 				))
 				return dir
 			},
@@ -325,14 +325,14 @@ func TestBuildWorkflowChecker(t *testing.T) {
 			name: "corrupt YAML is skipped but valid ones still findable",
 			setup: func(t *testing.T) string {
 				dir := filepath.Join(t.TempDir(), "workflows")
-				require.NoError(t, os.MkdirAll(dir, 0o755))
+				require.NoError(t, os.MkdirAll(dir, 0o700))
 				require.NoError(t, os.WriteFile(
 					filepath.Join(dir, "good.yaml"),
-					[]byte(validWorkflowForInspect), 0o644,
+					[]byte(validWorkflowForInspect), 0o600,
 				))
 				require.NoError(t, os.WriteFile(
 					filepath.Join(dir, "corrupt.yaml"),
-					[]byte("not: valid: yaml: [broken"), 0o644,
+					[]byte("not: valid: yaml: [broken"), 0o600,
 				))
 				return dir
 			},
@@ -345,10 +345,10 @@ func TestBuildWorkflowChecker(t *testing.T) {
 			name: "shared yaml is skipped",
 			setup: func(t *testing.T) string {
 				dir := filepath.Join(t.TempDir(), "workflows")
-				require.NoError(t, os.MkdirAll(dir, 0o755))
+				require.NoError(t, os.MkdirAll(dir, 0o700))
 				require.NoError(t, os.WriteFile(
 					filepath.Join(dir, "_shared.yaml"),
-					[]byte(validWorkflowForInspect), 0o644,
+					[]byte(validWorkflowForInspect), 0o600,
 				))
 				return dir
 			},

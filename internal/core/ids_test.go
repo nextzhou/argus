@@ -1,7 +1,6 @@
 package core
 
 import (
-	"errors"
 	"strings"
 	"testing"
 
@@ -36,7 +35,7 @@ func TestValidateWorkflowID(t *testing.T) {
 			err := ValidateWorkflowID(tt.id)
 			if tt.wantErr {
 				require.Error(t, err)
-				assert.True(t, errors.Is(err, ErrInvalidID), "expected ErrInvalidID, got: %v", err)
+				assert.ErrorIs(t, err, ErrInvalidID, "expected ErrInvalidID, got: %v", err)
 			} else {
 				assert.NoError(t, err)
 			}
@@ -69,7 +68,7 @@ func TestValidateJobID(t *testing.T) {
 			err := ValidateJobID(tt.id)
 			if tt.wantErr {
 				require.Error(t, err)
-				assert.True(t, errors.Is(err, ErrInvalidID), "expected ErrInvalidID, got: %v", err)
+				assert.ErrorIs(t, err, ErrInvalidID, "expected ErrInvalidID, got: %v", err)
 			} else {
 				assert.NoError(t, err)
 			}
@@ -102,7 +101,7 @@ func TestValidateSkillName(t *testing.T) {
 			err := ValidateSkillName(tt.skillName)
 			if tt.wantErr {
 				require.Error(t, err)
-				assert.True(t, errors.Is(err, ErrInvalidID), "expected ErrInvalidID, got: %v", err)
+				assert.ErrorIs(t, err, ErrInvalidID, "expected ErrInvalidID, got: %v", err)
 			} else {
 				assert.NoError(t, err)
 			}

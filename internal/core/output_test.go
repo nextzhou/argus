@@ -29,7 +29,7 @@ func TestOKEnvelope(t *testing.T) {
 		var result map[string]any
 		require.NoError(t, json.Unmarshal(data, &result))
 		assert.Equal(t, "ok", result["status"])
-		assert.Equal(t, float64(42), result["count"])
+		assert.InDelta(t, 42, result["count"], 0)
 		assert.Equal(t, "test", result["name"])
 		// No "data" wrapper key
 		assert.Nil(t, result["data"])
@@ -93,7 +93,7 @@ func TestErrorEnvelope(t *testing.T) {
 		var result map[string]any
 		require.NoError(t, json.Unmarshal(data, &result))
 		assert.Equal(t, "error", result["status"])
-		assert.Equal(t, "", result["message"])
+		assert.Empty(t, result["message"])
 	})
 
 	t.Run("valid JSON", func(t *testing.T) {

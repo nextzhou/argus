@@ -150,7 +150,7 @@ func TestResolveScope(t *testing.T) {
 				projectDir := filepath.Join(homeDir, "project-installed")
 				createResolveTestProject(t, projectDir, true)
 				cwd := filepath.Join(projectDir, "nested", "dir")
-				require.NoError(t, os.MkdirAll(cwd, 0o755))
+				require.NoError(t, os.MkdirAll(cwd, 0o700))
 				return resolveScopeTestInput{cwd: cwd, projectDir: projectDir}
 			},
 			wantScope: "project",
@@ -164,7 +164,7 @@ func TestResolveScope(t *testing.T) {
 				projectDir := filepath.Join(workspaceDir, "argus")
 				createResolveTestProject(t, projectDir, false)
 				cwd := filepath.Join(projectDir, "nested")
-				require.NoError(t, os.MkdirAll(cwd, 0o755))
+				require.NoError(t, os.MkdirAll(cwd, 0o700))
 				return resolveScopeTestInput{cwd: cwd, projectDir: projectDir}
 			},
 			wantScope: "global",
@@ -178,7 +178,7 @@ func TestResolveScope(t *testing.T) {
 				projectDir := filepath.Join(homeDir, "personal-project")
 				createResolveTestProject(t, projectDir, false)
 				cwd := filepath.Join(projectDir, "nested")
-				require.NoError(t, os.MkdirAll(cwd, 0o755))
+				require.NoError(t, os.MkdirAll(cwd, 0o700))
 				return resolveScopeTestInput{cwd: cwd, projectDir: projectDir}
 			},
 			wantScope: "nil",
@@ -188,7 +188,7 @@ func TestResolveScope(t *testing.T) {
 			setup: func(t *testing.T, homeDir string) resolveScopeTestInput {
 				t.Helper()
 				cwd := filepath.Join(homeDir, "not-a-project")
-				require.NoError(t, os.MkdirAll(cwd, 0o755))
+				require.NoError(t, os.MkdirAll(cwd, 0o700))
 				return resolveScopeTestInput{cwd: cwd}
 			},
 			wantScope: "nil",
@@ -215,9 +215,9 @@ type resolveScopeTestInput struct {
 
 func createResolveTestProject(t *testing.T, projectDir string, installed bool) {
 	t.Helper()
-	require.NoError(t, os.MkdirAll(filepath.Join(projectDir, ".git"), 0o755))
+	require.NoError(t, os.MkdirAll(filepath.Join(projectDir, ".git"), 0o700))
 	if installed {
-		require.NoError(t, os.MkdirAll(filepath.Join(projectDir, ".argus"), 0o755))
+		require.NoError(t, os.MkdirAll(filepath.Join(projectDir, ".argus"), 0o700))
 	}
 }
 
@@ -236,8 +236,8 @@ func writeResolveWorkspaceConfig(t *testing.T, homeDir string, workspaces []stri
 func writeResolveRawWorkspaceConfig(t *testing.T, homeDir, content string) {
 	t.Helper()
 	configPath := filepath.Join(homeDir, ".config", "argus", "config.yaml")
-	require.NoError(t, os.MkdirAll(filepath.Dir(configPath), 0o755))
-	require.NoError(t, os.WriteFile(configPath, []byte(content), 0o644))
+	require.NoError(t, os.MkdirAll(filepath.Dir(configPath), 0o700))
+	require.NoError(t, os.WriteFile(configPath, []byte(content), 0o600))
 }
 
 func assertResolvedScope(t *testing.T, resolved Scope, wantScope, homeDir, projectDir string) {

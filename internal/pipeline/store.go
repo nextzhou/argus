@@ -38,6 +38,7 @@ func LoadPipeline(dir, instanceID string) (*Pipeline, error) {
 		return nil, fmt.Errorf("validating pipeline path: %w", err)
 	}
 
+	//nolint:gosec // Pipeline instance IDs are validated to remain inside the pipeline state directory.
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("opening pipeline file %q: %w", instanceID, err)
@@ -61,7 +62,7 @@ func LoadPipeline(dir, instanceID string) (*Pipeline, error) {
 
 // SavePipeline writes a pipeline data file to disk, creating the directory if needed.
 func SavePipeline(dir, instanceID string, p *Pipeline) error {
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return fmt.Errorf("creating pipeline directory: %w", err)
 	}
 
@@ -76,7 +77,7 @@ func SavePipeline(dir, instanceID string, p *Pipeline) error {
 		return fmt.Errorf("marshaling pipeline %q: %w", instanceID, err)
 	}
 
-	if err := os.WriteFile(path, data, 0o644); err != nil {
+	if err := os.WriteFile(path, data, 0o600); err != nil {
 		return fmt.Errorf("writing pipeline file %q: %w", instanceID, err)
 	}
 

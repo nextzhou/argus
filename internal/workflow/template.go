@@ -2,6 +2,7 @@ package workflow
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -14,14 +15,8 @@ var simplePlaceholderPattern = regexp.MustCompile(`{{-?\s*\.[A-Za-z0-9_]+(?:\.[A
 
 type templateRuntime struct {
 	env         func() map[string]string
-	gitBranch   func() string
+	gitBranch   func(context.Context) string
 	projectRoot func() string
-}
-
-var defaultTemplateRuntime = templateRuntime{
-	env:         buildEnvContext,
-	gitBranch:   gitBranch,
-	projectRoot: projectRoot,
 }
 
 // TemplateContext stores all prompt values available to template rendering.
@@ -77,11 +72,14 @@ type PipelineJobData struct {
 }
 
 // BuildContext assembles the template context for the selected workflow job.
-func BuildContext(jobs map[string]*PipelineJobData, w *Workflow, jobIdx int) *TemplateContext {
-	return buildContextWithRuntime(jobs, w, jobIdx, defaultTemplateRuntime)
+func BuildContext(renderCtx context.Context, jobs map[string]*PipelineJobData, w *Workflow, jobIdx int) *TemplateContext {
+	return buildContextWithRuntime(renderCtx, jobs, w, jobIdx, templateRuntime{})
 }
 
-func buildContextWithRuntime(jobs map[string]*PipelineJobData, w *Workflow, jobIdx int, runtime templateRuntime) *TemplateContext {
+func buildContextWithRuntime(renderCtx context.Context, jobs map[string]*PipelineJobData, w *Workflow, jobIdx int, runtime templateRuntime) *TemplateContext {
+	if renderCtx == nil {
+		renderCtx = context.Background()
+	}
 	if runtime.env == nil {
 		runtime.env = buildEnvContext
 	}
@@ -92,11 +90,11 @@ func buildContextWithRuntime(jobs map[string]*PipelineJobData, w *Workflow, jobI
 		runtime.projectRoot = projectRoot
 	}
 
-	ctx := &TemplateContext{
+	templateCtx := &TemplateContext{
 		Env:  runtime.env(),
 		Jobs: buildJobsContext(jobs),
 		Git: TemplateGitContext{
-			Branch: runtime.gitBranch(),
+			Branch: runtime.gitBranch(renderCtx),
 		},
 		Project: TemplateProjectContext{
 			Root: runtime.projectRoot(),
@@ -104,34 +102,34 @@ func buildContextWithRuntime(jobs map[string]*PipelineJobData, w *Workflow, jobI
 	}
 
 	if w == nil {
-		return ctx
+		return templateCtx
 	}
 
-	ctx.Workflow = TemplateWorkflowContext{
+	templateCtx.Workflow = TemplateWorkflowContext{
 		ID:          w.ID,
 		Description: w.Description,
 	}
 
 	if jobIdx < 0 || jobIdx >= len(w.Jobs) {
-		return ctx
+		return templateCtx
 	}
 
-	ctx.Job = TemplateJobContext{
+	templateCtx.Job = TemplateJobContext{
 		ID:    w.Jobs[jobIdx].ID,
 		Index: jobIdx,
 	}
 
 	if jobIdx == 0 {
-		return ctx
+		return templateCtx
 	}
 
 	previousJobID := w.Jobs[jobIdx-1].ID
-	ctx.PreJob = TemplatePreJobContext{
+	templateCtx.PreJob = TemplatePreJobContext{
 		ID:      previousJobID,
 		Message: previousJobMessage(jobs, previousJobID),
 	}
 
-	return ctx
+	return templateCtx
 }
 
 // RenderPrompt substitutes known placeholders and preserves unresolved ones.
@@ -256,8 +254,8 @@ func previousJobMessage(jobData map[string]*PipelineJobData, previousJobID strin
 	return *data.Message
 }
 
-func gitBranch() string {
-	output, err := exec.Command("git", "rev-parse", "--abbrev-ref", "HEAD").Output()
+func gitBranch(ctx context.Context) string {
+	output, err := exec.CommandContext(ctx, "git", "rev-parse", "--abbrev-ref", "HEAD").Output()
 	if err != nil {
 		return ""
 	}

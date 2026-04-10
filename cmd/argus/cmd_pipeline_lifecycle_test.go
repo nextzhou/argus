@@ -180,7 +180,7 @@ func TestPipelineLifecycle(t *testing.T) {
 		assert.Equal(t, "running", data["pipeline_status"])
 
 		output, cmdErr = executeStartCmd(t, "lifecycle-test")
-		assert.Error(t, cmdErr)
+		require.Error(t, cmdErr)
 		data = parseOutput(t, output)
 		assert.Equal(t, "error", data["status"])
 	})
@@ -190,7 +190,7 @@ func TestPipelineLifecycle(t *testing.T) {
 		writeWorkflowFixture(t, "lifecycle-test", lifecycleWorkflow)
 
 		output, cmdErr := executeJobDoneCmd(t)
-		assert.Error(t, cmdErr)
+		require.Error(t, cmdErr)
 		data := parseOutput(t, output)
 		assert.Equal(t, "error", data["status"])
 	})

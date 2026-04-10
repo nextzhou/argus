@@ -20,10 +20,10 @@ func executeJobDoneCmd(t *testing.T, args ...string) ([]byte, error) {
 func writePipelineFixture(t *testing.T, instanceID, yamlContent string) {
 	t.Helper()
 	pipelinesDir := filepath.Join(".argus", "pipelines")
-	require.NoError(t, os.MkdirAll(pipelinesDir, 0o755))
+	require.NoError(t, os.MkdirAll(pipelinesDir, 0o700))
 	require.NoError(t, os.WriteFile(
 		filepath.Join(pipelinesDir, instanceID+".yaml"),
-		[]byte(yamlContent), 0o644,
+		[]byte(yamlContent), 0o600,
 	))
 }
 
@@ -181,7 +181,7 @@ func TestJobDone(t *testing.T) {
 			output, cmdErr := executeJobDoneCmd(t, tt.args...)
 
 			if tt.wantErr {
-				assert.Error(t, cmdErr)
+				require.Error(t, cmdErr)
 			} else {
 				require.NoError(t, cmdErr)
 			}
@@ -299,7 +299,7 @@ func TestJobDoneDefaultTextNoPipeline(t *testing.T) {
 	writeWorkflowFixture(t, "release", fiveJobWorkflow)
 
 	stdout, stderr, err := executeTextCommand(t, newJobDoneCmd())
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Empty(t, stdout)
 
 	assert.Contains(t, stderr, "Argus: No active pipeline.")

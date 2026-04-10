@@ -56,7 +56,7 @@ func executeGlobalTickCmd(t *testing.T, store session.Store, stdinJSON string) (
 
 func initGitRepoAt(t *testing.T, path string) {
 	t.Helper()
-	require.NoError(t, os.MkdirAll(filepath.Join(path, ".git"), 0o755))
+	require.NoError(t, os.MkdirAll(filepath.Join(path, ".git"), 0o700))
 }
 
 func parseWorkspaceLifecycleOutput(t *testing.T, output []byte) map[string]any {
@@ -78,6 +78,7 @@ func readWorkspaceConfig(t *testing.T) *workspacecfg.Config {
 func readFileString(t *testing.T, path string) string {
 	t.Helper()
 
+	//nolint:gosec // Test reads a file from its controlled temp workspace.
 	data, err := os.ReadFile(path)
 	require.NoError(t, err)
 	return string(data)
@@ -86,6 +87,7 @@ func readFileString(t *testing.T, path string) string {
 func readOptionalFileString(t *testing.T, path string) (string, bool) {
 	t.Helper()
 
+	//nolint:gosec // Test reads a file from its controlled temp workspace.
 	data, err := os.ReadFile(path)
 	if os.IsNotExist(err) {
 		return "", false
@@ -102,7 +104,7 @@ func assertGlobalSkillState(t *testing.T, wantPresent bool) {
 			skillFile := filepath.Join(skillPath, skillName, "SKILL.md")
 			_, err := os.Stat(skillFile)
 			if wantPresent {
-				assert.NoError(t, err, "%s should exist", skillFile)
+				require.NoError(t, err, "%s should exist", skillFile)
 				continue
 			}
 			assert.True(t, os.IsNotExist(err), "%s should not exist", skillFile)
@@ -119,8 +121,8 @@ func TestWorkspaceLifecycle_Complete(t *testing.T) {
 	workspaceDir := filepath.Join(homeDir, "work")
 	projectDir := filepath.Join(workspaceDir, "myproject")
 	postUninstallProjectDir := filepath.Join(workspaceDir, "otherproject")
-	require.NoError(t, os.MkdirAll(projectDir, 0o755))
-	require.NoError(t, os.MkdirAll(postUninstallProjectDir, 0o755))
+	require.NoError(t, os.MkdirAll(projectDir, 0o700))
+	require.NoError(t, os.MkdirAll(postUninstallProjectDir, 0o700))
 	initGitRepoAt(t, projectDir)
 	initGitRepoAt(t, postUninstallProjectDir)
 
@@ -157,7 +159,7 @@ func TestWorkspaceLifecycle_Complete(t *testing.T) {
 	data = parseWorkspaceLifecycleOutput(t, output)
 	assert.Equal(t, "ok", data["status"])
 	_, err := os.Stat(filepath.Join(projectDir, ".argus"))
-	assert.NoError(t, err, "%s should exist after project install", filepath.Join(projectDir, ".argus"))
+	require.NoError(t, err, "%s should exist after project install", filepath.Join(projectDir, ".argus"))
 
 	output, cmdErr = executeGlobalTickCmd(t, store, mustJSONInput(t, map[string]string{
 		"session_id": sessionID,
@@ -196,8 +198,8 @@ func TestWorkspaceLifecycle_MultiWorkspace(t *testing.T) {
 
 	workspaceAlpha := filepath.Join(homeDir, "ws-alpha")
 	workspaceBeta := filepath.Join(homeDir, "ws-beta")
-	require.NoError(t, os.MkdirAll(workspaceAlpha, 0o755))
-	require.NoError(t, os.MkdirAll(workspaceBeta, 0o755))
+	require.NoError(t, os.MkdirAll(workspaceAlpha, 0o700))
+	require.NoError(t, os.MkdirAll(workspaceBeta, 0o700))
 
 	settingsPath := filepath.Join(homeDir, ".claude", "settings.json")
 
@@ -247,7 +249,7 @@ func TestWorkspaceLifecycle_PathNormalization(t *testing.T) {
 
 	baseDir := filepath.Join(t.TempDir(), "test-normalization")
 	workspaceDir := filepath.Join(baseDir, "myworkspace")
-	require.NoError(t, os.MkdirAll(workspaceDir, 0o755))
+	require.NoError(t, os.MkdirAll(workspaceDir, 0o700))
 	t.Chdir(baseDir)
 
 	output, cmdErr := executeWorkspaceInstallCmd(t, "./myworkspace")
@@ -272,7 +274,7 @@ func TestWorkspaceInstallDuplicateRegistrationIsNoOp(t *testing.T) {
 	t.Setenv("HOME", homeDir)
 
 	workspaceDir := filepath.Join(homeDir, "work")
-	require.NoError(t, os.MkdirAll(workspaceDir, 0o755))
+	require.NoError(t, os.MkdirAll(workspaceDir, 0o700))
 
 	_, cmdErr := executeWorkspaceInstallCmd(t, workspaceDir)
 	require.NoError(t, cmdErr)
@@ -290,16 +292,16 @@ func TestWorkspaceInstallDuplicateRegistrationRefreshesResources(t *testing.T) {
 	t.Setenv("HOME", homeDir)
 
 	workspaceDir := filepath.Join(homeDir, "work")
-	require.NoError(t, os.MkdirAll(workspaceDir, 0o755))
+	require.NoError(t, os.MkdirAll(workspaceDir, 0o700))
 
 	_, cmdErr := executeWorkspaceInstallCmd(t, workspaceDir)
 	require.NoError(t, cmdErr)
 
 	for _, skillPath := range install.GlobalSkillPaths() {
-		require.NoError(t, os.MkdirAll(filepath.Join(skillPath, "argus-concepts"), 0o755))
-		require.NoError(t, os.WriteFile(filepath.Join(skillPath, "argus-concepts", "SKILL.md"), []byte("# legacy\n"), 0o644))
+		require.NoError(t, os.MkdirAll(filepath.Join(skillPath, "argus-concepts"), 0o700))
+		require.NoError(t, os.WriteFile(filepath.Join(skillPath, "argus-concepts", "SKILL.md"), []byte("# legacy\n"), 0o600))
 	}
-	require.NoError(t, os.WriteFile(filepath.Join(homeDir, ".agents", "skills", "argus-intro", "SKILL.md"), []byte("# stale intro\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(homeDir, ".agents", "skills", "argus-intro", "SKILL.md"), []byte("# stale intro\n"), 0o600))
 
 	output, cmdErr := executeWorkspaceInstallCmdWithArgs(t, workspaceDir, "--yes")
 	require.NoError(t, cmdErr)
@@ -319,7 +321,7 @@ func TestWorkspaceInstallNonInteractiveWithoutYes(t *testing.T) {
 	t.Setenv("HOME", homeDir)
 
 	workspaceDir := filepath.Join(homeDir, "work")
-	require.NoError(t, os.MkdirAll(workspaceDir, 0o755))
+	require.NoError(t, os.MkdirAll(workspaceDir, 0o700))
 
 	output, cmdErr := executeJSONCommandWithInput(t, newInstallCmd(), bytes.NewBuffer(nil), "--workspace", workspaceDir)
 	require.Error(t, cmdErr)
@@ -335,7 +337,7 @@ func TestWorkspaceInstallDuplicateNonInteractiveWithoutYes(t *testing.T) {
 	t.Setenv("HOME", homeDir)
 
 	workspaceDir := filepath.Join(homeDir, "work")
-	require.NoError(t, os.MkdirAll(workspaceDir, 0o755))
+	require.NoError(t, os.MkdirAll(workspaceDir, 0o700))
 	_, cmdErr := executeWorkspaceInstallCmd(t, workspaceDir)
 	require.NoError(t, cmdErr)
 
@@ -353,7 +355,7 @@ func TestWorkspaceUninstallNonInteractiveWithoutYes(t *testing.T) {
 	t.Setenv("HOME", homeDir)
 
 	workspaceDir := filepath.Join(homeDir, "work")
-	require.NoError(t, os.MkdirAll(workspaceDir, 0o755))
+	require.NoError(t, os.MkdirAll(workspaceDir, 0o700))
 	_, cmdErr := executeWorkspaceInstallCmd(t, workspaceDir)
 	require.NoError(t, cmdErr)
 

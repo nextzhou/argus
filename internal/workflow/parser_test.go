@@ -1,7 +1,6 @@
 package workflow
 
 import (
-	"errors"
 	"strings"
 	"testing"
 
@@ -175,7 +174,7 @@ jobs:
 			_, err := ParseWorkflow(strings.NewReader(tt.yaml))
 			require.Error(t, err)
 			if tt.wantErr != nil {
-				assert.True(t, errors.Is(err, tt.wantErr),
+				require.ErrorIs(t, err, tt.wantErr,
 					"expected %v, got: %v", tt.wantErr, err)
 			}
 			if tt.wantInMsg != "" {

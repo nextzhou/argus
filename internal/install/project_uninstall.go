@@ -40,7 +40,7 @@ func UninstallProject(projectRoot string) (Report, error) {
 		}
 	}
 
-	if err := uninstallHooks(projectRoot, supportedAgents, tracker); err != nil {
+	if err := uninstallHooks(projectRoot, managedAgents(), tracker); err != nil {
 		return Report{}, fmt.Errorf("uninstalling hooks: %w", err)
 	}
 

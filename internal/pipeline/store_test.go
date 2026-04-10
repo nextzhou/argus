@@ -164,7 +164,7 @@ func TestLoadPipelineInvalidYAML(t *testing.T) {
 	dir := t.TempDir()
 
 	// Write invalid YAML
-	err := os.WriteFile(filepath.Join(dir, "bad-20240115T103000Z.yaml"), []byte("{{invalid yaml"), 0o644)
+	err := os.WriteFile(filepath.Join(dir, "bad-20240115T103000Z.yaml"), []byte("{{invalid yaml"), 0o600)
 	require.NoError(t, err)
 
 	_, err = LoadPipeline(dir, "bad-20240115T103000Z")
@@ -181,11 +181,11 @@ current_job: lint
 started_at: "20240115T103000Z"
 jobs: {}
 `
-	err := os.WriteFile(filepath.Join(dir, "release-20240115T103000Z.yaml"), []byte(content), 0o644)
+	err := os.WriteFile(filepath.Join(dir, "release-20240115T103000Z.yaml"), []byte(content), 0o600)
 	require.NoError(t, err)
 
 	_, err = LoadPipeline(dir, "release-20240115T103000Z")
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "version")
 }
 
@@ -200,7 +200,7 @@ started_at: "20240115T103000Z"
 unknown_field: should_fail
 jobs: {}
 `
-	err := os.WriteFile(filepath.Join(dir, "release-20240115T103000Z.yaml"), []byte(content), 0o644)
+	err := os.WriteFile(filepath.Join(dir, "release-20240115T103000Z.yaml"), []byte(content), 0o600)
 	require.NoError(t, err)
 
 	_, err = LoadPipeline(dir, "release-20240115T103000Z")
@@ -259,7 +259,7 @@ func TestScanActivePipelinesCorruptFile(t *testing.T) {
 	require.NoError(t, err)
 
 	// Write a corrupt YAML file
-	err = os.WriteFile(filepath.Join(dir, "corrupt-20240115T110000Z.yaml"), []byte("{{invalid yaml"), 0o644)
+	err = os.WriteFile(filepath.Join(dir, "corrupt-20240115T110000Z.yaml"), []byte("{{invalid yaml"), 0o600)
 	require.NoError(t, err)
 
 	actives, warnings, err := ScanActivePipelines(dir)
@@ -319,7 +319,7 @@ func TestScanActivePipelinesSkipsNonYAMLFiles(t *testing.T) {
 	dir := t.TempDir()
 
 	// Create a non-YAML file
-	err := os.WriteFile(filepath.Join(dir, "README.txt"), []byte("not a pipeline"), 0o644)
+	err := os.WriteFile(filepath.Join(dir, "README.txt"), []byte("not a pipeline"), 0o600)
 	require.NoError(t, err)
 
 	actives, warnings, err := ScanActivePipelines(dir)

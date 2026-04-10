@@ -68,7 +68,7 @@ jobs:
 
 func TestTickSubAgentSkip(t *testing.T) {
 	projectRoot := t.TempDir()
-	require.NoError(t, os.MkdirAll(filepath.Join(projectRoot, ".argus", "workflows"), 0o755))
+	require.NoError(t, os.MkdirAll(filepath.Join(projectRoot, ".argus", "workflows"), 0o700))
 	sessionID := sessiontest.NewSessionID(t, "tick-cli-sub-agent")
 
 	oldCwd, err := os.Getwd()
@@ -86,7 +86,7 @@ func TestTickSubAgentSkip(t *testing.T) {
 
 func TestTickFailOpen(t *testing.T) {
 	projectRoot := t.TempDir()
-	require.NoError(t, os.MkdirAll(filepath.Join(projectRoot, ".argus", "workflows"), 0o755))
+	require.NoError(t, os.MkdirAll(filepath.Join(projectRoot, ".argus", "workflows"), 0o700))
 
 	oldCwd, err := os.Getwd()
 	require.NoError(t, err)
@@ -114,6 +114,6 @@ func TestTickWithoutAgent(t *testing.T) {
 func writeTickCommandWorkflowFixture(t *testing.T, projectRoot, workflowID, yamlContent string) {
 	t.Helper()
 	workflowsDir := filepath.Join(projectRoot, ".argus", "workflows")
-	require.NoError(t, os.MkdirAll(workflowsDir, 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(workflowsDir, workflowID+".yaml"), []byte(yamlContent), 0o644))
+	require.NoError(t, os.MkdirAll(workflowsDir, 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(workflowsDir, workflowID+".yaml"), []byte(yamlContent), 0o600))
 }

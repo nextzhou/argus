@@ -40,6 +40,7 @@ func (store *FileStore) Load(sessionID string) (*Session, error) {
 		return nil, fmt.Errorf("validating session path: %w", err)
 	}
 
+	//nolint:gosec // SessionIDToSafeID plus ValidatePath constrain the file to store.baseDir.
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("opening session file %q: %w", sessionID, err)
@@ -64,7 +65,7 @@ func SaveSession(baseDir, sessionID string, s *Session) error {
 
 // Save writes a session data file to disk, creating the directory if needed.
 func (store *FileStore) Save(sessionID string, sessionData *Session) error {
-	if err := os.MkdirAll(store.baseDir, 0o755); err != nil {
+	if err := os.MkdirAll(store.baseDir, 0o700); err != nil {
 		return fmt.Errorf("creating session directory: %w", err)
 	}
 
@@ -80,7 +81,7 @@ func (store *FileStore) Save(sessionID string, sessionData *Session) error {
 		return fmt.Errorf("marshaling session %q: %w", sessionID, err)
 	}
 
-	if err := os.WriteFile(path, data, 0o644); err != nil {
+	if err := os.WriteFile(path, data, 0o600); err != nil {
 		return fmt.Errorf("writing session file %q: %w", sessionID, err)
 	}
 

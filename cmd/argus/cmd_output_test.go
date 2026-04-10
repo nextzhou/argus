@@ -68,32 +68,6 @@ func executeTextCommand(t *testing.T, cmd *cobra.Command, args ...string) (strin
 	return out.String(), errOut.String(), err
 }
 
-func executeTextCommandWithInput(t *testing.T, cmd *cobra.Command, input io.Reader, args ...string) (string, string, error) {
-	t.Helper()
-
-	var out bytes.Buffer
-	var errOut bytes.Buffer
-	cmd.SilenceErrors = true
-	cmd.SilenceUsage = true
-	cmd.SetOut(&out)
-	cmd.SetErr(&errOut)
-	if input != nil {
-		cmd.SetIn(input)
-	}
-	cmd.SetArgs(args)
-
-	err := cmd.Execute()
-	return out.String(), errOut.String(), err
-}
-
-func requireJSONOutput(t *testing.T, output []byte) map[string]any {
-	t.Helper()
-
-	var data map[string]any
-	require.NoError(t, json.Unmarshal(output, &data), "output should be valid JSON: %s", string(output))
-	return data
-}
-
 func mustJSONInput(t *testing.T, payload map[string]string) string {
 	t.Helper()
 

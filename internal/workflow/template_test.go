@@ -1,6 +1,7 @@
 package workflow
 
 import (
+	"context"
 	"maps"
 	"slices"
 	"strings"
@@ -25,7 +26,7 @@ func TestBuildContextWithRuntime(t *testing.T) {
 		env: func() map[string]string {
 			return map[string]string{"ARGUS_TEMPLATE_ENV": "from-env"}
 		},
-		gitBranch: func() string {
+		gitBranch: func(context.Context) string {
 			return "feat/test-branch"
 		},
 		projectRoot: func() string {
@@ -98,7 +99,7 @@ func TestBuildContextWithRuntime(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := buildContextWithRuntime(tt.jobs, workflowDef, tt.jobIdx, runtime)
+			ctx := buildContextWithRuntime(context.Background(), tt.jobs, workflowDef, tt.jobIdx, runtime)
 			require.NotNil(t, ctx)
 
 			assert.Equal(t, workflowDef.ID, ctx.Workflow.ID)

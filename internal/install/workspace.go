@@ -57,7 +57,7 @@ func InstallWorkspaceWithReport(path string) (WorkspaceOperationResult, error) {
 		}
 	}
 
-	if err := installGlobalHooks(state.homeDir, supportedAgents, tracker); err != nil {
+	if err := installGlobalHooks(state.homeDir, managedAgents(), tracker); err != nil {
 		return WorkspaceOperationResult{}, fmt.Errorf("installing global hooks: %w", err)
 	}
 
@@ -162,7 +162,7 @@ func UninstallWorkspaceWithReport(path string) (WorkspaceOperationResult, error)
 
 	removedGlobalResources := len(state.config.Workspaces) == 0
 	if removedGlobalResources {
-		if err := uninstallGlobalHooks(state.homeDir, supportedAgents, tracker); err != nil {
+		if err := uninstallGlobalHooks(state.homeDir, managedAgents(), tracker); err != nil {
 			return WorkspaceOperationResult{}, fmt.Errorf("uninstalling global hooks: %w", err)
 		}
 		if err := uninstallGlobalSkills(state.homeDir, tracker); err != nil {
@@ -336,6 +336,7 @@ func validateWorkspacePath(path string) (string, error) {
 		return "", fmt.Errorf("resolving workspace path: %w", err)
 	}
 
+	//nolint:gosec // os.Stat is the validation step for the user-supplied workspace path before Argus persists it.
 	info, err := os.Stat(absolutePath)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
@@ -420,7 +421,7 @@ func releaseGlobalSkill(skillName string, targetRoots []string, tracker *mutatio
 
 		if d.IsDir() {
 			for _, targetRoot := range targetRoots {
-				if err := os.MkdirAll(filepath.Join(targetRoot, skillName, relPath), 0o755); err != nil {
+				if err := os.MkdirAll(filepath.Join(targetRoot, skillName, relPath), 0o700); err != nil {
 					return fmt.Errorf("creating skill directory: %w", err)
 				}
 			}

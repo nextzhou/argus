@@ -256,6 +256,6 @@ func TestInterfaceSatisfaction(t *testing.T) {
 
 func writeScopeTestFile(t *testing.T, path string, content string) {
 	t.Helper()
-	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
-	require.NoError(t, os.WriteFile(path, []byte(content), 0o644))
+	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o700))
+	require.NoError(t, os.WriteFile(path, []byte(content), 0o600))
 }

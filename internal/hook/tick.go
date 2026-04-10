@@ -260,7 +260,7 @@ func renderTickJobPrompt(p *pipeline.Pipeline, wf *workflow.Workflow, jobIndex i
 	}
 
 	templateJobs := buildPipelineJobDataMap(p)
-	tmplCtx := workflow.BuildContext(templateJobs, wf, jobIndex)
+	tmplCtx := workflow.BuildContext(context.Background(), templateJobs, wf, jobIndex)
 	// RenderPrompt returns (rendered, warnings) where warnings is []string of
 	// unresolved template placeholders — not an error. In tick's fail-open context,
 	// partial template rendering is acceptable, so warnings are intentionally discarded.

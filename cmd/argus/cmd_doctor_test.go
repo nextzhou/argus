@@ -52,7 +52,7 @@ func TestDoctorCmd_ExitCodeOnFailure(t *testing.T) {
 
 	out, err := executeDoctorCmd(t)
 
-	assert.Error(t, err, "doctor should return error when checks fail")
+	require.Error(t, err, "doctor should return error when checks fail")
 	assert.Contains(t, err.Error(), "doctor found")
 	assert.Contains(t, out, "[FAIL] install-integrity")
 	assert.Regexp(t, `\d+ checks: \d+ passed, \d+ failed, \d+ skipped`, out,
@@ -86,7 +86,7 @@ func TestWriteDoctorReport_OutputFormat(t *testing.T) {
 	output := out.String()
 
 	lines := strings.Split(strings.TrimSpace(output), "\n")
-	require.Greater(t, len(lines), 0, "output should have at least one line")
+	require.NotEmpty(t, lines, "output should have at least one line")
 
 	// Verify each check line has proper format: [STATUS] Name or [STATUS] Name: message
 	for _, line := range lines {

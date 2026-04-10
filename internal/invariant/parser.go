@@ -9,13 +9,6 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-var validAutoValues = map[string]bool{
-	"":              true,
-	"always":        true,
-	"session_start": true,
-	"never":         true,
-}
-
 // ParseInvariant decodes and validates an invariant definition from the given reader.
 // Unknown YAML fields are rejected.
 func ParseInvariant(r io.Reader) (*Invariant, error) {
@@ -36,6 +29,7 @@ func ParseInvariant(r io.Reader) (*Invariant, error) {
 
 // ParseInvariantFile parses an invariant definition from the file at the given path.
 func ParseInvariantFile(path string) (*Invariant, error) {
+	//nolint:gosec // ParseInvariantFile intentionally reads the exact file path selected by the caller.
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("opening invariant file: %w", err)
@@ -61,7 +55,7 @@ func validateInvariant(inv *Invariant) error {
 		return fmt.Errorf("invariant %q: %w", inv.ID, err)
 	}
 
-	if !validAutoValues[inv.Auto] {
+	if !isValidAutoValue(inv.Auto) {
 		return fmt.Errorf("invariant %q: auto value %q must be one of: always, session_start, never", inv.ID, inv.Auto)
 	}
 
@@ -74,4 +68,13 @@ func validateInvariant(inv *Invariant) error {
 	}
 
 	return nil
+}
+
+func isValidAutoValue(value string) bool {
+	switch value {
+	case "", "always", "session_start", "never":
+		return true
+	default:
+		return false
+	}
 }

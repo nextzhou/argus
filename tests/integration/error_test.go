@@ -127,7 +127,7 @@ func TestError_TickFailOpen(t *testing.T) {
 	t.Setenv("HOME", homeDir)
 
 	projectDir := setupGitRepo(t)
-	require.NoError(t, os.MkdirAll(filepath.Join(projectDir, ".argus", "workflows"), 0o755))
+	require.NoError(t, os.MkdirAll(filepath.Join(projectDir, ".argus", "workflows"), 0o700))
 
 	result := runArgusWithStdin(t, projectDir, `{invalid json`, "tick", "--agent", "claude-code")
 	assert.Equal(t, 0, result.ExitCode, "tick must always exit 0 (fail-open)")
@@ -165,7 +165,7 @@ func TestError_DoctorReportsProblems(t *testing.T) {
 
 	projectDir := setupGitRepo(t)
 
-	require.NoError(t, os.MkdirAll(filepath.Join(projectDir, ".argus", "pipelines"), 0o755))
+	require.NoError(t, os.MkdirAll(filepath.Join(projectDir, ".argus", "pipelines"), 0o700))
 
 	writeFile(t, projectDir, ".argus/pipelines/bad-1-20240101T000000Z.yaml",
 		`version: v0.1.0

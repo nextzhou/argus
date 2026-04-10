@@ -20,14 +20,14 @@ func executeInvariantCheckCmd(t *testing.T, args ...string) ([]byte, error) {
 func writeInvariantFixture(t *testing.T, id, yamlContent string) {
 	t.Helper()
 	invariantsDir := filepath.Join(".argus", "invariants")
-	require.NoError(t, os.MkdirAll(invariantsDir, 0o755))
+	require.NoError(t, os.MkdirAll(invariantsDir, 0o700))
 	require.NoError(t, os.WriteFile(
 		filepath.Join(invariantsDir, id+".yaml"),
-		[]byte(yamlContent), 0o644,
+		[]byte(yamlContent), 0o600,
 	))
 }
 
-const passingInvariant = `version: v0.1.0
+const successfulInvariantYAML = `version: v0.1.0
 id: check-pass
 description: Always passes
 auto: always
@@ -70,13 +70,13 @@ func TestInvariantCheck(t *testing.T) {
 		{
 			name: "check all with mix of pass and fail",
 			setup: func(t *testing.T) {
-				writeInvariantFixture(t, "check-pass", passingInvariant)
+				writeInvariantFixture(t, "check-pass", successfulInvariantYAML)
 				writeInvariantFixture(t, "check-fail", failingInvariant)
 			},
 			wantStatus: "ok",
 			checkJSON: func(t *testing.T, data map[string]any) {
-				assert.Equal(t, float64(1), data["passed"])
-				assert.Equal(t, float64(1), data["failed"])
+				assert.InDelta(t, 1, data["passed"], 0)
+				assert.InDelta(t, 1, data["failed"], 0)
 
 				results, ok := data["results"].([]any)
 				require.True(t, ok, "results should be an array")
@@ -108,13 +108,13 @@ func TestInvariantCheck(t *testing.T) {
 			name: "check single by id",
 			args: []string{"check-pass"},
 			setup: func(t *testing.T) {
-				writeInvariantFixture(t, "check-pass", passingInvariant)
+				writeInvariantFixture(t, "check-pass", successfulInvariantYAML)
 				writeInvariantFixture(t, "check-fail", failingInvariant)
 			},
 			wantStatus: "ok",
 			checkJSON: func(t *testing.T, data map[string]any) {
-				assert.Equal(t, float64(1), data["passed"])
-				assert.Equal(t, float64(0), data["failed"])
+				assert.InDelta(t, 1, data["passed"], 0)
+				assert.InDelta(t, 0, data["failed"], 0)
 
 				results, ok := data["results"].([]any)
 				require.True(t, ok)
@@ -140,8 +140,8 @@ func TestInvariantCheck(t *testing.T) {
 			name:       "missing invariants directory returns empty results",
 			wantStatus: "ok",
 			checkJSON: func(t *testing.T, data map[string]any) {
-				assert.Equal(t, float64(0), data["passed"])
-				assert.Equal(t, float64(0), data["failed"])
+				assert.InDelta(t, 0, data["passed"], 0)
+				assert.InDelta(t, 0, data["failed"], 0)
 				results, ok := data["results"].([]any)
 				require.True(t, ok)
 				assert.Empty(t, results)
@@ -154,7 +154,7 @@ func TestInvariantCheck(t *testing.T) {
 			},
 			wantStatus: "ok",
 			checkJSON: func(t *testing.T, data map[string]any) {
-				assert.Equal(t, float64(1), data["failed"])
+				assert.InDelta(t, 1, data["failed"], 0)
 				results := data["results"].([]any)
 				r0 := results[0].(map[string]any)
 				assert.Equal(t, "failed", r0["status"])
@@ -182,7 +182,7 @@ func TestInvariantCheck(t *testing.T) {
 			t.Chdir(t.TempDir())
 
 			// Scope resolution requires .argus/ to exist
-			require.NoError(t, os.MkdirAll(".argus", 0o755))
+			require.NoError(t, os.MkdirAll(".argus", 0o700))
 
 			if tt.setup != nil {
 				tt.setup(t)
@@ -191,7 +191,7 @@ func TestInvariantCheck(t *testing.T) {
 			output, cmdErr := executeInvariantCheckCmd(t, tt.args...)
 
 			if tt.wantErr {
-				assert.Error(t, cmdErr)
+				require.Error(t, cmdErr)
 			} else {
 				require.NoError(t, cmdErr)
 			}

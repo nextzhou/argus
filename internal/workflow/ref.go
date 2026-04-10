@@ -18,6 +18,7 @@ type sharedFile struct {
 
 // LoadShared parses a _shared.yaml file and returns the validated shared job definitions.
 func LoadShared(path string) (SharedJobs, error) {
+	//nolint:gosec // LoadShared intentionally reads the exact shared-definition file path selected by the caller.
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("opening shared file: %w", err)

@@ -35,7 +35,7 @@ func TestInvariantList(t *testing.T) {
 		{
 			name: "list all invariants sorted by id",
 			setup: func(t *testing.T) {
-				writeInvariantFixture(t, "check-pass", passingInvariant)
+				writeInvariantFixture(t, "check-pass", successfulInvariantYAML)
 				writeInvariantFixture(t, "check-fail", failingInvariant)
 			},
 			wantStatus: "ok",
@@ -48,13 +48,13 @@ func TestInvariantList(t *testing.T) {
 				assert.Equal(t, "check-fail", inv0["id"])
 				assert.Equal(t, "Always fails", inv0["description"])
 				assert.Equal(t, "never", inv0["auto"])
-				assert.Equal(t, float64(1), inv0["checks"])
+				assert.InDelta(t, 1, inv0["checks"], 0)
 
 				inv1 := invariants[1].(map[string]any)
 				assert.Equal(t, "check-pass", inv1["id"])
 				assert.Equal(t, "Always passes", inv1["description"])
 				assert.Equal(t, "always", inv1["auto"])
-				assert.Equal(t, float64(1), inv1["checks"])
+				assert.InDelta(t, 1, inv1["checks"], 0)
 			},
 		},
 		{
@@ -69,7 +69,7 @@ func TestInvariantList(t *testing.T) {
 				inv0 := invariants[0].(map[string]any)
 				assert.Equal(t, "no-desc", inv0["id"])
 				assert.Equal(t, "echo hello; false", inv0["description"])
-				assert.Equal(t, float64(2), inv0["checks"])
+				assert.InDelta(t, 2, inv0["checks"], 0)
 			},
 		},
 	}
@@ -79,7 +79,7 @@ func TestInvariantList(t *testing.T) {
 			t.Chdir(t.TempDir())
 
 			// Scope resolution requires .argus/ to exist
-			require.NoError(t, os.MkdirAll(".argus", 0o755))
+			require.NoError(t, os.MkdirAll(".argus", 0o700))
 
 			if tt.setup != nil {
 				tt.setup(t)

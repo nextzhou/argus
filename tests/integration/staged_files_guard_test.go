@@ -1,6 +1,7 @@
 package integration
 
 import (
+	"context"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -76,7 +77,8 @@ func TestCheckStagedFilesScriptAllowsHardcodedSessionLiteralOutsideHighRiskTests
 func runCheckStagedFilesScript(t *testing.T, dir string) (string, error) {
 	t.Helper()
 
-	cmd := exec.Command("bash", filepath.Join(findProjectRoot(), "scripts", "check-staged-files.sh"))
+	//nolint:gosec // The test executes the repository's own staged-files guard script from the local project root.
+	cmd := exec.CommandContext(context.Background(), "bash", filepath.Join(findProjectRoot(), "scripts", "check-staged-files.sh"))
 	cmd.Dir = dir
 	output, err := cmd.CombinedOutput()
 	return string(output), err

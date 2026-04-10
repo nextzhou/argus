@@ -192,6 +192,11 @@ func resolveWorkflowRefs(workflowsDir, workflowPath string, wf *workflow.Workflo
 		return nil, fmt.Errorf("loading shared definitions: %w", err)
 	}
 
+	if err := core.ValidatePath(workflowsDir, workflowPath); err != nil {
+		return nil, fmt.Errorf("validating workflow path: %w", err)
+	}
+
+	//nolint:gosec // workflowPath is constrained to workflowsDir via ValidatePath before re-reading for ref resolution.
 	data, err := os.ReadFile(workflowPath)
 	if err != nil {
 		return nil, fmt.Errorf("re-reading workflow for ref resolution: %w", err)

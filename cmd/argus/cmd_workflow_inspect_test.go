@@ -53,7 +53,7 @@ jobs:
 				workflow, ok := buildFile["workflow"].(map[string]any)
 				require.True(t, ok, "workflow metadata should exist")
 				assert.Equal(t, "build", workflow["id"])
-				assert.Equal(t, float64(2), workflow["jobs"])
+				assert.InDelta(t, 2, workflow["jobs"], 0)
 			},
 		},
 		{
@@ -258,21 +258,21 @@ jobs:
 
 			if tt.setupFiles != nil {
 				workflowsDir := filepath.Join(".argus", "workflows")
-				require.NoError(t, os.MkdirAll(workflowsDir, 0o755))
+				require.NoError(t, os.MkdirAll(workflowsDir, 0o700))
 				for name, content := range tt.setupFiles {
 					fullPath := filepath.Join(workflowsDir, name)
-					require.NoError(t, os.MkdirAll(filepath.Dir(fullPath), 0o755))
-					require.NoError(t, os.WriteFile(fullPath, []byte(content), 0o644))
+					require.NoError(t, os.MkdirAll(filepath.Dir(fullPath), 0o700))
+					require.NoError(t, os.WriteFile(fullPath, []byte(content), 0o600))
 				}
 			} else {
 				workflowsDir := filepath.Join(".argus", "workflows")
-				require.NoError(t, os.MkdirAll(workflowsDir, 0o755))
+				require.NoError(t, os.MkdirAll(workflowsDir, 0o700))
 			}
 
 			output, cmdErr := executeWorkflowInspectCmd(t, tt.args...)
 
 			if tt.wantErr {
-				assert.Error(t, cmdErr)
+				require.Error(t, cmdErr)
 			} else {
 				require.NoError(t, cmdErr)
 			}
@@ -343,15 +343,15 @@ jobs:
 
 			if tt.setupFiles != nil {
 				workflowsDir := filepath.Join(".argus", "workflows")
-				require.NoError(t, os.MkdirAll(workflowsDir, 0o755))
+				require.NoError(t, os.MkdirAll(workflowsDir, 0o700))
 				for name, content := range tt.setupFiles {
 					fullPath := filepath.Join(workflowsDir, name)
-					require.NoError(t, os.MkdirAll(filepath.Dir(fullPath), 0o755))
-					require.NoError(t, os.WriteFile(fullPath, []byte(content), 0o644))
+					require.NoError(t, os.MkdirAll(filepath.Dir(fullPath), 0o700))
+					require.NoError(t, os.WriteFile(fullPath, []byte(content), 0o600))
 				}
 			} else {
 				workflowsDir := filepath.Join(".argus", "workflows")
-				require.NoError(t, os.MkdirAll(workflowsDir, 0o755))
+				require.NoError(t, os.MkdirAll(workflowsDir, 0o700))
 			}
 
 			outputStr, stderr, err := executeTextCommand(t, newWorkflowInspectCmd())
@@ -369,16 +369,16 @@ func TestWorkflowInspectNonYAMLFilesIgnored(t *testing.T) {
 	t.Chdir(t.TempDir())
 
 	workflowsDir := filepath.Join(".argus", "workflows")
-	require.NoError(t, os.MkdirAll(workflowsDir, 0o755))
+	require.NoError(t, os.MkdirAll(workflowsDir, 0o700))
 
 	require.NoError(t, os.WriteFile(
 		filepath.Join(workflowsDir, "README.md"),
-		[]byte("# Workflows"), 0o644,
+		[]byte("# Workflows"), 0o600,
 	))
 
 	require.NoError(t, os.WriteFile(
 		filepath.Join(workflowsDir, "notes.txt"),
-		[]byte("Some notes"), 0o644,
+		[]byte("Some notes"), 0o600,
 	))
 
 	require.NoError(t, os.WriteFile(
@@ -389,7 +389,7 @@ description: Build workflow
 jobs:
   - id: compile
     prompt: "Compile"
-`), 0o644,
+`), 0o600,
 	))
 
 	output, err := executeWorkflowInspectCmd(t)
@@ -412,7 +412,7 @@ func TestWorkflowInspectDirectoryNotFound(t *testing.T) {
 
 	output, cmdErr := executeWorkflowInspectCmd(t)
 
-	assert.Error(t, cmdErr)
+	require.Error(t, cmdErr)
 
 	var data map[string]any
 	require.NoError(t, json.Unmarshal(output, &data))
@@ -425,7 +425,7 @@ func TestWorkflowInspectCustomDirNotFound(t *testing.T) {
 
 	output, cmdErr := executeWorkflowInspectCmd(t, "nonexistent-dir")
 
-	assert.Error(t, cmdErr)
+	require.Error(t, cmdErr)
 
 	var data map[string]any
 	require.NoError(t, json.Unmarshal(output, &data))
@@ -437,10 +437,10 @@ func TestWorkflowInspectSubdirectoryIgnored(t *testing.T) {
 	t.Chdir(t.TempDir())
 
 	workflowsDir := filepath.Join(".argus", "workflows")
-	require.NoError(t, os.MkdirAll(workflowsDir, 0o755))
+	require.NoError(t, os.MkdirAll(workflowsDir, 0o700))
 
 	subDir := filepath.Join(workflowsDir, "subdir")
-	require.NoError(t, os.MkdirAll(subDir, 0o755))
+	require.NoError(t, os.MkdirAll(subDir, 0o700))
 	require.NoError(t, os.WriteFile(
 		filepath.Join(subDir, "nested.yaml"),
 		[]byte(`version: v0.1.0
@@ -448,7 +448,7 @@ id: nested
 jobs:
   - id: step1
     prompt: "Step 1"
-`), 0o644,
+`), 0o600,
 	))
 
 	require.NoError(t, os.WriteFile(
@@ -458,7 +458,7 @@ id: build
 jobs:
   - id: compile
     prompt: "Compile"
-`), 0o644,
+`), 0o600,
 	))
 
 	output, err := executeWorkflowInspectCmd(t)

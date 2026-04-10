@@ -25,10 +25,10 @@ func TestCheckInstallPreconditionsRequiresGitRepository(t *testing.T) {
 func TestCheckInstallPreconditionsRejectsNestedInstall(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	projectRoot := newTestProjectRoot(t)
-	require.NoError(t, os.Mkdir(filepath.Join(projectRoot, ".argus"), 0o755))
+	require.NoError(t, os.Mkdir(filepath.Join(projectRoot, ".argus"), 0o700))
 
 	nestedDir := filepath.Join(projectRoot, "services", "api")
-	require.NoError(t, os.MkdirAll(nestedDir, 0o755))
+	require.NoError(t, os.MkdirAll(nestedDir, 0o700))
 	t.Chdir(nestedDir)
 
 	_, _, err := CheckInstallPreconditions()
@@ -41,7 +41,7 @@ func TestCheckInstallPreconditionsSubdirectoryDetection(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	projectRoot := newTestProjectRoot(t)
 	subdir := filepath.Join(projectRoot, "pkg", "cli")
-	require.NoError(t, os.MkdirAll(subdir, 0o755))
+	require.NoError(t, os.MkdirAll(subdir, 0o700))
 
 	t.Run("git root", func(t *testing.T) {
 		t.Chdir(projectRoot)
@@ -65,7 +65,7 @@ func TestCheckInstallPreconditionsSubdirectoryDetection(t *testing.T) {
 func TestCheckInstallPreconditionsAcceptsGitFileMarker(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	projectRoot := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(projectRoot, ".git"), []byte("gitdir: /tmp/example\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(projectRoot, ".git"), []byte("gitdir: /tmp/example\n"), 0o600))
 	t.Chdir(projectRoot)
 
 	gotRoot, isSubdir, err := CheckInstallPreconditions()
@@ -144,8 +144,8 @@ func TestInstallPrunesObsoleteBuiltinSkills(t *testing.T) {
 
 	for _, skillPath := range SkillPaths() {
 		legacySkillDir := filepath.Join(projectRoot, skillPath, "argus-concepts")
-		require.NoError(t, os.MkdirAll(legacySkillDir, 0o755))
-		require.NoError(t, os.WriteFile(filepath.Join(legacySkillDir, "SKILL.md"), []byte("# legacy\n"), 0o644))
+		require.NoError(t, os.MkdirAll(legacySkillDir, 0o700))
+		require.NoError(t, os.WriteFile(filepath.Join(legacySkillDir, "SKILL.md"), []byte("# legacy\n"), 0o600))
 	}
 
 	result, err := InstallWithReport(projectRoot)
@@ -155,7 +155,7 @@ func TestInstallPrunesObsoleteBuiltinSkills(t *testing.T) {
 		_, statErr := os.Stat(filepath.Join(projectRoot, skillPath, "argus-concepts"))
 		assert.True(t, os.IsNotExist(statErr), "%s/argus-concepts should be pruned", skillPath)
 		_, statErr = os.Stat(filepath.Join(projectRoot, skillPath, "argus-intro", "SKILL.md"))
-		assert.NoError(t, statErr, "%s/argus-intro/SKILL.md should exist", skillPath)
+		require.NoError(t, statErr, "%s/argus-intro/SKILL.md should exist", skillPath)
 	}
 
 	assert.Contains(t, result.Report.Changes.Removed, ".agents/skills/argus-*/SKILL.md")
@@ -167,6 +167,7 @@ func assertReleasedAsset(t *testing.T, projectRoot, srcPath, dstPath string) {
 	want, err := assets.ReadAsset(srcPath)
 	require.NoError(t, err)
 
+	//nolint:gosec // Test compares a file released into its controlled temp project root.
 	got, err := os.ReadFile(filepath.Join(projectRoot, dstPath))
 	require.NoError(t, err)
 

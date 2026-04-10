@@ -128,7 +128,7 @@ func TestConfirmWorkspaceUninstall_NonTTY(t *testing.T) {
 func TestUninstallNoArgusDirectory(t *testing.T) {
 	t.Chdir(t.TempDir())
 	t.Setenv("HOME", t.TempDir())
-	require.NoError(t, os.MkdirAll(".git", 0o755))
+	require.NoError(t, os.MkdirAll(".git", 0o700))
 
 	output, cmdErr := executeUninstallCmd(t, "--yes")
 
@@ -150,11 +150,11 @@ func TestUninstallPreservesNonArgusSkills(t *testing.T) {
 
 	for _, skillPath := range install.SkillPaths() {
 		customDir := filepath.Join(skillPath, "my-team-skill")
-		require.NoError(t, os.MkdirAll(customDir, 0o755))
+		require.NoError(t, os.MkdirAll(customDir, 0o700))
 		require.NoError(t, os.WriteFile(
 			filepath.Join(customDir, "SKILL.md"),
 			[]byte("# My Team Skill\n"),
-			0o644,
+			0o600,
 		))
 	}
 
@@ -163,7 +163,7 @@ func TestUninstallPreservesNonArgusSkills(t *testing.T) {
 
 	for _, skillPath := range install.SkillPaths() {
 		_, err := os.Stat(filepath.Join(skillPath, "my-team-skill", "SKILL.md"))
-		assert.NoError(t, err, "%s/my-team-skill/SKILL.md should survive uninstall", skillPath)
+		require.NoError(t, err, "%s/my-team-skill/SKILL.md should survive uninstall", skillPath)
 
 		_, err = os.Stat(filepath.Join(skillPath, "argus-doctor"))
 		assert.True(t, os.IsNotExist(err), "%s/argus-doctor should be removed", skillPath)

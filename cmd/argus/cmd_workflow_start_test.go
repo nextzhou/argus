@@ -23,12 +23,12 @@ func writeWorkflowFixture(t *testing.T, id, yamlContent string) {
 	t.Helper()
 	workflowsDir := filepath.Join(".argus", "workflows")
 	pipelinesDir := filepath.Join(".argus", "pipelines")
-	require.NoError(t, os.MkdirAll(workflowsDir, 0o755))
-	require.NoError(t, os.MkdirAll(pipelinesDir, 0o755))
+	require.NoError(t, os.MkdirAll(workflowsDir, 0o700))
+	require.NoError(t, os.MkdirAll(pipelinesDir, 0o700))
 	if yamlContent != "" {
 		require.NoError(t, os.WriteFile(
 			filepath.Join(workflowsDir, id+".yaml"),
-			[]byte(yamlContent), 0o644,
+			[]byte(yamlContent), 0o600,
 		))
 	}
 }
@@ -145,13 +145,13 @@ jobs:
     started_at: "20240101T000000Z"
 `
 				path := filepath.Join(".argus", "pipelines", "existing-20240101T000000Z.yaml")
-				require.NoError(t, os.WriteFile(path, []byte(pipelineYAML), 0o644))
+				require.NoError(t, os.WriteFile(path, []byte(pipelineYAML), 0o600))
 			}
 
 			output, cmdErr := executeStartCmd(t, tt.workflowID)
 
 			if tt.wantErr {
-				assert.Error(t, cmdErr)
+				require.Error(t, cmdErr)
 			} else {
 				require.NoError(t, cmdErr)
 			}
@@ -212,10 +212,10 @@ jobs:
 func writeSharedFixture(t *testing.T, yamlContent string) {
 	t.Helper()
 	workflowsDir := filepath.Join(".argus", "workflows")
-	require.NoError(t, os.MkdirAll(workflowsDir, 0o755))
+	require.NoError(t, os.MkdirAll(workflowsDir, 0o700))
 	require.NoError(t, os.WriteFile(
 		filepath.Join(workflowsDir, "_shared.yaml"),
-		[]byte(yamlContent), 0o644,
+		[]byte(yamlContent), 0o600,
 	))
 }
 
@@ -243,10 +243,10 @@ jobs:
 				require.Len(t, jobs, 2)
 				assert.Equal(t, "build", jobs[0].ID)
 				assert.Equal(t, "Build the project", jobs[0].Prompt)
-				assert.Equal(t, "", jobs[0].Ref)
+				assert.Empty(t, jobs[0].Ref)
 				assert.Equal(t, "test", jobs[1].ID)
 				assert.Equal(t, "Run tests", jobs[1].Prompt)
-				assert.Equal(t, "", jobs[1].Ref)
+				assert.Empty(t, jobs[1].Ref)
 			},
 		},
 		{
@@ -329,14 +329,14 @@ jobs:
 				require.Len(t, jobs, 3)
 				assert.Equal(t, "direct_job", jobs[0].ID)
 				assert.Equal(t, "Direct prompt", jobs[0].Prompt)
-				assert.Equal(t, "", jobs[0].Ref)
+				assert.Empty(t, jobs[0].Ref)
 				assert.Equal(t, "shared_job", jobs[1].ID)
 				assert.Equal(t, "Shared prompt", jobs[1].Prompt)
 				assert.Equal(t, "argus-shared", jobs[1].Skill)
 				assert.Equal(t, "shared_job", jobs[1].Ref)
 				assert.Equal(t, "another_direct", jobs[2].ID)
 				assert.Equal(t, "Another direct", jobs[2].Prompt)
-				assert.Equal(t, "", jobs[2].Ref)
+				assert.Empty(t, jobs[2].Ref)
 			},
 		},
 	}
@@ -359,7 +359,7 @@ jobs:
 			err = resolveRefs(workflowsDir, workflowPath, &w)
 
 			if tt.wantErr {
-				assert.Error(t, err)
+				require.Error(t, err)
 				if tt.wantErrMsg != "" {
 					assert.Contains(t, err.Error(), tt.wantErrMsg)
 				}

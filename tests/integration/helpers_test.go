@@ -2,7 +2,9 @@ package integration
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -15,8 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// binaryPath holds the path to the compiled argus binary, set by TestMain.
-var binaryPath string
+const testBinaryPathEnvVar = "ARGUS_TEST_BINARY"
 
 func TestMain(m *testing.M) {
 	tmpDir, err := os.MkdirTemp("", "argus-integration-*")
@@ -25,14 +26,19 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 
-	binaryPath = filepath.Join(tmpDir, "argus")
+	binaryPath := filepath.Join(tmpDir, "argus")
 
 	projectRoot := findProjectRoot()
-	buildCmd := exec.Command("go", "build", "-o", binaryPath, "./cmd/argus")
+	//nolint:gosec // The integration suite builds the local argus binary into a temp path controlled by the test harness.
+	buildCmd := exec.CommandContext(context.Background(), "go", "build", "-o", binaryPath, "./cmd/argus")
 	buildCmd.Dir = projectRoot
 	buildCmd.Env = append(os.Environ(), "CGO_ENABLED=0")
 	if output, err := buildCmd.CombinedOutput(); err != nil {
 		fmt.Fprintf(os.Stderr, "building argus binary: %v\n%s\n", err, output)
+		os.Exit(1)
+	}
+	if err := os.Setenv(testBinaryPathEnvVar, binaryPath); err != nil {
+		fmt.Fprintf(os.Stderr, "setting %s: %v\n", testBinaryPathEnvVar, err)
 		os.Exit(1)
 	}
 
@@ -89,7 +95,11 @@ func runArgusText(t *testing.T, workDir string, args ...string) cmdResult {
 func runArgusWithStdin(t *testing.T, workDir string, stdin string, args ...string) cmdResult {
 	t.Helper()
 
-	cmd := exec.Command(binaryPath, args...)
+	binaryPath := os.Getenv(testBinaryPathEnvVar)
+	require.NotEmpty(t, binaryPath, "%s must be set by TestMain", testBinaryPathEnvVar)
+
+	//nolint:gosec // The integration suite executes the test-built argus binary with test-controlled arguments.
+	cmd := exec.CommandContext(context.Background(), binaryPath, args...)
 	cmd.Dir = workDir
 	cmd.Env = os.Environ()
 
@@ -104,7 +114,8 @@ func runArgusWithStdin(t *testing.T, workDir string, stdin string, args ...strin
 	err := cmd.Run()
 	exitCode := 0
 	if err != nil {
-		if exitErr, ok := err.(*exec.ExitError); ok {
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
 			exitCode = exitErr.ExitCode()
 		} else {
 			t.Fatalf("running argus %v: %v", args, err)
@@ -127,7 +138,7 @@ func setupGitRepo(t *testing.T) string {
 	dir := t.TempDir()
 	resolved, err := filepath.EvalSymlinks(dir)
 	require.NoError(t, err)
-	require.NoError(t, os.MkdirAll(filepath.Join(resolved, ".git"), 0o755))
+	require.NoError(t, os.MkdirAll(filepath.Join(resolved, ".git"), 0o700))
 	return resolved
 }
 
@@ -144,8 +155,8 @@ func resolveSymlinks(t *testing.T, path string) string {
 func writeFile(t *testing.T, dir, relPath, content string) {
 	t.Helper()
 	fullPath := filepath.Join(dir, relPath)
-	require.NoError(t, os.MkdirAll(filepath.Dir(fullPath), 0o755))
-	require.NoError(t, os.WriteFile(fullPath, []byte(content), 0o644))
+	require.NoError(t, os.MkdirAll(filepath.Dir(fullPath), 0o700))
+	require.NoError(t, os.WriteFile(fullPath, []byte(content), 0o600))
 }
 
 // parseJSON parses stdout as JSON into a map. Fails the test if parsing fails.
@@ -205,12 +216,4 @@ func newDefaultSessionID(t *testing.T, label string) string {
 	sessionID := sessiontest.NewSessionID(t, label)
 	cleanupDefaultSessionFile(t, sessionID)
 	return sessionID
-}
-
-func cleanupDefaultSessionFiles(t *testing.T, sessionIDs ...string) {
-	t.Helper()
-
-	for _, sessionID := range sessionIDs {
-		cleanupDefaultSessionFile(t, sessionID)
-	}
 }

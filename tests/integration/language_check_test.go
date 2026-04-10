@@ -1,6 +1,7 @@
 package integration
 
 import (
+	"context"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -16,7 +17,8 @@ func TestLanguageCheckScriptPassesForEnglishOnlyFiles(t *testing.T) {
 
 	stageAll(t, projectDir)
 
-	cmd := exec.Command("bash", filepath.Join(findProjectRoot(), "scripts", "check-english-only.sh"))
+	//nolint:gosec // The test executes the repository's own language-check script resolved from the local project root.
+	cmd := exec.CommandContext(context.Background(), "bash", filepath.Join(findProjectRoot(), "scripts", "check-english-only.sh"))
 	cmd.Dir = projectDir
 	output, err := cmd.CombinedOutput()
 	require.NoError(t, err, "script output: %s", output)
@@ -28,7 +30,8 @@ func TestLanguageCheckScriptFailsForHanCharacters(t *testing.T) {
 
 	stageAll(t, projectDir)
 
-	cmd := exec.Command("bash", filepath.Join(findProjectRoot(), "scripts", "check-english-only.sh"))
+	//nolint:gosec // The test executes the repository's own language-check script resolved from the local project root.
+	cmd := exec.CommandContext(context.Background(), "bash", filepath.Join(findProjectRoot(), "scripts", "check-english-only.sh"))
 	cmd.Dir = projectDir
 	output, err := cmd.CombinedOutput()
 	require.Error(t, err, "script should fail when Han characters are present")
@@ -42,7 +45,8 @@ func TestLanguageCheckScriptPassesWithoutRipgrep(t *testing.T) {
 
 	stageAll(t, projectDir)
 
-	cmd := exec.Command("bash", filepath.Join(findProjectRoot(), "scripts", "check-english-only.sh"))
+	//nolint:gosec // The test executes the repository's own language-check script resolved from the local project root.
+	cmd := exec.CommandContext(context.Background(), "bash", filepath.Join(findProjectRoot(), "scripts", "check-english-only.sh"))
 	cmd.Dir = projectDir
 	cmd.Env = append(os.Environ(), "PATH=/usr/bin:/bin")
 	output, err := cmd.CombinedOutput()
@@ -55,7 +59,8 @@ func TestLanguageCheckScriptFailsForHanCharactersWithoutRipgrep(t *testing.T) {
 
 	stageAll(t, projectDir)
 
-	cmd := exec.Command("bash", filepath.Join(findProjectRoot(), "scripts", "check-english-only.sh"))
+	//nolint:gosec // The test executes the repository's own language-check script resolved from the local project root.
+	cmd := exec.CommandContext(context.Background(), "bash", filepath.Join(findProjectRoot(), "scripts", "check-english-only.sh"))
 	cmd.Dir = projectDir
 	cmd.Env = append(os.Environ(), "PATH=/usr/bin:/bin")
 	output, err := cmd.CombinedOutput()
@@ -69,7 +74,7 @@ func initGitRepo(t *testing.T) string {
 
 	dir := t.TempDir()
 
-	cmd := exec.Command("git", "init")
+	cmd := exec.CommandContext(context.Background(), "git", "init")
 	cmd.Dir = dir
 	output, err := cmd.CombinedOutput()
 	require.NoError(t, err, "git init failed: %s", output)
@@ -80,7 +85,7 @@ func initGitRepo(t *testing.T) string {
 func stageAll(t *testing.T, dir string) {
 	t.Helper()
 
-	cmd := exec.Command("git", "add", ".")
+	cmd := exec.CommandContext(context.Background(), "git", "add", ".")
 	cmd.Dir = dir
 	cmd.Env = os.Environ()
 	output, err := cmd.CombinedOutput()

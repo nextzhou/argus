@@ -18,8 +18,8 @@ func TestWorkspace_CompleteLifecycle(t *testing.T) {
 
 	workspaceDir := filepath.Join(homeDir, "work")
 	projectDir := filepath.Join(workspaceDir, "myproject")
-	require.NoError(t, os.MkdirAll(projectDir, 0o755))
-	require.NoError(t, os.MkdirAll(filepath.Join(projectDir, ".git"), 0o755))
+	require.NoError(t, os.MkdirAll(projectDir, 0o700))
+	require.NoError(t, os.MkdirAll(filepath.Join(projectDir, ".git"), 0o700))
 
 	result := runArgusJSON(t, projectDir, "install", "--workspace", workspaceDir, "--yes")
 	data := requireOK(t, result)
@@ -30,6 +30,7 @@ func TestWorkspace_CompleteLifecycle(t *testing.T) {
 
 	globalSettingsPath := filepath.Join(homeDir, ".claude", "settings.json")
 	if fileExists(t, globalSettingsPath) {
+		//nolint:gosec // The test reads a settings file created under its temp HOME directory.
 		content, err := os.ReadFile(globalSettingsPath)
 		require.NoError(t, err)
 		assert.Contains(t, string(content), "argus tick")
@@ -72,7 +73,7 @@ jobs:
 	requireOK(t, result)
 
 	uninitProjectDir := filepath.Join(workspaceDir, "otherproject")
-	require.NoError(t, os.MkdirAll(filepath.Join(uninitProjectDir, ".git"), 0o755))
+	require.NoError(t, os.MkdirAll(filepath.Join(uninitProjectDir, ".git"), 0o700))
 	stdinJSON = fmt.Sprintf(`{"session_id":"%s","cwd":"%s"}`, postUninstallSessionID, uninitProjectDir)
 	result = runArgusWithStdin(t, uninitProjectDir, stdinJSON, "tick", "--agent", "claude-code", "--global")
 	require.Equal(t, 0, result.ExitCode)
@@ -85,7 +86,7 @@ func TestWorkspace_NonGitDirSkip(t *testing.T) {
 
 	workspaceDir := filepath.Join(homeDir, "work")
 	nonGitDir := filepath.Join(workspaceDir, "not-a-repo")
-	require.NoError(t, os.MkdirAll(nonGitDir, 0o755))
+	require.NoError(t, os.MkdirAll(nonGitDir, 0o700))
 
 	result := runArgusJSON(t, nonGitDir, "install", "--workspace", workspaceDir, "--yes")
 	requireOK(t, result)
@@ -103,8 +104,8 @@ func TestWorkspace_OutsideWorkspace(t *testing.T) {
 
 	workspaceDir := filepath.Join(homeDir, "work")
 	outsideDir := filepath.Join(homeDir, "outside")
-	require.NoError(t, os.MkdirAll(workspaceDir, 0o755))
-	require.NoError(t, os.MkdirAll(filepath.Join(outsideDir, ".git"), 0o755))
+	require.NoError(t, os.MkdirAll(workspaceDir, 0o700))
+	require.NoError(t, os.MkdirAll(filepath.Join(outsideDir, ".git"), 0o700))
 
 	result := runArgusJSON(t, outsideDir, "install", "--workspace", workspaceDir, "--yes")
 	requireOK(t, result)
@@ -122,8 +123,8 @@ func TestWorkspace_MultiWorkspace(t *testing.T) {
 
 	wsAlpha := filepath.Join(homeDir, "ws-alpha")
 	wsBeta := filepath.Join(homeDir, "ws-beta")
-	require.NoError(t, os.MkdirAll(wsAlpha, 0o755))
-	require.NoError(t, os.MkdirAll(wsBeta, 0o755))
+	require.NoError(t, os.MkdirAll(wsAlpha, 0o700))
+	require.NoError(t, os.MkdirAll(wsBeta, 0o700))
 
 	result := runArgusJSON(t, homeDir, "install", "--workspace", wsAlpha, "--yes")
 	requireOK(t, result)
@@ -141,6 +142,7 @@ func TestWorkspace_MultiWorkspace(t *testing.T) {
 	requireOK(t, result)
 
 	if fileExists(t, globalSettingsPath) {
+		//nolint:gosec // The test reads a settings file created under its temp HOME directory.
 		content, err := os.ReadFile(globalSettingsPath)
 		require.NoError(t, err)
 		assert.Contains(t, string(content), "argus tick",
@@ -176,7 +178,7 @@ func TestWorkspace_DuplicateRegistration(t *testing.T) {
 	t.Setenv("HOME", homeDir)
 
 	workspaceDir := filepath.Join(homeDir, "work")
-	require.NoError(t, os.MkdirAll(workspaceDir, 0o755))
+	require.NoError(t, os.MkdirAll(workspaceDir, 0o700))
 
 	result := runArgusJSON(t, homeDir, "install", "--workspace", workspaceDir, "--yes")
 	requireOK(t, result)
@@ -185,6 +187,7 @@ func TestWorkspace_DuplicateRegistration(t *testing.T) {
 	requireOK(t, result)
 
 	configPath := filepath.Join(homeDir, ".config", "argus", "config.yaml")
+	//nolint:gosec // The test reads a config file created under its temp HOME directory.
 	content, err := os.ReadFile(configPath)
 	require.NoError(t, err)
 	assert.Contains(t, string(content), "~/work")
@@ -195,7 +198,7 @@ func TestWorkspace_PathNormalization(t *testing.T) {
 	t.Setenv("HOME", homeDir)
 
 	workspaceDir := filepath.Join(homeDir, "work")
-	require.NoError(t, os.MkdirAll(workspaceDir, 0o755))
+	require.NoError(t, os.MkdirAll(workspaceDir, 0o700))
 
 	result := runArgusJSON(t, homeDir, "install", "--workspace", workspaceDir, "--yes")
 	data := requireOK(t, result)
@@ -212,7 +215,7 @@ func TestWorkspace_GlobalTickGuidesMention(t *testing.T) {
 
 	workspaceDir := filepath.Join(homeDir, "work")
 	projectDir := filepath.Join(workspaceDir, "guide-project")
-	require.NoError(t, os.MkdirAll(filepath.Join(projectDir, ".git"), 0o755))
+	require.NoError(t, os.MkdirAll(filepath.Join(projectDir, ".git"), 0o700))
 
 	result := runArgusJSON(t, homeDir, "install", "--workspace", workspaceDir, "--yes")
 	requireOK(t, result)
@@ -234,7 +237,7 @@ func TestWorkspace_SubAgentSkipGlobalTick(t *testing.T) {
 
 	workspaceDir := filepath.Join(homeDir, "work")
 	projectDir := filepath.Join(workspaceDir, "sub-agent-project")
-	require.NoError(t, os.MkdirAll(filepath.Join(projectDir, ".git"), 0o755))
+	require.NoError(t, os.MkdirAll(filepath.Join(projectDir, ".git"), 0o700))
 
 	result := runArgusJSON(t, homeDir, "install", "--workspace", workspaceDir, "--yes")
 	requireOK(t, result)

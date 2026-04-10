@@ -18,6 +18,7 @@ func TestLogHookExecution_LogsDir(t *testing.T) {
 	require.NoError(t, err)
 
 	logPath := filepath.Join(logsDir, "hook.log")
+	//nolint:gosec // The test reads the hook log file it just asked LogHookExecution to create.
 	content, err := os.ReadFile(logPath)
 	require.NoError(t, err)
 
@@ -36,6 +37,7 @@ func TestLogHookExecution_Fallback(t *testing.T) {
 	require.NoError(t, err)
 
 	logPath := filepath.Join(tempDir, ".config", "argus", "logs", "hook.log")
+	//nolint:gosec // The test reads the hook log file it just asked LogHookExecution to create.
 	content, err := os.ReadFile(logPath)
 	require.NoError(t, err)
 
@@ -73,6 +75,7 @@ func TestLogHookExecution_AppendMode(t *testing.T) {
 	require.NoError(t, err)
 
 	logPath := filepath.Join(logsDir, "hook.log")
+	//nolint:gosec // The test reads the hook log file it just asked LogHookExecution to append to.
 	content, err := os.ReadFile(logPath)
 	require.NoError(t, err)
 
@@ -93,6 +96,7 @@ func TestLogHookExecution_ErrorStatus(t *testing.T) {
 	require.NoError(t, err)
 
 	logPath := filepath.Join(logsDir, "hook.log")
+	//nolint:gosec // Test reads a file it created at a fixed temp path.
 	content, err := os.ReadFile(logPath)
 	require.NoError(t, err)
 

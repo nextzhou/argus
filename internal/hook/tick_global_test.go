@@ -137,9 +137,9 @@ func TestHandleTick_Global(t *testing.T) {
 
 func createTickGlobalProject(t *testing.T, projectDir string, installed bool) {
 	t.Helper()
-	require.NoError(t, os.MkdirAll(filepath.Join(projectDir, ".git"), 0o755))
+	require.NoError(t, os.MkdirAll(filepath.Join(projectDir, ".git"), 0o700))
 	if installed {
-		require.NoError(t, os.MkdirAll(filepath.Join(projectDir, ".argus"), 0o755))
+		require.NoError(t, os.MkdirAll(filepath.Join(projectDir, ".argus"), 0o700))
 	}
 }
 
@@ -161,6 +161,6 @@ func installTickGlobalInvariant(t *testing.T, homeDir string) {
 	require.NoError(t, err)
 
 	path := filepath.Join(homeDir, ".config", "argus", "invariants", "argus-project-init.yaml")
-	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
-	require.NoError(t, os.WriteFile(path, data, 0o644))
+	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o700))
+	require.NoError(t, os.WriteFile(path, data, 0o600))
 }

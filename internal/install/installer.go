@@ -9,8 +9,6 @@ import (
 	"github.com/nextzhou/argus/internal/assets"
 )
 
-var supportedAgents = []string{"claude-code", "codex", "opencode"}
-
 // Install performs project-level Argus installation.
 //
 // It creates the .argus/ directory structure, releases built-in assets,
@@ -70,7 +68,7 @@ func InstallWithReport(projectRoot string) (ProjectOperationResult, error) {
 		return ProjectOperationResult{}, fmt.Errorf("pruning managed project skills: %w", err)
 	}
 
-	if err := installHooks(projectRoot, supportedAgents, tracker); err != nil {
+	if err := installHooks(projectRoot, managedAgents(), tracker); err != nil {
 		return ProjectOperationResult{}, fmt.Errorf("installing hooks: %w", err)
 	}
 
@@ -80,8 +78,8 @@ func InstallWithReport(projectRoot string) (ProjectOperationResult, error) {
 	}, nil
 }
 
-func releaseAssets(projectRoot, srcDir, dstDir string) error {
-	return releaseAssetsTracked(projectRoot, srcDir, dstDir, nil)
+func managedAgents() []string {
+	return []string{agentClaudeCode, agentCodex, agentOpenCode}
 }
 
 func releaseAssetsTracked(projectRoot, srcDir, dstDir string, tracker *mutationTracker) error {
@@ -101,7 +99,7 @@ func releaseAssetsTracked(projectRoot, srcDir, dstDir string, tracker *mutationT
 
 		dstPath := filepath.Join(projectRoot, dstDir, relPath)
 		if d.IsDir() {
-			if err := os.MkdirAll(dstPath, 0o755); err != nil {
+			if err := os.MkdirAll(dstPath, 0o700); err != nil {
 				return fmt.Errorf("creating %s: %w", dstPath, err)
 			}
 			return nil
@@ -131,7 +129,7 @@ func ensureDirTracked(path string, tracker *mutationTracker) error {
 		return fmt.Errorf("stating %s: %w", path, err)
 	}
 
-	if err := os.MkdirAll(path, 0o755); err != nil {
+	if err := os.MkdirAll(path, 0o700); err != nil {
 		return err
 	}
 

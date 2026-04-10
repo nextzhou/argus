@@ -17,7 +17,7 @@ func RunTouchTimestamp(args []string, _, stderr io.Writer) int {
 	}
 
 	ts := core.FormatTimestamp(time.Now())
-	if err := os.WriteFile(args[0], []byte(ts), 0o644); err != nil {
+	if err := os.WriteFile(args[0], []byte(ts), 0o600); err != nil {
 		_, _ = fmt.Fprintf(stderr, "writing timestamp: %s\n", err)
 		return 1
 	}

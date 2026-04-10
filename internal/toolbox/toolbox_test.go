@@ -23,6 +23,7 @@ func TestRunTouchTimestamp(t *testing.T) {
 		assert.Equal(t, 0, code)
 		assert.Empty(t, stderr.String())
 
+		//nolint:gosec // The test reads a temp file path created under t.TempDir.
 		content, err := os.ReadFile(path)
 		require.NoError(t, err)
 
@@ -75,7 +76,7 @@ func TestRunSHA256Sum(t *testing.T) {
 	t.Run("file mode", func(t *testing.T) {
 		dir := t.TempDir()
 		path := filepath.Join(dir, "test.txt")
-		require.NoError(t, os.WriteFile(path, []byte("hello"), 0o644))
+		require.NoError(t, os.WriteFile(path, []byte("hello"), 0o600))
 
 		var stdout, stderr bytes.Buffer
 		code := RunSHA256Sum([]string{path}, nil, &stdout, &stderr)

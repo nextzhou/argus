@@ -72,7 +72,9 @@ func TestSessionIDToSafeID(t *testing.T) {
 
 	t.Run("hash is deterministic", func(t *testing.T) {
 		id := "some-non-uuid-id"
-		assert.Equal(t, SessionIDToSafeID(id), SessionIDToSafeID(id))
+		first := SessionIDToSafeID(id)
+		second := SessionIDToSafeID(id)
+		assert.Equal(t, first, second)
 	})
 }
 
@@ -91,7 +93,7 @@ func TestProjectPathToSafeID(t *testing.T) {
 		},
 		{
 			name: "relative-ish traversal input",
-			path: "../../tmp/argus",
+			path: "../../tmp/session-store",
 		},
 	}
 

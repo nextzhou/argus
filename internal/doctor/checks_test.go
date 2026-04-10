@@ -265,7 +265,7 @@ func TestRunAllChecks_InstalledProject(t *testing.T) {
 	writeOpenCodePlugin(t, projectRoot)
 
 	workspaceDir := filepath.Join(homeDir, "workspace")
-	require.NoError(t, os.MkdirAll(workspaceDir, 0o755))
+	require.NoError(t, os.MkdirAll(workspaceDir, 0o700))
 	writeHomeFile(t, homeDir, filepath.Join(".config", "argus", "config.yaml"), "workspaces:\n  - ~/workspace\n")
 	writeHomeFile(t, homeDir, filepath.Join(".claude", "settings.json"), "{}")
 	writeHomeFile(t, homeDir, filepath.Join(".codex", "hooks.json"), "{}")
@@ -293,7 +293,8 @@ func installFakeArgusBinary(t *testing.T) {
 	binDir := t.TempDir()
 	argusPath := filepath.Join(binDir, "argus")
 	writeRepoFile(t, binDir, "argus", "#!/bin/sh\nexit 0\n")
-	require.NoError(t, os.Chmod(argusPath, 0o755))
+	//nolint:gosec // The fake argus binary must be executable for this test to validate PATH lookup behavior.
+	require.NoError(t, os.Chmod(argusPath, 0o700))
 	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 }
 
@@ -302,7 +303,7 @@ func createArgusDir(t *testing.T, projectRoot string, parts ...string) {
 
 	pathParts := append([]string{projectRoot, ".argus"}, parts...)
 	dir := filepath.Join(pathParts...)
-	require.NoError(t, os.MkdirAll(dir, 0o755))
+	require.NoError(t, os.MkdirAll(dir, 0o700))
 }
 
 func writeWorkflowFile(t *testing.T, projectRoot string, fileName string, workflowID string) {
@@ -380,14 +381,14 @@ func writeOpenCodePlugin(t *testing.T, projectRoot string) {
 
 func writeHomeFile(t *testing.T, homeDir string, relPath string, content string) {
 	t.Helper()
-	require.NoError(t, os.MkdirAll(filepath.Dir(filepath.Join(homeDir, relPath)), 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(homeDir, relPath), []byte(content), 0o644))
+	require.NoError(t, os.MkdirAll(filepath.Dir(filepath.Join(homeDir, relPath)), 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(homeDir, relPath), []byte(content), 0o600))
 }
 
 func writeRepoFile(t *testing.T, root string, relPath string, content string) {
 	t.Helper()
-	require.NoError(t, os.MkdirAll(filepath.Dir(filepath.Join(root, relPath)), 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(root, relPath), []byte(content), 0o644))
+	require.NoError(t, os.MkdirAll(filepath.Dir(filepath.Join(root, relPath)), 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(root, relPath), []byte(content), 0o600))
 }
 
 func mapResultsByName(results []CheckResult) map[string]CheckResult {

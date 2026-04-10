@@ -106,8 +106,8 @@ func TestE2E_CompleteWorkflowLifecycle(t *testing.T) {
 	assert.Equal(t, "running", pipeline["status"])
 	assert.Equal(t, "e2e-test", pipeline["workflow_id"])
 	progress := pipeline["progress"].(map[string]any)
-	assert.Equal(t, float64(3), progress["current"])
-	assert.Equal(t, float64(3), progress["total"])
+	assert.InDelta(t, 3, progress["current"], 0)
+	assert.InDelta(t, 3, progress["total"], 0)
 
 	result = runArgusJSON(t, projectDir, "job-done", "--message", "all done")
 	data = requireOK(t, result)
@@ -150,8 +150,8 @@ func TestE2E_InvariantCheckIntegration(t *testing.T) {
 
 	result = runArgusJSON(t, projectDir, "invariant", "check", "e2e-test-inv")
 	data = requireOK(t, result)
-	assert.Equal(t, float64(0), data["passed"])
-	assert.Equal(t, float64(1), data["failed"])
+	assert.InDelta(t, 0, data["passed"], 0)
+	assert.InDelta(t, 1, data["failed"], 0)
 	results := data["results"].([]any)
 	require.Len(t, results, 1)
 	invResult := results[0].(map[string]any)
@@ -162,8 +162,8 @@ func TestE2E_InvariantCheckIntegration(t *testing.T) {
 
 	result = runArgusJSON(t, projectDir, "invariant", "check", "e2e-test-inv")
 	data = requireOK(t, result)
-	assert.Equal(t, float64(1), data["passed"])
-	assert.Equal(t, float64(0), data["failed"])
+	assert.InDelta(t, 1, data["passed"], 0)
+	assert.InDelta(t, 0, data["failed"], 0)
 	results = data["results"].([]any)
 	require.Len(t, results, 1)
 	invResult = results[0].(map[string]any)
@@ -309,7 +309,7 @@ func TestE2E_StatusWithInvariants(t *testing.T) {
 	requireOK(t, result)
 
 	writeFile(t, projectDir, ".argus/workflows/e2e-test.yaml", testWorkflow)
-	passingInv := `version: v0.1.0
+	successfulInvariantYAML := `version: v0.1.0
 id: e2e-pass-inv
 description: Always passes
 auto: always
@@ -318,7 +318,7 @@ check:
     description: "always passes"
 prompt: "fix it"
 `
-	writeFile(t, projectDir, ".argus/invariants/e2e-pass-inv.yaml", passingInv)
+	writeFile(t, projectDir, ".argus/invariants/e2e-pass-inv.yaml", successfulInvariantYAML)
 
 	result = runArgusJSON(t, projectDir, "workflow", "start", "e2e-test")
 	requireOK(t, result)
@@ -432,6 +432,7 @@ func TestE2E_ToolboxCommands(t *testing.T) {
 	tsFile := filepath.Join(projectDir, "test-ts.txt")
 	result := runArgusText(t, projectDir, "toolbox", "touch-timestamp", tsFile)
 	require.Equal(t, 0, result.ExitCode)
+	//nolint:gosec // The test reads a temp file it just asked the toolbox command to create.
 	content, err := os.ReadFile(tsFile)
 	require.NoError(t, err)
 	assert.Regexp(t, `^\d{8}T\d{6}Z$`, string(content))

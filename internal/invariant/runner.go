@@ -29,15 +29,6 @@ type checkRuntime struct {
 	runStep     func(ctx context.Context, script string, projectRoot string) (string, string)
 }
 
-var defaultCheckRuntime = checkRuntime{
-	now:         time.Now,
-	stepTimeout: stepTimeout,
-	slowCheckAt: slowCheckAt,
-	runStep: func(ctx context.Context, script string, projectRoot string) (string, string) {
-		return runStep(ctx, script, projectRoot, stepTimeout)
-	},
-}
-
 // StepResult records the outcome of a single invariant shell check step.
 type StepResult struct {
 	Description string
@@ -57,10 +48,13 @@ type CheckResult struct {
 
 // RunCheck executes invariant check steps sequentially using bash.
 func RunCheck(ctx context.Context, inv *Invariant, projectRoot string) *CheckResult {
-	return runCheckWithRuntime(ctx, inv, projectRoot, defaultCheckRuntime)
+	return runCheckWithRuntime(ctx, inv, projectRoot, checkRuntime{})
 }
 
 func runCheckWithRuntime(ctx context.Context, inv *Invariant, projectRoot string, runtime checkRuntime) *CheckResult {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	if runtime.now == nil {
 		runtime.now = time.Now
 	}
@@ -123,6 +117,7 @@ func runCheckWithRuntime(ctx context.Context, inv *Invariant, projectRoot string
 }
 
 func runStep(ctx context.Context, script string, projectRoot string, timeout time.Duration) (string, string) {
+	//nolint:gosec // Argus intentionally executes user-authored invariant shell checks; this is the product contract.
 	cmd := exec.CommandContext(ctx, "/usr/bin/env", "bash", "-c", script)
 	cmd.Dir = projectRoot
 	cmd.Env = append(os.Environ(), "ARGUS_PROJECT_ROOT="+projectRoot)

@@ -139,7 +139,7 @@ func TestTickLifecycle_MinimalSummary(t *testing.T) {
 	assert.NotContains(t, minimalOutput, "Do step one")
 
 	// Minimal output should be shorter than full context
-	assert.True(t, len(minimalOutput) < len(fullOutput),
+	assert.Less(t, len(minimalOutput), len(fullOutput),
 		"minimal summary (%d bytes) should be shorter than full context (%d bytes)",
 		len(minimalOutput), len(fullOutput))
 }
@@ -437,14 +437,14 @@ prompt: "Fix it"
 	assert.Equal(t, "running", p["status"])
 	progress, ok := p["progress"].(map[string]any)
 	require.True(t, ok, "progress should be an object")
-	assert.Equal(t, float64(2), progress["current"])
-	assert.Equal(t, float64(3), progress["total"])
+	assert.InDelta(t, 2, progress["current"], 0)
+	assert.InDelta(t, 3, progress["total"], 0)
 
 	// Verify invariant info
 	inv, ok := data["invariants"].(map[string]any)
 	require.True(t, ok, "invariants should be an object")
-	assert.Equal(t, float64(1), inv["passed"])
-	assert.Equal(t, float64(0), inv["failed"])
+	assert.InDelta(t, 1, inv["passed"], 0)
+	assert.InDelta(t, 0, inv["failed"], 0)
 	details, ok := inv["details"].([]any)
 	require.True(t, ok, "details should be an array")
 	require.Len(t, details, 1)

@@ -23,10 +23,6 @@ const (
 	codexConfigRelativePath    = ".codex/config.toml"
 )
 
-// Keep PreToolUse in the managed event set so reinstall/uninstall can remove
-// legacy argus trap entries even though new installs only add UserPromptSubmit.
-var claudeCodeHookEvents = []string{"UserPromptSubmit", "PreToolUse"}
-
 // InstallHooks installs Argus-managed hook files for the requested agents.
 //
 //nolint:revive // package-qualified API name is required by the install command surface.
@@ -107,7 +103,7 @@ func installClaudeCodeHooksAt(settingsPath string, global bool, tracker *mutatio
 		return fmt.Errorf("reading claude code hooks: %w", err)
 	}
 
-	for _, event := range claudeCodeHookEvents {
+	for _, event := range managedClaudeCodeHookEvents() {
 		existingEntries, err := getArray(hooks, event)
 		if err != nil {
 			return fmt.Errorf("reading claude code %s hooks: %w", event, err)
@@ -154,7 +150,7 @@ func uninstallClaudeCodeHooksAt(settingsPath string, tracker *mutationTracker) e
 		return fmt.Errorf("reading claude code hooks: hooks must be an object")
 	}
 
-	for _, event := range claudeCodeHookEvents {
+	for _, event := range managedClaudeCodeHookEvents() {
 		existingEntries, err := getArray(hooks, event)
 		if err != nil {
 			return fmt.Errorf("reading claude code %s hooks: %w", event, err)
@@ -227,6 +223,7 @@ func ensureCodexHooksEnabled(tracker *mutationTracker) error {
 	configPath := filepath.Join(homeDir, codexConfigRelativePath)
 	config := map[string]any{}
 
+	//nolint:gosec // The Codex config path is derived from the resolved user home directory and a fixed relative path.
 	data, err := os.ReadFile(configPath)
 	if err != nil {
 		if !errors.Is(err, os.ErrNotExist) {
@@ -267,8 +264,9 @@ func loadTemplateHookEvents(agent string, global bool) (map[string][]any, error)
 		return nil, fmt.Errorf("reading %s hook template: %w", agent, err)
 	}
 
-	events := make(map[string][]any, len(claudeCodeHookEvents))
-	for _, event := range claudeCodeHookEvents {
+	managedEvents := managedClaudeCodeHookEvents()
+	events := make(map[string][]any, len(managedEvents))
+	for _, event := range managedEvents {
 		entries, err := getArray(hooks, event)
 		if err != nil {
 			return nil, fmt.Errorf("reading %s %s template hooks: %w", agent, event, err)
@@ -280,6 +278,7 @@ func loadTemplateHookEvents(agent string, global bool) (map[string][]any, error)
 }
 
 func loadJSONObject(path string) (map[string]any, error) {
+	//nolint:gosec // loadJSONObject intentionally reads the exact JSON file path selected by the caller.
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
@@ -301,6 +300,7 @@ func loadJSONObject(path string) (map[string]any, error) {
 }
 
 func loadJSONObjectIfExists(path string) (map[string]any, error) {
+	//nolint:gosec // loadJSONObjectIfExists intentionally reads the exact JSON file path selected by the caller.
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
@@ -321,12 +321,8 @@ func loadJSONObjectIfExists(path string) (map[string]any, error) {
 	return parsed, nil
 }
 
-func writeJSONObject(path string, value map[string]any) error {
-	return writeJSONObjectTracked(path, value, nil)
-}
-
 func writeJSONObjectTracked(path string, value map[string]any, tracker *mutationTracker) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return fmt.Errorf("creating %s: %w", filepath.Dir(path), err)
 	}
 
@@ -341,12 +337,9 @@ func writeJSONObjectTracked(path string, value map[string]any, tracker *mutation
 	return writeFileTracked(path, buf.Bytes(), tracker)
 }
 
-func writeFile(path string, content []byte) error {
-	return writeFileTracked(path, content, nil)
-}
-
 func writeFileTracked(path string, content []byte, tracker *mutationTracker) error {
 	existed := false
+	//nolint:gosec // writeFileTracked intentionally compares and rewrites the exact path selected by the caller.
 	existing, err := os.ReadFile(path)
 	switch {
 	case err == nil:
@@ -360,11 +353,11 @@ func writeFileTracked(path string, content []byte, tracker *mutationTracker) err
 		return fmt.Errorf("reading %s: %w", path, err)
 	}
 
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return fmt.Errorf("creating %s: %w", filepath.Dir(path), err)
 	}
 
-	if err := os.WriteFile(path, content, 0o644); err != nil {
+	if err := os.WriteFile(path, content, 0o600); err != nil {
 		return fmt.Errorf("writing %s: %w", path, err)
 	}
 
@@ -377,10 +370,6 @@ func writeFileTracked(path string, content []byte, tracker *mutationTracker) err
 	return nil
 }
 
-func removeIfExists(path string) error {
-	return removeIfExistsTracked(path, nil)
-}
-
 func removeIfExistsTracked(path string, tracker *mutationTracker) error {
 	if err := os.Remove(path); err != nil {
 		if errors.Is(err, os.ErrNotExist) {
@@ -391,6 +380,10 @@ func removeIfExistsTracked(path string, tracker *mutationTracker) error {
 
 	tracker.recordRemoved(path)
 	return nil
+}
+
+func managedClaudeCodeHookEvents() []string {
+	return []string{"UserPromptSubmit", "PreToolUse"}
 }
 
 func removeAllIfExists(path string, tracker *mutationTracker) error {

@@ -206,13 +206,16 @@ For every implementation task:
 
 ### Anti-Patterns (Prohibited)
 
-The following patterns are prohibited and enforced by golangci-lint:
+The authoritative enforced lint set lives in `.golangci.yml` and CI. The rules below document the repository-level intent behind that stricter baseline and should stay aligned with the actual configuration without duplicating every linter toggle.
 
 - **No `init()` functions**: Use explicit initialization in `main` or constructors (`gochecknoinits`)
-- **No global mutable state**: Pass dependencies explicitly via function parameters or struct fields
+- **No global mutable state**: Pass dependencies explicitly via function parameters or struct fields; package-level state should be immutable constants or carefully scoped runtime seams
 - **No `panic` in business logic**: Use error returns; `panic` is reserved for unrecoverable programmer errors
 - **No `any` abuse**: Use typed parameters and return values; avoid `interface{}` where a concrete type works
 - **No ignored errors**: All error return values must be checked (`errcheck`)
+- **No context-less external command execution in production paths**: Thread `context.Context` through call chains and use context-aware APIs such as `exec.CommandContext`
+- **No insecure defaults for Argus-managed private state**: Files under Argus-managed config, state, log, and asset roots should default to owner-only permissions (`0o600` files, `0o700` directories) unless broader access is a deliberate documented requirement
+- **No broad lint suppressions**: Prefer fixing code over suppression. When suppression is unavoidable, use line-scoped `//nolint:<linter> // reason`, name the exact linter, and explain why the code is safe. Do not use bare `//nolint` or directory-wide exclusions for convenience
 - **No `fmt.Print*` in production code**: Use `os.Stdout.WriteString` or `log/slog` (`forbidigo`)
 - **No raw `json.Marshal` for CLI output**: Use `core.OKEnvelope`/`core.ErrorEnvelope`/`core.WriteJSON` (they disable HTML escaping via `SetEscapeHTML(false)`; raw `json.Marshal` escapes `<>&` as `\uXXXX`)
 - **No string manipulation for structured data**: Use proper parsing libraries for JSON, YAML, TOML, XML, etc.

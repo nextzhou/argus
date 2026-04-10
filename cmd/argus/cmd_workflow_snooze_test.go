@@ -136,7 +136,7 @@ jobs:
 		t.Run(tt.name, func(t *testing.T) {
 			t.Chdir(t.TempDir())
 			// Ensure .argus/ exists for scope resolution even when no pipelines are written.
-			require.NoError(t, os.MkdirAll(filepath.Join(".argus", "pipelines"), 0o755))
+			require.NoError(t, os.MkdirAll(filepath.Join(".argus", "pipelines"), 0o700))
 			store := sessiontest.NewMemoryStore()
 			sessionID := ""
 
@@ -155,7 +155,7 @@ jobs:
 			output, cmdErr := executeWorkflowSnoozeCmd(t, store, args...)
 
 			if tt.wantErr {
-				assert.Error(t, cmdErr)
+				require.Error(t, cmdErr)
 			} else {
 				require.NoError(t, cmdErr)
 			}

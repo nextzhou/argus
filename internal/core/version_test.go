@@ -1,7 +1,6 @@
 package core
 
 import (
-	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -43,10 +42,10 @@ func TestCheckCompatibility(t *testing.T) {
 			}
 			require.Error(t, err)
 			if tt.wantMismatch {
-				assert.True(t, errors.Is(err, ErrVersionMismatch),
+				assert.ErrorIs(t, err, ErrVersionMismatch,
 					"expected ErrVersionMismatch, got: %v", err)
 			} else {
-				assert.False(t, errors.Is(err, ErrVersionMismatch),
+				assert.NotErrorIs(t, err, ErrVersionMismatch,
 					"expected format error (not ErrVersionMismatch), got: %v", err)
 			}
 		})

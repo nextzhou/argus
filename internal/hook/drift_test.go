@@ -36,6 +36,7 @@ func TestTemplateFullCoverage(t *testing.T) {
 		if e.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
 			continue
 		}
+		//nolint:gosec // The test reads Go source files enumerated from the current package directory.
 		data, readErr := os.ReadFile(name)
 		require.NoError(t, readErr, "reading hook source file %s", name)
 		hookSource.Write(data)
@@ -45,7 +46,7 @@ func TestTemplateFullCoverage(t *testing.T) {
 	for _, tmpl := range templates {
 		// Templates are referenced as "prompts/<filename>" in Go code.
 		ref := "prompts/" + tmpl
-		assert.True(t, strings.Contains(combined, ref),
+		assert.Contains(t, combined, ref,
 			"template %q is not referenced in any non-test Go file under internal/hook/", tmpl)
 	}
 }
@@ -57,9 +58,11 @@ func TestGoVersionConsistency(t *testing.T) {
 	goModPath := filepath.Join("..", "..", "go.mod")
 	golangciPath := filepath.Join("..", "..", ".golangci.yml")
 
+	//nolint:gosec // The test reads repository metadata files at fixed relative paths.
 	goModData, err := os.ReadFile(goModPath)
 	require.NoError(t, err, "reading go.mod")
 
+	//nolint:gosec // The test reads repository metadata files at fixed relative paths.
 	golangciData, err := os.ReadFile(golangciPath)
 	require.NoError(t, err, "reading .golangci.yml")
 
@@ -99,6 +102,7 @@ func TestValidatePathPersistenceCoverage(t *testing.T) {
 	funcPattern := regexp.MustCompile(`(?ms)^func\s+\w[^\n]*\{.*?^}`)
 
 	for _, path := range storeFiles {
+		//nolint:gosec // The test reads store implementation files from a fixed package-local allowlist.
 		data, err := os.ReadFile(path)
 		require.NoError(t, err, "reading store file %s", path)
 

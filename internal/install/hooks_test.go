@@ -3,7 +3,6 @@ package install
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -83,6 +82,7 @@ func TestClaudeCodePreserveNonArgusHooks(t *testing.T) {
 
 	require.NoError(t, InstallHooks(projectRoot, []string{"claude-code"}))
 
+	//nolint:gosec // The test reads the settings file it just asked InstallHooks to create.
 	rawSettings, err := os.ReadFile(settingsPath)
 	require.NoError(t, err)
 	assert.Contains(t, string(rawSettings), "custom <hook>")
@@ -178,7 +178,7 @@ func TestCodexHooksJson(t *testing.T) {
 	require.NoError(t, UninstallHooks(projectRoot, []string{"codex"}))
 
 	_, err := os.Stat(hooksPath)
-	assert.True(t, errors.Is(err, os.ErrNotExist))
+	require.ErrorIs(t, err, os.ErrNotExist)
 
 	config := readTOMLFile(t, filepath.Join(os.Getenv("HOME"), ".codex", "config.toml"))
 	assert.Equal(t, true, config["codex_hooks"])
@@ -191,6 +191,7 @@ func TestOpenCodePlugin(t *testing.T) {
 	require.NoError(t, InstallHooks(projectRoot, []string{"opencode"}))
 
 	pluginPath := filepath.Join(projectRoot, ".opencode", "plugins", "argus.ts")
+	//nolint:gosec // The test reads the plugin file it just asked InstallHooks to create.
 	pluginContent, err := os.ReadFile(pluginPath)
 	require.NoError(t, err)
 	assert.Contains(t, string(pluginContent), "argus tick --agent opencode")
@@ -204,7 +205,7 @@ func TestOpenCodePlugin(t *testing.T) {
 	require.NoError(t, UninstallHooks(projectRoot, []string{"opencode"}))
 
 	_, err = os.Stat(pluginPath)
-	assert.True(t, errors.Is(err, os.ErrNotExist))
+	assert.ErrorIs(t, err, os.ErrNotExist)
 }
 
 func TestUninstallNotInstalled(t *testing.T) {
@@ -218,20 +219,21 @@ func newTestProjectRoot(t *testing.T) string {
 	t.Helper()
 
 	projectRoot := t.TempDir()
-	require.NoError(t, os.Mkdir(filepath.Join(projectRoot, ".git"), 0o755))
+	require.NoError(t, os.Mkdir(filepath.Join(projectRoot, ".git"), 0o700))
 	return projectRoot
 }
 
 func writeTestFile(t *testing.T, path string, content string) {
 	t.Helper()
 
-	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
-	require.NoError(t, os.WriteFile(path, []byte(content), 0o644))
+	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o700))
+	require.NoError(t, os.WriteFile(path, []byte(content), 0o600))
 }
 
 func readJSONFile(t *testing.T, path string) map[string]any {
 	t.Helper()
 
+	//nolint:gosec // Test reads a file it created at a controlled path.
 	data, err := os.ReadFile(path)
 	require.NoError(t, err)
 
@@ -244,6 +246,7 @@ func readJSONFile(t *testing.T, path string) map[string]any {
 func readTOMLFile(t *testing.T, path string) map[string]any {
 	t.Helper()
 
+	//nolint:gosec // Test reads a file it created at a controlled path.
 	data, err := os.ReadFile(path)
 	require.NoError(t, err)
 

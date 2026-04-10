@@ -80,9 +80,9 @@ func newWorkflowStartCmd() *cobra.Command {
 				}
 			}
 
-			ctx := workflow.BuildContext(templateJobs, w, 0)
+			templateCtx := workflow.BuildContext(cmd.Context(), templateJobs, w, 0)
 			firstJob := w.Jobs[0]
-			rendered, warnings := workflow.RenderPrompt(firstJob.Prompt, ctx)
+			rendered, warnings := workflow.RenderPrompt(firstJob.Prompt, templateCtx)
 
 			for _, warning := range warnings {
 				_, _ = fmt.Fprintf(os.Stderr, "Argus warning: %s\n", warning)
@@ -148,6 +148,11 @@ func resolveRefs(workflowsDir, workflowPath string, w *workflow.Workflow) error 
 		return fmt.Errorf("loading shared definitions: %w", err)
 	}
 
+	if err := core.ValidatePath(workflowsDir, workflowPath); err != nil {
+		return fmt.Errorf("validating workflow path: %w", err)
+	}
+
+	//nolint:gosec // workflowPath is constrained to workflowsDir via ValidatePath before re-reading for ref resolution.
 	data, err := os.ReadFile(workflowPath)
 	if err != nil {
 		return fmt.Errorf("re-reading workflow for ref resolution: %w", err)

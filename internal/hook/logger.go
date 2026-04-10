@@ -35,7 +35,7 @@ func LogHookExecution(logsDir string, command string, success bool, details stri
 
 	// Create parent directories if they don't exist
 	logDir := filepath.Dir(logPath)
-	if err := os.MkdirAll(logDir, 0o755); err != nil {
+	if err := os.MkdirAll(logDir, 0o700); err != nil {
 		return fmt.Errorf("creating log directory %q: %w", logDir, err)
 	}
 
@@ -50,7 +50,8 @@ func LogHookExecution(logsDir string, command string, success bool, details stri
 	entry := fmt.Sprintf("%s [%s] %s %s\n", timestamp, command, status, details)
 
 	// Open file in append mode
-	f, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	//nolint:gosec // logPath is constructed from the hook log directory selected by the caller.
+	f, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
 	if err != nil {
 		return fmt.Errorf("opening log file %q: %w", logPath, err)
 	}

@@ -35,8 +35,8 @@ func TestStatus(t *testing.T) {
 				assert.Nil(t, data["pipeline"])
 				inv, ok := data["invariants"].(map[string]any)
 				require.True(t, ok, "invariants should be an object")
-				assert.Equal(t, float64(0), inv["passed"])
-				assert.Equal(t, float64(0), inv["failed"])
+				assert.InDelta(t, 0, inv["passed"], 0)
+				assert.InDelta(t, 0, inv["failed"], 0)
 				details, ok := inv["details"].([]any)
 				require.True(t, ok, "details should be an array")
 				assert.Empty(t, details)
@@ -63,8 +63,8 @@ func TestStatus(t *testing.T) {
 
 				progress, ok := p["progress"].(map[string]any)
 				require.True(t, ok, "progress should be an object")
-				assert.Equal(t, float64(2), progress["current"])
-				assert.Equal(t, float64(5), progress["total"])
+				assert.InDelta(t, 2, progress["current"], 0)
+				assert.InDelta(t, 5, progress["total"], 0)
 
 				jobs, ok := p["jobs"].([]any)
 				require.True(t, ok, "jobs should be an array")
@@ -94,8 +94,8 @@ func TestStatus(t *testing.T) {
 				assert.Equal(t, "pending", job4["status"])
 
 				inv := data["invariants"].(map[string]any)
-				assert.Equal(t, float64(0), inv["passed"])
-				assert.Equal(t, float64(0), inv["failed"])
+				assert.InDelta(t, 0, inv["passed"], 0)
+				assert.InDelta(t, 0, inv["failed"], 0)
 
 				hints := data["hints"].([]any)
 				assert.Empty(t, hints)
@@ -180,7 +180,7 @@ func TestStatus(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Chdir(t.TempDir())
-			require.NoError(t, os.MkdirAll(".argus", 0o755))
+			require.NoError(t, os.MkdirAll(".argus", 0o700))
 
 			if tt.workflowYAML != "" {
 				writeWorkflowFixture(t, tt.workflowID, tt.workflowYAML)
@@ -197,7 +197,7 @@ func TestStatus(t *testing.T) {
 			output, cmdErr := executeStatusCmd(t)
 
 			if tt.wantErr {
-				assert.Error(t, cmdErr)
+				require.Error(t, cmdErr)
 			} else {
 				require.NoError(t, cmdErr)
 			}
@@ -270,7 +270,7 @@ func TestStatusDefaultTextActivePipeline(t *testing.T) {
 
 func TestStatusDefaultTextNoPipeline(t *testing.T) {
 	t.Chdir(t.TempDir())
-	require.NoError(t, os.MkdirAll(".argus", 0o755))
+	require.NoError(t, os.MkdirAll(".argus", 0o700))
 
 	stdout, stderr, err := executeTextCommand(t, newStatusCmd())
 	require.NoError(t, err)
@@ -302,8 +302,8 @@ prompt: "Fix it"
 			},
 			checkJSON: func(t *testing.T, data map[string]any) {
 				inv := data["invariants"].(map[string]any)
-				assert.Equal(t, float64(1), inv["passed"])
-				assert.Equal(t, float64(0), inv["failed"])
+				assert.InDelta(t, 1, inv["passed"], 0)
+				assert.InDelta(t, 0, inv["failed"], 0)
 
 				details := inv["details"].([]any)
 				require.Len(t, details, 1)
@@ -328,8 +328,8 @@ prompt: "Fix it"
 			},
 			checkJSON: func(t *testing.T, data map[string]any) {
 				inv := data["invariants"].(map[string]any)
-				assert.Equal(t, float64(0), inv["passed"])
-				assert.Equal(t, float64(1), inv["failed"])
+				assert.InDelta(t, 0, inv["passed"], 0)
+				assert.InDelta(t, 1, inv["failed"], 0)
 
 				details := inv["details"].([]any)
 				require.Len(t, details, 1)
@@ -361,8 +361,8 @@ prompt: "Fix it"
 			},
 			checkJSON: func(t *testing.T, data map[string]any) {
 				inv := data["invariants"].(map[string]any)
-				assert.Equal(t, float64(1), inv["passed"])
-				assert.Equal(t, float64(0), inv["failed"])
+				assert.InDelta(t, 1, inv["passed"], 0)
+				assert.InDelta(t, 0, inv["failed"], 0)
 
 				details := inv["details"].([]any)
 				require.Len(t, details, 1)

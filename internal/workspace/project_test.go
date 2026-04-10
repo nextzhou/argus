@@ -12,7 +12,7 @@ import (
 func TestFindProjectRoot_ArgusAtCWD(t *testing.T) {
 	base := t.TempDir()
 	argusDir := filepath.Join(base, ".argus")
-	require.NoError(t, os.Mkdir(argusDir, 0o755))
+	require.NoError(t, os.Mkdir(argusDir, 0o700))
 
 	root, err := FindProjectRoot(base)
 	require.NoError(t, err)
@@ -25,10 +25,10 @@ func TestFindProjectRoot_ArgusAtCWD(t *testing.T) {
 func TestFindProjectRoot_ArgusInParent(t *testing.T) {
 	base := t.TempDir()
 	argusDir := filepath.Join(base, ".argus")
-	require.NoError(t, os.Mkdir(argusDir, 0o755))
+	require.NoError(t, os.Mkdir(argusDir, 0o700))
 
 	subdir := filepath.Join(base, "subdir", "nested")
-	require.NoError(t, os.MkdirAll(subdir, 0o755))
+	require.NoError(t, os.MkdirAll(subdir, 0o700))
 
 	root, err := FindProjectRoot(subdir)
 	require.NoError(t, err)
@@ -41,7 +41,7 @@ func TestFindProjectRoot_ArgusInParent(t *testing.T) {
 func TestFindProjectRoot_GitAtCWD(t *testing.T) {
 	base := t.TempDir()
 	gitDir := filepath.Join(base, ".git")
-	require.NoError(t, os.Mkdir(gitDir, 0o755))
+	require.NoError(t, os.Mkdir(gitDir, 0o700))
 
 	root, err := FindProjectRoot(base)
 	require.NoError(t, err)
@@ -54,10 +54,10 @@ func TestFindProjectRoot_GitAtCWD(t *testing.T) {
 func TestFindProjectRoot_GitInParent(t *testing.T) {
 	base := t.TempDir()
 	gitDir := filepath.Join(base, ".git")
-	require.NoError(t, os.Mkdir(gitDir, 0o755))
+	require.NoError(t, os.Mkdir(gitDir, 0o700))
 
 	subdir := filepath.Join(base, "subdir", "nested")
-	require.NoError(t, os.MkdirAll(subdir, 0o755))
+	require.NoError(t, os.MkdirAll(subdir, 0o700))
 
 	root, err := FindProjectRoot(subdir)
 	require.NoError(t, err)
@@ -71,8 +71,8 @@ func TestFindProjectRoot_BothArgusAndGit(t *testing.T) {
 	base := t.TempDir()
 	argusDir := filepath.Join(base, ".argus")
 	gitDir := filepath.Join(base, ".git")
-	require.NoError(t, os.Mkdir(argusDir, 0o755))
-	require.NoError(t, os.Mkdir(gitDir, 0o755))
+	require.NoError(t, os.Mkdir(argusDir, 0o700))
+	require.NoError(t, os.Mkdir(gitDir, 0o700))
 
 	root, err := FindProjectRoot(base)
 	require.NoError(t, err)
@@ -85,7 +85,7 @@ func TestFindProjectRoot_BothArgusAndGit(t *testing.T) {
 func TestFindProjectRoot_NeitherFound(t *testing.T) {
 	base := t.TempDir()
 	subdir := filepath.Join(base, "subdir")
-	require.NoError(t, os.Mkdir(subdir, 0o755))
+	require.NoError(t, os.Mkdir(subdir, 0o700))
 
 	root, err := FindProjectRoot(subdir)
 	require.NoError(t, err)
@@ -96,15 +96,15 @@ func TestFindProjectRoot_ArgusWinsOverGit(t *testing.T) {
 	base := t.TempDir()
 	argusDir := filepath.Join(base, ".argus")
 	gitDir := filepath.Join(base, ".git")
-	require.NoError(t, os.Mkdir(argusDir, 0o755))
-	require.NoError(t, os.Mkdir(gitDir, 0o755))
+	require.NoError(t, os.Mkdir(argusDir, 0o700))
+	require.NoError(t, os.Mkdir(gitDir, 0o700))
 
 	subdir := filepath.Join(base, "subdir")
-	require.NoError(t, os.Mkdir(subdir, 0o755))
+	require.NoError(t, os.Mkdir(subdir, 0o700))
 
 	// Create .git in subdir but not .argus
 	subGitDir := filepath.Join(subdir, ".git")
-	require.NoError(t, os.Mkdir(subGitDir, 0o755))
+	require.NoError(t, os.Mkdir(subGitDir, 0o700))
 
 	// Should find parent .argus, not subdir .git
 	root, err := FindProjectRoot(subdir)
@@ -117,13 +117,13 @@ func TestFindProjectRoot_ArgusWinsOverGit(t *testing.T) {
 func TestFindProjectRoot_NestedArgus(t *testing.T) {
 	base := t.TempDir()
 	parentArgus := filepath.Join(base, ".argus")
-	require.NoError(t, os.Mkdir(parentArgus, 0o755))
+	require.NoError(t, os.Mkdir(parentArgus, 0o700))
 
 	subdir := filepath.Join(base, "subdir")
-	require.NoError(t, os.Mkdir(subdir, 0o755))
+	require.NoError(t, os.Mkdir(subdir, 0o700))
 
 	childArgus := filepath.Join(subdir, ".argus")
-	require.NoError(t, os.Mkdir(childArgus, 0o755))
+	require.NoError(t, os.Mkdir(childArgus, 0o700))
 
 	// From subdir, should find child .argus (closest match)
 	root, err := FindProjectRoot(subdir)
@@ -136,7 +136,7 @@ func TestFindProjectRoot_NestedArgus(t *testing.T) {
 func TestFindProjectRoot_RelativePath(t *testing.T) {
 	base := t.TempDir()
 	argusDir := filepath.Join(base, ".argus")
-	require.NoError(t, os.Mkdir(argusDir, 0o755))
+	require.NoError(t, os.Mkdir(argusDir, 0o700))
 
 	// Change to base directory temporarily
 	oldCwd, err := os.Getwd()
@@ -159,11 +159,11 @@ func TestFindProjectRoot_RelativePath(t *testing.T) {
 func TestFindProjectRoot_DeepNesting(t *testing.T) {
 	base := t.TempDir()
 	argusDir := filepath.Join(base, ".argus")
-	require.NoError(t, os.Mkdir(argusDir, 0o755))
+	require.NoError(t, os.Mkdir(argusDir, 0o700))
 
 	// Create deeply nested subdirectory
 	deepPath := filepath.Join(base, "a", "b", "c", "d", "e")
-	require.NoError(t, os.MkdirAll(deepPath, 0o755))
+	require.NoError(t, os.MkdirAll(deepPath, 0o700))
 
 	root, err := FindProjectRoot(deepPath)
 	require.NoError(t, err)
@@ -175,13 +175,13 @@ func TestFindProjectRoot_DeepNesting(t *testing.T) {
 func TestFindProjectRoot_ArgusInParentGitInChild(t *testing.T) {
 	base := t.TempDir()
 	argusDir := filepath.Join(base, ".argus")
-	require.NoError(t, os.Mkdir(argusDir, 0o755))
+	require.NoError(t, os.Mkdir(argusDir, 0o700))
 
 	subdir := filepath.Join(base, "subdir")
-	require.NoError(t, os.Mkdir(subdir, 0o755))
+	require.NoError(t, os.Mkdir(subdir, 0o700))
 
 	gitDir := filepath.Join(subdir, ".git")
-	require.NoError(t, os.Mkdir(gitDir, 0o755))
+	require.NoError(t, os.Mkdir(gitDir, 0o700))
 
 	// From subdir, should find parent .argus (priority over local .git)
 	root, err := FindProjectRoot(subdir)
@@ -200,7 +200,7 @@ func TestIsSubdirectory_ExactMatch(t *testing.T) {
 func TestIsSubdirectory_DirectChild(t *testing.T) {
 	base := t.TempDir()
 	child := filepath.Join(base, "child")
-	require.NoError(t, os.Mkdir(child, 0o755))
+	require.NoError(t, os.Mkdir(child, 0o700))
 
 	assert.True(t, IsSubdirectory(base, child))
 }
@@ -208,7 +208,7 @@ func TestIsSubdirectory_DirectChild(t *testing.T) {
 func TestIsSubdirectory_DeepChild(t *testing.T) {
 	base := t.TempDir()
 	deep := filepath.Join(base, "a", "b", "c")
-	require.NoError(t, os.MkdirAll(deep, 0o755))
+	require.NoError(t, os.MkdirAll(deep, 0o700))
 
 	assert.True(t, IsSubdirectory(base, deep))
 }
@@ -226,7 +226,7 @@ func TestIsSubdirectory_PrefixButNotSegment(t *testing.T) {
 	parent := filepath.Dir(base)
 	baseName := filepath.Base(base)
 	similar := filepath.Join(parent, baseName+"_extra")
-	require.NoError(t, os.Mkdir(similar, 0o755))
+	require.NoError(t, os.Mkdir(similar, 0o700))
 
 	assert.False(t, IsSubdirectory(base, similar))
 }
@@ -240,7 +240,7 @@ func TestIsSubdirectory_RelativePaths(t *testing.T) {
 	require.NoError(t, os.Chdir(base))
 
 	child := filepath.Join(base, "child")
-	require.NoError(t, os.Mkdir(child, 0o755))
+	require.NoError(t, os.Mkdir(child, 0o700))
 
 	// Use relative paths
 	assert.True(t, IsSubdirectory(".", "child"))

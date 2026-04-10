@@ -715,22 +715,22 @@ check:
 func writeTickWorkflowFixture(t *testing.T, projectRoot, workflowID, yamlContent string) {
 	t.Helper()
 	workflowsDir := filepath.Join(projectRoot, ".argus", "workflows")
-	require.NoError(t, os.MkdirAll(workflowsDir, 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(workflowsDir, workflowID+".yaml"), []byte(yamlContent), 0o644))
+	require.NoError(t, os.MkdirAll(workflowsDir, 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(workflowsDir, workflowID+".yaml"), []byte(yamlContent), 0o600))
 }
 
 func writeTickPipelineFixture(t *testing.T, projectRoot, instanceID, yamlContent string) {
 	t.Helper()
 	pipelinesDir := filepath.Join(projectRoot, ".argus", "pipelines")
-	require.NoError(t, os.MkdirAll(pipelinesDir, 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(pipelinesDir, instanceID+".yaml"), []byte(yamlContent), 0o644))
+	require.NoError(t, os.MkdirAll(pipelinesDir, 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(pipelinesDir, instanceID+".yaml"), []byte(yamlContent), 0o600))
 }
 
 func writeTickInvariantFixture(t *testing.T, projectRoot, invariantID, yamlContent string) {
 	t.Helper()
 	invariantsDir := filepath.Join(projectRoot, ".argus", "invariants")
-	require.NoError(t, os.MkdirAll(invariantsDir, 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(invariantsDir, invariantID+".yaml"), []byte(yamlContent), 0o644))
+	require.NoError(t, os.MkdirAll(invariantsDir, 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(invariantsDir, invariantID+".yaml"), []byte(yamlContent), 0o600))
 }
 
 func loadTickActivePipelines(t *testing.T, projectRoot string) ([]pipeline.ActivePipeline, []pipeline.ScanWarning) {

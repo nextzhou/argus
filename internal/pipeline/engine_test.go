@@ -195,7 +195,7 @@ func TestCreatePipeline(t *testing.T) {
 			p, instanceID, err := pipeline.CreatePipeline(dir, wf.ID, wf, now)
 			if tt.wantErr != nil {
 				require.Error(t, err)
-				assert.ErrorIs(t, err, tt.wantErr)
+				require.ErrorIs(t, err, tt.wantErr)
 				assert.Nil(t, p)
 				assert.Empty(t, instanceID)
 				return

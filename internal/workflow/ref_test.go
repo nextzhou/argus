@@ -1,7 +1,6 @@
 package workflow
 
 import (
-	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -74,7 +73,7 @@ func TestLoadShared(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			dir := t.TempDir()
 			path := filepath.Join(dir, "_shared.yaml")
-			require.NoError(t, os.WriteFile(path, []byte(tt.content), 0o644))
+			require.NoError(t, os.WriteFile(path, []byte(tt.content), 0o600))
 
 			shared, err := LoadShared(path)
 			if tt.wantErr {
@@ -108,7 +107,7 @@ func TestLoadShared_FieldValues(t *testing.T) {
     skill: "code-review"
     description: "Lint job"
 `
-	require.NoError(t, os.WriteFile(path, []byte(content), 0o644))
+	require.NoError(t, os.WriteFile(path, []byte(content), 0o600))
 
 	shared, err := LoadShared(path)
 	require.NoError(t, err)
@@ -245,7 +244,7 @@ description: "New desc"`,
 			if tt.wantErr {
 				require.Error(t, err)
 				if tt.wantErrIs != nil {
-					assert.True(t, errors.Is(err, tt.wantErrIs),
+					require.ErrorIs(t, err, tt.wantErrIs,
 						"expected %v, got: %v", tt.wantErrIs, err)
 				}
 				if tt.errMsg != "" {

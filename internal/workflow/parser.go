@@ -29,6 +29,7 @@ func ParseWorkflow(r io.Reader) (*Workflow, error) {
 
 // ParseWorkflowFile parses a workflow definition from the file at the given path.
 func ParseWorkflowFile(path string) (*Workflow, error) {
+	//nolint:gosec // ParseWorkflowFile intentionally reads the exact file path selected by the caller.
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("opening workflow file: %w", err)

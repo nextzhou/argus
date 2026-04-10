@@ -37,7 +37,7 @@ func TestLoadConfig_FileNotFound(t *testing.T) {
 func TestLoadConfig_InvalidYAML(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "bad.yaml")
-	err := os.WriteFile(path, []byte("{{invalid yaml"), 0o644)
+	err := os.WriteFile(path, []byte("{{invalid yaml"), 0o600)
 	require.NoError(t, err)
 
 	_, err = LoadConfig(path)
@@ -49,7 +49,7 @@ func TestLoadConfig_UnknownFields(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "unknown.yaml")
 	content := "workspaces:\n  - ~/work\nunknown_field: oops\n"
-	err := os.WriteFile(path, []byte(content), 0o644)
+	err := os.WriteFile(path, []byte(content), 0o600)
 	require.NoError(t, err)
 
 	_, err = LoadConfig(path)
@@ -59,7 +59,7 @@ func TestLoadConfig_UnknownFields(t *testing.T) {
 func TestLoadConfig_EmptyWorkspaces(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "empty.yaml")
-	err := os.WriteFile(path, []byte("workspaces: []\n"), 0o644)
+	err := os.WriteFile(path, []byte("workspaces: []\n"), 0o600)
 	require.NoError(t, err)
 
 	cfg, err := LoadConfig(path)

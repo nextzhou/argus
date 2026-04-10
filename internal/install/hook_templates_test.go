@@ -1,6 +1,7 @@
 package install
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"os/exec"
@@ -99,10 +100,11 @@ func TestOpenCodePluginBiome(t *testing.T) {
 	// Write to temp file
 	dir := t.TempDir()
 	tsFile := filepath.Join(dir, "argus.ts")
-	require.NoError(t, os.WriteFile(tsFile, rendered, 0o644))
+	require.NoError(t, os.WriteFile(tsFile, rendered, 0o600))
 
 	// Run biome check
-	cmd := exec.Command("biome", "check", tsFile)
+	//nolint:gosec // This test executes the local biome binary against a temp file under test control.
+	cmd := exec.CommandContext(context.Background(), "biome", "check", tsFile)
 	output, err := cmd.CombinedOutput()
 	assert.NoError(t, err, "biome check failed: %s", string(output))
 }

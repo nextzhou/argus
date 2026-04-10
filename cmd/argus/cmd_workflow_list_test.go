@@ -64,12 +64,12 @@ jobs:
 				wf0 := workflows[0].(map[string]any)
 				assert.Equal(t, "deploy", wf0["id"])
 				assert.Equal(t, "Deploy to production", wf0["description"])
-				assert.Equal(t, float64(1), wf0["jobs"])
+				assert.InDelta(t, 1, wf0["jobs"], 0)
 
 				wf1 := workflows[1].(map[string]any)
 				assert.Equal(t, "release", wf1["id"])
 				assert.Equal(t, "Release workflow", wf1["description"])
-				assert.Equal(t, float64(2), wf1["jobs"])
+				assert.InDelta(t, 2, wf1["jobs"], 0)
 			},
 		},
 		{
@@ -114,15 +114,15 @@ jobs:
 			t.Chdir(t.TempDir())
 
 			// Create .argus/ for scope resolution
-			require.NoError(t, os.MkdirAll(".argus", 0o755))
+			require.NoError(t, os.MkdirAll(".argus", 0o700))
 
 			if tt.setupFiles != nil {
 				workflowsDir := filepath.Join(".argus", "workflows")
-				require.NoError(t, os.MkdirAll(workflowsDir, 0o755))
+				require.NoError(t, os.MkdirAll(workflowsDir, 0o700))
 				for name, content := range tt.setupFiles {
 					require.NoError(t, os.WriteFile(
 						filepath.Join(workflowsDir, name),
-						[]byte(content), 0o644,
+						[]byte(content), 0o600,
 					))
 				}
 			}
@@ -130,7 +130,7 @@ jobs:
 			output, cmdErr := executeListCmd(t)
 
 			if tt.wantErr {
-				assert.Error(t, cmdErr)
+				require.Error(t, cmdErr)
 			} else {
 				require.NoError(t, cmdErr)
 			}
@@ -150,11 +150,11 @@ func TestWorkflowListNonYAMLFilesIgnored(t *testing.T) {
 	t.Chdir(t.TempDir())
 
 	workflowsDir := filepath.Join(".argus", "workflows")
-	require.NoError(t, os.MkdirAll(workflowsDir, 0o755))
+	require.NoError(t, os.MkdirAll(workflowsDir, 0o700))
 
 	require.NoError(t, os.WriteFile(
 		filepath.Join(workflowsDir, "README.md"),
-		[]byte("# Workflows"), 0o644,
+		[]byte("# Workflows"), 0o600,
 	))
 
 	require.NoError(t, os.WriteFile(
@@ -164,7 +164,7 @@ id: release
 jobs:
   - id: build
     prompt: "Build"
-`), 0o644,
+`), 0o600,
 	))
 
 	output, err := executeListCmd(t)

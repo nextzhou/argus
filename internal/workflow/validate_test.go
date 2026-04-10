@@ -12,7 +12,7 @@ import (
 
 func writeTestFile(t *testing.T, dir, name, content string) {
 	t.Helper()
-	err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o644)
+	err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o600)
 	require.NoError(t, err)
 }
 

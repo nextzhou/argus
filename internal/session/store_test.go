@@ -2,7 +2,6 @@ package session
 
 import (
 	"crypto/sha256"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -82,8 +81,8 @@ func TestLoadSessionNotFound(t *testing.T) {
 	dir := t.TempDir()
 
 	_, err := LoadSession(dir, "nonexistent-session")
-	assert.Error(t, err)
-	assert.True(t, errors.Is(err, os.ErrNotExist))
+	require.Error(t, err)
+	assert.ErrorIs(t, err, os.ErrNotExist)
 }
 
 func TestLoadSessionInvalidYAML(t *testing.T) {
@@ -91,7 +90,7 @@ func TestLoadSessionInvalidYAML(t *testing.T) {
 	sessionID := "abc-123"
 
 	// Write invalid YAML directly
-	err := os.WriteFile(filepath.Join(dir, sessionID+".yaml"), []byte("{{invalid yaml"), 0o644)
+	err := os.WriteFile(filepath.Join(dir, sessionID+".yaml"), []byte("{{invalid yaml"), 0o600)
 	require.NoError(t, err)
 
 	_, err = LoadSession(dir, sessionID)
@@ -105,7 +104,7 @@ func TestLoadSessionUnknownFields(t *testing.T) {
 	content := `snoozed_pipelines: []
 unknown_field: should_fail
 `
-	err := os.WriteFile(filepath.Join(dir, sessionID+".yaml"), []byte(content), 0o644)
+	err := os.WriteFile(filepath.Join(dir, sessionID+".yaml"), []byte(content), 0o600)
 	require.NoError(t, err)
 
 	_, err = LoadSession(dir, sessionID)
@@ -127,7 +126,7 @@ func TestSafeIDPathUUID(t *testing.T) {
 	// UUID-like IDs are used directly as filename
 	expectedPath := filepath.Join(dir, sessionID+".yaml")
 	_, err = os.Stat(expectedPath)
-	assert.NoError(t, err, "UUID session ID should map to direct filename")
+	require.NoError(t, err, "UUID session ID should map to direct filename")
 }
 
 func TestSafeIDPathNonUUID(t *testing.T) {
@@ -148,12 +147,12 @@ func TestSafeIDPathNonUUID(t *testing.T) {
 	expectedPath := filepath.Join(dir, expectedSafeID+".yaml")
 
 	_, err = os.Stat(expectedPath)
-	assert.NoError(t, err, "non-UUID session ID should map to SHA256 hash prefix filename")
+	require.NoError(t, err, "non-UUID session ID should map to SHA256 hash prefix filename")
 
 	// Verify the direct name file does NOT exist
 	directPath := filepath.Join(dir, sessionID+".yaml")
 	_, err = os.Stat(directPath)
-	assert.True(t, errors.Is(err, os.ErrNotExist), "direct filename should not exist for non-UUID session ID")
+	require.ErrorIs(t, err, os.ErrNotExist, "direct filename should not exist for non-UUID session ID")
 
 	// Verify we can still load via the original session ID
 	loaded, err := LoadSession(dir, sessionID)

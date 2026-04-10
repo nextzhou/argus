@@ -1,7 +1,6 @@
 package core
 
 import (
-	"errors"
 	"fmt"
 	"testing"
 
@@ -23,10 +22,8 @@ func TestSentinelErrors(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Direct match
-			assert.ErrorIs(t, tt.err, tt.err)
 			// Wrapped match
-			assert.ErrorIs(t, tt.wrapped, tt.err)
+			require.ErrorIs(t, tt.wrapped, tt.err)
 			// Error() is non-empty
 			assert.NotEmpty(t, tt.err.Error())
 		})
@@ -42,13 +39,13 @@ func TestValidationError(t *testing.T) {
 	// errors.As extraction
 	wrapped := fmt.Errorf("context: %w", ve)
 	var extracted *ValidationError
-	require.True(t, errors.As(wrapped, &extracted))
+	require.ErrorAs(t, wrapped, &extracted)
 	assert.Equal(t, "workflow_id", extracted.Field)
 	assert.Equal(t, "must not be empty", extracted.Message)
 
 	// ValidationError does NOT match sentinel errors
-	assert.False(t, errors.Is(ve, ErrNotFound))
-	assert.False(t, errors.Is(ve, ErrInvalidID))
+	require.NotErrorIs(t, ve, ErrNotFound)
+	require.NotErrorIs(t, ve, ErrInvalidID)
 }
 
 func TestWrappingPreservesSentinel(t *testing.T) {
@@ -56,6 +53,6 @@ func TestWrappingPreservesSentinel(t *testing.T) {
 	wrapped := fmt.Errorf("loading config: %w", original)
 	doubleWrapped := fmt.Errorf("outer: %w", wrapped)
 
-	assert.ErrorIs(t, doubleWrapped, ErrNotFound)
-	assert.ErrorIs(t, wrapped, ErrNotFound)
+	require.ErrorIs(t, doubleWrapped, ErrNotFound)
+	require.ErrorIs(t, wrapped, ErrNotFound)
 }

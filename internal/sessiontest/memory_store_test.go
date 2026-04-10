@@ -17,7 +17,7 @@ func TestMemoryStoreLifecycle(t *testing.T) {
 
 	_, err := store.Load(sessionID)
 	require.Error(t, err)
-	assert.ErrorIs(t, err, fs.ErrNotExist)
+	require.ErrorIs(t, err, fs.ErrNotExist)
 
 	original := &session.Session{
 		SnoozedPipelines: []string{"pipeline-1"},
