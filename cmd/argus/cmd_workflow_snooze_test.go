@@ -31,18 +31,16 @@ jobs:
 
 func TestWorkflowSnooze(t *testing.T) {
 	tests := []struct {
-		name      string
-		args      []string
-		pipelines map[string]string
-		sessionID string
-		wantErr   bool
-		checkJSON func(t *testing.T, data map[string]any)
-		checkSess func(t *testing.T, store session.Store, sessionID string)
+		name         string
+		requiresSess bool
+		pipelines    map[string]string
+		wantErr      bool
+		checkJSON    func(t *testing.T, data map[string]any)
+		checkSess    func(t *testing.T, store session.Store, sessionID string)
 	}{
 		{
-			name:      "snooze active pipeline",
-			args:      []string{"--session", "11111111-2222-3333-4444-555555555555"},
-			sessionID: "11111111-2222-3333-4444-555555555555",
+			name:         "snooze active pipeline",
+			requiresSess: true,
 			pipelines: map[string]string{
 				"release-20240101T000000Z": snoozePipelineRunning,
 			},
@@ -61,20 +59,18 @@ func TestWorkflowSnooze(t *testing.T) {
 			},
 		},
 		{
-			name:      "no active pipeline",
-			args:      []string{"--session", "22222222-3333-4444-5555-666666666666"},
-			sessionID: "22222222-3333-4444-5555-666666666666",
-			pipelines: nil,
-			wantErr:   true,
+			name:         "no active pipeline",
+			requiresSess: true,
+			pipelines:    nil,
+			wantErr:      true,
 			checkJSON: func(t *testing.T, data map[string]any) {
 				assert.Equal(t, "error", data["status"])
 				assert.NotEmpty(t, data["message"])
 			},
 		},
 		{
-			name:      "idempotent snooze",
-			args:      []string{"--session", "33333333-4444-5555-6666-777777777777"},
-			sessionID: "33333333-4444-5555-6666-777777777777",
+			name:         "idempotent snooze",
+			requiresSess: true,
 			pipelines: map[string]string{
 				"release-20240101T000000Z": snoozePipelineRunning,
 			},
@@ -96,13 +92,11 @@ func TestWorkflowSnooze(t *testing.T) {
 		},
 		{
 			name:    "missing session flag",
-			args:    []string{},
 			wantErr: true,
 		},
 		{
-			name:      "multi-running anomaly snooze-all",
-			args:      []string{"--session", "44444444-5555-6666-7777-888888888888"},
-			sessionID: "44444444-5555-6666-7777-888888888888",
+			name:         "multi-running anomaly snooze-all",
+			requiresSess: true,
 			pipelines: map[string]string{
 				"release-20240101T000000Z": snoozePipelineRunning,
 				"deploy-20240102T000000Z": `version: v0.1.0
@@ -144,6 +138,7 @@ jobs:
 			// Ensure .argus/ exists for scope resolution even when no pipelines are written.
 			require.NoError(t, os.MkdirAll(filepath.Join(".argus", "pipelines"), 0o755))
 			store := sessiontest.NewMemoryStore()
+			sessionID := ""
 
 			if tt.pipelines != nil {
 				for instanceID, content := range tt.pipelines {
@@ -151,7 +146,13 @@ jobs:
 				}
 			}
 
-			output, cmdErr := executeWorkflowSnoozeCmd(t, store, tt.args...)
+			args := []string(nil)
+			if tt.requiresSess {
+				sessionID = sessiontest.NewSessionID(t, "snooze")
+				args = []string{"--session", sessionID}
+			}
+
+			output, cmdErr := executeWorkflowSnoozeCmd(t, store, args...)
 
 			if tt.wantErr {
 				assert.Error(t, cmdErr)
@@ -170,7 +171,7 @@ jobs:
 				tt.checkJSON(t, data)
 			}
 			if tt.checkSess != nil {
-				tt.checkSess(t, store, tt.sessionID)
+				tt.checkSess(t, store, sessionID)
 			}
 		})
 	}
@@ -180,7 +181,7 @@ func TestWorkflowSnoozeIdempotent(t *testing.T) {
 	t.Chdir(t.TempDir())
 	store := sessiontest.NewMemoryStore()
 
-	sessionID := "55555555-6666-7777-8888-999999999999"
+	sessionID := sessiontest.NewSessionID(t, "snooze-idempotent")
 
 	writePipelineFixture(t, "release-20240101T000000Z", snoozePipelineRunning)
 

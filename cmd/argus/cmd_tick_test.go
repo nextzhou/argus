@@ -56,13 +56,14 @@ jobs:
   - id: run_tests
     prompt: "Run tests"
 `)
+	sessionID := sessiontest.NewSessionID(t, "tick-cli-no-pipeline")
 
 	oldCwd, err := os.Getwd()
 	require.NoError(t, err)
 	defer func() { require.NoError(t, os.Chdir(oldCwd)) }()
 	require.NoError(t, os.Chdir(projectRoot))
 
-	output, cmdErr := executeTickCmd(t, sessiontest.NewMemoryStore(), `{"session_id":"tick-cli-no-pipeline","cwd":"`+projectRoot+`"}`, "--agent", "claude-code")
+	output, cmdErr := executeTickCmd(t, sessiontest.NewMemoryStore(), `{"session_id":"`+sessionID+`","cwd":"`+projectRoot+`"}`, "--agent", "claude-code")
 	require.NoError(t, cmdErr)
 	assertHookSafeTickText(t, string(output))
 	assert.Contains(t, string(output), "Argus:")
@@ -72,13 +73,14 @@ jobs:
 func TestTickSubAgentSkip(t *testing.T) {
 	projectRoot := t.TempDir()
 	require.NoError(t, os.MkdirAll(filepath.Join(projectRoot, ".argus", "workflows"), 0o755))
+	sessionID := sessiontest.NewSessionID(t, "tick-cli-sub-agent")
 
 	oldCwd, err := os.Getwd()
 	require.NoError(t, err)
 	defer func() { require.NoError(t, os.Chdir(oldCwd)) }()
 	require.NoError(t, os.Chdir(projectRoot))
 
-	output, cmdErr := executeTickCmd(t, sessiontest.NewMemoryStore(), `{"session_id":"tick-cli-sub-agent","agent_id":"worker-1"}`, "--agent", "claude-code")
+	output, cmdErr := executeTickCmd(t, sessiontest.NewMemoryStore(), `{"session_id":"`+sessionID+`","agent_id":"worker-1"}`, "--agent", "claude-code")
 	require.NoError(t, cmdErr)
 	assert.Empty(t, string(output))
 }
@@ -100,7 +102,9 @@ func TestTickFailOpen(t *testing.T) {
 }
 
 func TestTickWithoutAgent(t *testing.T) {
-	output, cmdErr := executeTickCmd(t, sessiontest.NewMemoryStore(), `{"session_id":"tick-cli-missing-agent"}`)
+	sessionID := sessiontest.NewSessionID(t, "tick-cli-missing-agent")
+
+	output, cmdErr := executeTickCmd(t, sessiontest.NewMemoryStore(), `{"session_id":"`+sessionID+`"}`)
 	require.Error(t, cmdErr)
 	assert.Empty(t, string(output))
 	assert.Contains(t, cmdErr.Error(), "required flag(s) \"agent\" not set")

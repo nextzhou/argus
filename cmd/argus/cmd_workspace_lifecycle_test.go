@@ -123,6 +123,7 @@ func TestWorkspaceLifecycle_Complete(t *testing.T) {
 	homeDir := t.TempDir()
 	t.Setenv("HOME", homeDir)
 	store := sessiontest.NewMemoryStore()
+	sessionID := sessiontest.NewSessionID(t, "workspace-global")
 
 	workspaceDir := filepath.Join(homeDir, "work")
 	projectDir := filepath.Join(workspaceDir, "myproject")
@@ -152,7 +153,7 @@ func TestWorkspaceLifecycle_Complete(t *testing.T) {
 	assertGlobalSkillState(t, true)
 
 	t.Chdir(projectDir)
-	output, cmdErr = executeGlobalTickCmd(t, store, `{"session_id":"test-session"}`)
+	output, cmdErr = executeGlobalTickCmd(t, store, `{"session_id":"`+sessionID+`"}`)
 	require.NoError(t, cmdErr)
 	assertHookSafeTickText(t, string(output))
 	assert.Contains(t, string(output), "argus install")
@@ -165,7 +166,7 @@ func TestWorkspaceLifecycle_Complete(t *testing.T) {
 	_, err := os.Stat(filepath.Join(projectDir, ".argus"))
 	assert.NoError(t, err, "%s should exist after project install", filepath.Join(projectDir, ".argus"))
 
-	output, cmdErr = executeGlobalTickCmd(t, store, `{"session_id":"test-session"}`)
+	output, cmdErr = executeGlobalTickCmd(t, store, `{"session_id":"`+sessionID+`"}`)
 	require.NoError(t, cmdErr)
 	assert.Empty(t, string(output))
 
@@ -187,7 +188,7 @@ func TestWorkspaceLifecycle_Complete(t *testing.T) {
 	assertGlobalSkillState(t, false)
 
 	t.Chdir(postUninstallProjectDir)
-	output, cmdErr = executeGlobalTickCmd(t, store, `{"session_id":"test-session"}`)
+	output, cmdErr = executeGlobalTickCmd(t, store, `{"session_id":"`+sessionID+`"}`)
 	require.NoError(t, cmdErr)
 	assert.Empty(t, string(output))
 }

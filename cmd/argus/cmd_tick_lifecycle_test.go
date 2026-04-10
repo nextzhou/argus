@@ -49,7 +49,7 @@ func TestTickLifecycle_Complete(t *testing.T) {
 	writeWorkflowFixture(t, "tick-lifecycle", tickLifecycleWorkflow)
 	store := sessiontest.NewMemoryStore()
 
-	sessionID := "a0a0a0a0-0001-0001-0001-000000000001"
+	sessionID := sessiontest.NewSessionID(t, "tick-lifecycle")
 	stdinJSON := fmt.Sprintf(`{"session_id":"%s"}`, sessionID)
 
 	// Step 1: Start pipeline
@@ -115,7 +115,7 @@ func TestTickLifecycle_MinimalSummary(t *testing.T) {
 	writeWorkflowFixture(t, "tick-lifecycle", tickLifecycleWorkflow)
 	store := sessiontest.NewMemoryStore()
 
-	sessionID := "a0a0a0a0-0002-0002-0002-000000000002"
+	sessionID := sessiontest.NewSessionID(t, "tick-minimal")
 	stdinJSON := fmt.Sprintf(`{"session_id":"%s"}`, sessionID)
 
 	// Start pipeline
@@ -151,7 +151,7 @@ func TestTickLifecycle_Snooze(t *testing.T) {
 	writeWorkflowFixture(t, "tick-lifecycle", tickLifecycleWorkflow)
 	store := sessiontest.NewMemoryStore()
 
-	sessionID := "a0a0a0a0-0003-0003-0003-000000000003"
+	sessionID := sessiontest.NewSessionID(t, "tick-snooze")
 	stdinJSON := fmt.Sprintf(`{"session_id":"%s"}`, sessionID)
 
 	// Start pipeline
@@ -194,7 +194,7 @@ func TestTickLifecycle_FirstTickInvariant(t *testing.T) {
 	writeInvariantFixture(t, "tick-always-inv", tickAlwaysInvariant)
 	store := sessiontest.NewMemoryStore()
 
-	sessionID := "a0a0a0a0-0004-0004-0004-000000000004"
+	sessionID := sessiontest.NewSessionID(t, "tick-first-invariant")
 	stdinJSON := fmt.Sprintf(`{"session_id":"%s"}`, sessionID)
 
 	// First tick — stop at the first failing invariant.
@@ -228,7 +228,7 @@ prompt: "<<<ARGUS_INIT_REQUIRED>>> initialize argus first"
 `)
 	store := sessiontest.NewMemoryStore()
 
-	sessionID := "a0a0a0a0-0006-0006-0006-000000000006"
+	sessionID := sessiontest.NewSessionID(t, "tick-prompt-only")
 	stdinJSON := fmt.Sprintf(`{"session_id":"%s"}`, sessionID)
 
 	out, err := executeTickCmd(t, store, stdinJSON, "--agent", "claude-code")
@@ -255,7 +255,7 @@ workflow: remediation-flow
 `)
 	store := sessiontest.NewMemoryStore()
 
-	sessionID := "a0a0a0a0-0008-0008-0008-000000000008"
+	sessionID := sessiontest.NewSessionID(t, "tick-workflow-only")
 	stdinJSON := fmt.Sprintf(`{"session_id":"%s"}`, sessionID)
 
 	out, err := executeTickCmd(t, store, stdinJSON, "--agent", "claude-code")
@@ -283,7 +283,7 @@ prompt: "<<<ARGUS_INIT_REQUIRED>>> initialize argus first"
 `)
 	store := sessiontest.NewMemoryStore()
 
-	sessionID := "a0a0a0a0-0009-0009-0009-000000000009"
+	sessionID := sessiontest.NewSessionID(t, "tick-priority")
 	stdinJSON := fmt.Sprintf(`{"session_id":"%s"}`, sessionID)
 
 	out, err := executeTickCmd(t, store, stdinJSON, "--agent", "claude-code")
@@ -310,7 +310,7 @@ prompt: "this prompt should never be injected"
 `)
 	store := sessiontest.NewMemoryStore()
 
-	sessionID := "a0a0a0a0-0007-0007-0007-000000000007"
+	sessionID := sessiontest.NewSessionID(t, "tick-pass")
 	stdinJSON := fmt.Sprintf(`{"session_id":"%s"}`, sessionID)
 
 	out, err := executeTickCmd(t, store, stdinJSON, "--agent", "claude-code")
@@ -337,7 +337,7 @@ prompt: "do not show this while a pipeline is active"
 `)
 	store := sessiontest.NewMemoryStore()
 
-	sessionID := "a0a0a0a0-0010-0010-0010-000000000010"
+	sessionID := sessiontest.NewSessionID(t, "tick-active-pipeline")
 	stdinJSON := fmt.Sprintf(`{"session_id":"%s"}`, sessionID)
 
 	_, err := executeStartCmd(t, "tick-lifecycle")
@@ -367,7 +367,7 @@ prompt: "this prompt should never be injected"
 `)
 	store := sessiontest.NewMemoryStore()
 
-	sessionID := "a0a0a0a0-0011-0011-0011-000000000011"
+	sessionID := sessiontest.NewSessionID(t, "tick-no-workflow")
 	stdinJSON := fmt.Sprintf(`{"session_id":"%s"}`, sessionID)
 
 	out, err := executeTickCmd(t, store, stdinJSON, "--agent", "claude-code")
@@ -386,7 +386,7 @@ func TestTickLifecycle_SubAgentSkip(t *testing.T) {
 	_, err := executeStartCmd(t, "tick-lifecycle")
 	require.NoError(t, err)
 
-	sessionID := "a0a0a0a0-0005-0005-0005-000000000005"
+	sessionID := sessiontest.NewSessionID(t, "tick-sub-agent")
 	// Sub-agent: include agent_id in stdin JSON
 	stdinJSON := fmt.Sprintf(`{"session_id":"%s","agent_id":"worker-1"}`, sessionID)
 

@@ -11,7 +11,8 @@ import (
 )
 
 func TestWorkspace_CompleteLifecycle(t *testing.T) {
-	cleanupDefaultSessionFile(t, "ws-lifecycle-session")
+	sessionID := newDefaultSessionID(t, "ws-lifecycle")
+	postUninstallSessionID := newDefaultSessionID(t, "post-uninstall")
 	homeDir := resolveSymlinks(t, t.TempDir())
 	t.Setenv("HOME", homeDir)
 
@@ -40,7 +41,6 @@ func TestWorkspace_CompleteLifecycle(t *testing.T) {
 		assert.True(t, fileExists(t, skillPath), "%s should exist", skillPath)
 	}
 
-	sessionID := "ws-lifecycle-session"
 	stdinJSON := fmt.Sprintf(`{"session_id":"%s","cwd":"%s"}`, sessionID, projectDir)
 	result = runArgusWithStdin(t, projectDir, stdinJSON, "tick", "--agent", "claude-code", "--global")
 	require.Equal(t, 0, result.ExitCode)
@@ -73,7 +73,7 @@ jobs:
 
 	uninitProjectDir := filepath.Join(workspaceDir, "otherproject")
 	require.NoError(t, os.MkdirAll(filepath.Join(uninitProjectDir, ".git"), 0o755))
-	stdinJSON = fmt.Sprintf(`{"session_id":"post-uninstall","cwd":"%s"}`, uninitProjectDir)
+	stdinJSON = fmt.Sprintf(`{"session_id":"%s","cwd":"%s"}`, postUninstallSessionID, uninitProjectDir)
 	result = runArgusWithStdin(t, uninitProjectDir, stdinJSON, "tick", "--agent", "claude-code", "--global")
 	require.Equal(t, 0, result.ExitCode)
 	assert.Empty(t, result.Stdout, "global tick should produce nothing after workspace uninstall")
@@ -90,7 +90,8 @@ func TestWorkspace_NonGitDirSkip(t *testing.T) {
 	result := runArgus(t, nonGitDir, "install", "--workspace", workspaceDir, "--yes")
 	requireOK(t, result)
 
-	stdinJSON := fmt.Sprintf(`{"session_id":"non-git-test","cwd":"%s"}`, nonGitDir)
+	sessionID := newDefaultSessionID(t, "non-git")
+	stdinJSON := fmt.Sprintf(`{"session_id":"%s","cwd":"%s"}`, sessionID, nonGitDir)
 	result = runArgusWithStdin(t, nonGitDir, stdinJSON, "tick", "--agent", "claude-code", "--global")
 	require.Equal(t, 0, result.ExitCode)
 	assert.Empty(t, result.Stdout, "global tick should skip non-git directory")
@@ -108,7 +109,8 @@ func TestWorkspace_OutsideWorkspace(t *testing.T) {
 	result := runArgus(t, outsideDir, "install", "--workspace", workspaceDir, "--yes")
 	requireOK(t, result)
 
-	stdinJSON := fmt.Sprintf(`{"session_id":"outside-test","cwd":"%s"}`, outsideDir)
+	sessionID := newDefaultSessionID(t, "outside-workspace")
+	stdinJSON := fmt.Sprintf(`{"session_id":"%s","cwd":"%s"}`, sessionID, outsideDir)
 	result = runArgusWithStdin(t, outsideDir, stdinJSON, "tick", "--agent", "claude-code", "--global")
 	require.Equal(t, 0, result.ExitCode)
 	assert.Empty(t, result.Stdout, "global tick should skip project outside workspace")
@@ -203,7 +205,7 @@ func TestWorkspace_PathNormalization(t *testing.T) {
 }
 
 func TestWorkspace_GlobalTickGuidesMention(t *testing.T) {
-	cleanupDefaultSessionFile(t, "guide-test")
+	sessionID := newDefaultSessionID(t, "guide")
 	homeDir := resolveSymlinks(t, t.TempDir())
 	t.Setenv("HOME", homeDir)
 
@@ -214,7 +216,7 @@ func TestWorkspace_GlobalTickGuidesMention(t *testing.T) {
 	result := runArgus(t, homeDir, "install", "--workspace", workspaceDir, "--yes")
 	requireOK(t, result)
 
-	stdinJSON := fmt.Sprintf(`{"session_id":"guide-test","cwd":"%s"}`, projectDir)
+	stdinJSON := fmt.Sprintf(`{"session_id":"%s","cwd":"%s"}`, sessionID, projectDir)
 	result = runArgusWithStdin(t, projectDir, stdinJSON, "tick", "--agent", "claude-code", "--global")
 	require.Equal(t, 0, result.ExitCode)
 	assert.Contains(t, result.Stdout, "argus install",
@@ -236,7 +238,8 @@ func TestWorkspace_SubAgentSkipGlobalTick(t *testing.T) {
 	result := runArgus(t, homeDir, "install", "--workspace", workspaceDir, "--yes")
 	requireOK(t, result)
 
-	stdinJSON := fmt.Sprintf(`{"session_id":"sub-agent-global","agent_id":"worker-1","cwd":"%s"}`, projectDir)
+	sessionID := newDefaultSessionID(t, "sub-agent-global")
+	stdinJSON := fmt.Sprintf(`{"session_id":"%s","agent_id":"worker-1","cwd":"%s"}`, sessionID, projectDir)
 	result = runArgusWithStdin(t, projectDir, stdinJSON, "tick", "--agent", "claude-code", "--global")
 	require.Equal(t, 0, result.ExitCode)
 	assert.Empty(t, result.Stdout, "sub-agent should produce no output even in global tick")

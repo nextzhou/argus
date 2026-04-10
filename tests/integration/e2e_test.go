@@ -47,7 +47,7 @@ func TestE2E_CompleteWorkflowLifecycle(t *testing.T) {
 	t.Setenv("HOME", homeDir)
 
 	projectDir := setupGitRepo(t)
-	cleanupDefaultSessionFile(t, "e2e-test-session-0001")
+	sessionID := newDefaultSessionID(t, "e2e-complete")
 
 	result := runArgus(t, projectDir, "install", "--yes")
 	requireOK(t, result)
@@ -79,7 +79,6 @@ func TestE2E_CompleteWorkflowLifecycle(t *testing.T) {
 	assert.Equal(t, "step_one", nextJob["id"])
 	assert.Contains(t, nextJob["prompt"].(string), "Execute step one")
 
-	sessionID := "e2e-test-session-0001"
 	stdinJSON := fmt.Sprintf(`{"session_id":"%s","cwd":"%s"}`, sessionID, projectDir)
 	result = runArgusWithStdin(t, projectDir, stdinJSON, "tick", "--agent", "claude-code")
 	require.Equal(t, 0, result.ExitCode)
@@ -197,7 +196,9 @@ func TestE2E_TickMultiAgentFormats(t *testing.T) {
 	t.Setenv("HOME", homeDir)
 
 	projectDir := setupGitRepo(t)
-	cleanupDefaultSessionFiles(t, "agent-test-claude", "agent-test-codex", "agent-test-opencode")
+	claudeSessionID := newDefaultSessionID(t, "agent-claude")
+	codexSessionID := newDefaultSessionID(t, "agent-codex")
+	opencodeSessionID := newDefaultSessionID(t, "agent-opencode")
 
 	result := runArgus(t, projectDir, "install", "--yes")
 	requireOK(t, result)
@@ -207,17 +208,17 @@ func TestE2E_TickMultiAgentFormats(t *testing.T) {
 	result = runArgus(t, projectDir, "workflow", "start", "e2e-test")
 	requireOK(t, result)
 
-	claudeStdin := fmt.Sprintf(`{"session_id":"agent-test-claude","cwd":"%s"}`, projectDir)
+	claudeStdin := fmt.Sprintf(`{"session_id":"%s","cwd":"%s"}`, claudeSessionID, projectDir)
 	result = runArgusWithStdin(t, projectDir, claudeStdin, "tick", "--agent", "claude-code")
 	require.Equal(t, 0, result.ExitCode)
 	assert.Contains(t, result.Stdout, "step_one")
 
-	codexStdin := fmt.Sprintf(`{"session_id":"agent-test-codex","cwd":"%s"}`, projectDir)
+	codexStdin := fmt.Sprintf(`{"session_id":"%s","cwd":"%s"}`, codexSessionID, projectDir)
 	result = runArgusWithStdin(t, projectDir, codexStdin, "tick", "--agent", "codex")
 	require.Equal(t, 0, result.ExitCode)
 	assert.Contains(t, result.Stdout, "step_one")
 
-	opencodeStdin := fmt.Sprintf(`{"sessionID":"agent-test-opencode","cwd":"%s"}`, projectDir)
+	opencodeStdin := fmt.Sprintf(`{"sessionID":"%s","cwd":"%s"}`, opencodeSessionID, projectDir)
 	result = runArgusWithStdin(t, projectDir, opencodeStdin, "tick", "--agent", "opencode")
 	require.Equal(t, 0, result.ExitCode)
 	assert.Contains(t, result.Stdout, "step_one")
@@ -378,7 +379,7 @@ func TestE2E_Snooze(t *testing.T) {
 	t.Setenv("HOME", homeDir)
 
 	projectDir := setupGitRepo(t)
-	cleanupDefaultSessionFile(t, "e2e-snooze-session-0001")
+	sessionID := newDefaultSessionID(t, "e2e-snooze")
 
 	result := runArgus(t, projectDir, "install", "--yes")
 	requireOK(t, result)
@@ -388,7 +389,6 @@ func TestE2E_Snooze(t *testing.T) {
 	result = runArgus(t, projectDir, "workflow", "start", "e2e-test")
 	requireOK(t, result)
 
-	sessionID := "e2e-snooze-session-0001"
 	result = runArgus(t, projectDir, "workflow", "snooze", "--session", sessionID)
 	data := requireOK(t, result)
 	snoozed := data["snoozed"].([]any)

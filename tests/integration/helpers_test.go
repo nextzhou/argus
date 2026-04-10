@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/nextzhou/argus/internal/core"
+	"github.com/nextzhou/argus/internal/sessiontest"
 	"github.com/stretchr/testify/require"
 )
 
@@ -238,6 +239,14 @@ func cleanupDefaultSessionFile(t *testing.T, sessionID string) {
 	t.Cleanup(func() {
 		_ = os.Remove(path)
 	})
+}
+
+func newDefaultSessionID(t *testing.T, label string) string {
+	t.Helper()
+
+	sessionID := sessiontest.NewSessionID(t, label)
+	cleanupDefaultSessionFile(t, sessionID)
+	return sessionID
 }
 
 func cleanupDefaultSessionFiles(t *testing.T, sessionIDs ...string) {
