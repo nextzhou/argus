@@ -218,7 +218,7 @@ Argus renders `prompt` with Go `text/template` before dispatching the job.
 ### 5.2 Validation Rules
 
 - the `jobs` list may not be empty
-- built-in workflows such as `argus-init` are released into `.argus/workflows/` and validated using the same mechanism as user-defined workflows
+- built-in workflows such as `argus-project-init` are released into `.argus/workflows/` and validated using the same mechanism as user-defined workflows
 
 ---
 

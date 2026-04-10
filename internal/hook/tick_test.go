@@ -113,10 +113,10 @@ func TestInvariantSuggestion(t *testing.T) {
 		{
 			name: "workflow takes priority over prompt",
 			inv: &invariant.Invariant{
-				Workflow: "argus-init",
+				Workflow: "argus-project-init",
 				Prompt:   "<<<ARGUS_INIT_REQUIRED>>>",
 			},
-			want: "Run argus workflow start argus-init",
+			want: "Run argus workflow start argus-project-init",
 		},
 		{
 			name: "prompt is used when workflow is absent",
@@ -378,8 +378,8 @@ jobs:
   - id: run_tests
     prompt: "Run tests"
 `)
-	writeTickInvariantFixture(t, projectRoot, "argus-init", `version: v0.1.0
-id: argus-init
+	writeTickInvariantFixture(t, projectRoot, "argus-project-init", `version: v0.1.0
+id: argus-project-init
 description: Project not initialized
 auto: always
 check:
@@ -391,7 +391,7 @@ prompt: "Initialize the project first"
 
 	assertHookSafeTickText(t, output)
 	assert.Contains(t, output, "Argus: Invariant check failed:")
-	assert.Contains(t, output, "argus-init")
+	assert.Contains(t, output, "argus-project-init")
 	assert.Contains(t, output, "Initialize the project first")
 	assert.NotContains(t, output, "No active pipeline")
 	assert.NotContains(t, output, "release")

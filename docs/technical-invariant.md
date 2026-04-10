@@ -107,11 +107,11 @@ check:
 
 ### YAML Examples
 
-#### Built-In Initialization Check (`argus-init`, abbreviated)
+#### Built-In Initialization Check (`argus-project-init`, abbreviated)
 
 ```yaml
 version: v0.1.0
-id: argus-init
+id: argus-project-init
 description: "The project has completed Argus initialization"
 auto: always
 
@@ -121,7 +121,7 @@ check:
   - shell: "test -f .agents/skills/argus-doctor/SKILL.md && test -f .claude/skills/argus-doctor/SKILL.md"
     description: "Skills have been released, including the Claude Code project mirror"
 
-workflow: argus-init
+workflow: argus-project-init
 ```
 
 #### Lint Freshness Check
@@ -232,7 +232,7 @@ Possible future model: `tick` triggers long checks in the background, caches res
 | Dimension | Built-in invariant | User-defined invariant |
 |---|---|---|
 | Identifier | Must use the `argus-` namespace | Must **not** use the `argus-` namespace |
-| Definition source | Embedded in the binary and released during install | Created by users under `.argus/invariants/` |
+| Definition source | Embedded in the binary and released during setup | Created by users under `.argus/invariants/` |
 | Maintenance | Updated through Argus upgrades | Maintained by the project |
 | Auto mode | Usually enabled by default (`always`) | Chosen by the project, often `session_start` or `never` |
 
@@ -265,13 +265,13 @@ Validation includes:
 9. invariant ID format validation (`^[a-z0-9]+(-[a-z0-9]+)*$`)
 10. `check` non-empty validation
 
-## 4.8 Deep Dive: `argus-init`
+## 4.8 Deep Dive: `argus-project-init`
 
 ### Invariant Definition
 
 ```yaml
 version: v0.1.0
-id: argus-init
+id: argus-project-init
 description: "The project has completed Argus initialization"
 auto: always
 
@@ -286,19 +286,19 @@ check:
     description: "A git pre-commit hook is configured"
   - shell: "grep -q '.argus/pipelines' .gitignore && grep -q '.argus/logs' .gitignore && grep -q '.argus/tmp' .gitignore"
     description: ".gitignore includes Argus temporary files"
-  - shell: "test -f .argus/data/init_workflows_generated"
+  - shell: "test -f .argus/data/project_init_workflows_generated"
     description: "Project workflows have been generated"
   - shell: 'test "$(ls .argus/invariants/*.yaml 2>/dev/null | grep -v argus-)"'
     description: "Custom invariant examples have been generated"
 
-workflow: argus-init
+workflow: argus-project-init
 ```
 
 ### Remediation Workflow Definition
 
 ```yaml
 version: v0.1.0
-id: argus-init
+id: argus-project-init
 description: "Initialize Argus for the project"
 
 jobs:
@@ -313,7 +313,7 @@ jobs:
     prompt: "Ensure .gitignore includes .argus/pipelines/, .argus/logs/, and .argus/tmp/."
 
   - id: generate_workflows
-    prompt: "Generate workflow files for this project under .argus/workflows/. When finished, run argus toolbox touch-timestamp .argus/data/init_workflows_generated."
+    prompt: "Generate workflow files for this project under .argus/workflows/. When finished, run argus toolbox touch-timestamp .argus/data/project_init_workflows_generated."
 
   - id: generate_invariant_examples
     prompt: "Create 1-2 custom invariant examples under .argus/invariants/."
@@ -327,7 +327,7 @@ jobs:
 | `CLAUDE.md` / `AGENTS.md` | generated from rules | file exists |
 | Git hooks | agent configuration | hook file or supported framework config exists |
 | `.gitignore` rules | added by the agent | `grep` matches expected paths |
-| project-specific workflows | agent-generated | marker file `.argus/data/init_workflows_generated` exists |
+| project-specific workflows | agent-generated | marker file `.argus/data/project_init_workflows_generated` exists |
 | custom invariant examples | agent-generated | at least one non-built-in invariant file exists |
 
 ### Full Initialization Flow
@@ -335,12 +335,12 @@ jobs:
 ```mermaid
 graph TD
     A[User input] --> B[tick triggered]
-    B --> C{argus-init invariant check}
+    B --> C{argus-project-init invariant check}
     C -- pass --> D[continue normal session]
-    C -- fail --> E[inject guidance: suggest argus-init]
+    C -- fail --> E[inject guidance: suggest argus workflow start argus-project-init]
     E --> F[agent asks the user]
     F -- user declines --> D
-    F -- user agrees --> G[start argus-init workflow]
+    F -- user agrees --> G[run argus workflow start argus-project-init]
     G --> H[Argus returns first job]
     H --> I[agent performs job]
     I --> J[agent calls job-done]
@@ -352,10 +352,10 @@ graph TD
 ```
 
 1. The user sends input, triggering `tick`
-2. Argus checks `argus-init` and detects missing artifacts
-3. Argus injects guidance suggesting `argus-init`
+2. Argus checks `argus-project-init` and detects missing artifacts
+3. Argus injects guidance suggesting `argus-project-init`
 4. The agent explains the situation and asks the user
-5. If the user agrees, the agent starts `argus-init`
+5. If the user agrees, the agent starts `argus-project-init`
 6. Argus returns the first job
 7. The agent completes it and calls `job-done`
 8. Argus returns the next job in the `job-done` response

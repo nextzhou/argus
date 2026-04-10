@@ -1,4 +1,4 @@
-package install
+package lifecycle
 
 import (
 	"errors"
@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 
 	"github.com/nextzhou/argus/internal/assets"
 	"github.com/nextzhou/argus/internal/core"
@@ -52,4 +53,54 @@ func pruneManagedSkills(skillRoots []string, keep []string, tracker *mutationTra
 	}
 
 	return nil
+}
+
+func pruneManagedYAMLFiles(dir string, keepIDs map[string]struct{}, tracker *mutationTracker) error {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		return fmt.Errorf("reading managed yaml directory %s: %w", dir, err)
+	}
+
+	for _, entry := range entries {
+		if entry.IsDir() || filepath.Ext(entry.Name()) != ".yaml" {
+			continue
+		}
+
+		id := strings.TrimSuffix(entry.Name(), ".yaml")
+		if !core.IsArgusReserved(id) {
+			continue
+		}
+		if _, ok := keepIDs[id]; ok {
+			continue
+		}
+
+		if err := removeIfExistsTracked(filepath.Join(dir, entry.Name()), tracker); err != nil {
+			return fmt.Errorf("removing managed yaml %s: %w", entry.Name(), err)
+		}
+	}
+
+	return nil
+}
+
+func projectBuiltinWorkflowIDs() map[string]struct{} {
+	return stringSet("argus-project-init")
+}
+
+func projectBuiltinInvariantIDs() map[string]struct{} {
+	return stringSet("argus-project-init")
+}
+
+func globalBuiltinInvariantIDs() map[string]struct{} {
+	return stringSet("argus-project-setup")
+}
+
+func stringSet(values ...string) map[string]struct{} {
+	set := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		set[value] = struct{}{}
+	}
+	return set
 }

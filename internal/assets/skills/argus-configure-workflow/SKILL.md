@@ -144,7 +144,7 @@ When creating or editing workflow files, use a staging directory to avoid corrup
 
 1. **Prepare staging directory.** Clean `.argus/tmp/workflows/` if it exists, then create it fresh.
 
-2. **Copy existing user files.** Copy non-`argus-*` YAML files from `.argus/workflows/` to `.argus/tmp/workflows/`. Built-in `argus-*` files are managed by `argus install` — do not copy or edit them. If creating from scratch and no user files exist, just create the empty `.argus/tmp/workflows/` directory.
+2. **Copy existing user files.** Copy non-`argus-*` YAML files from `.argus/workflows/` to `.argus/tmp/workflows/`. Built-in `argus-*` files are managed by `argus setup` — do not copy or edit them. If creating from scratch and no user files exist, just create the empty `.argus/tmp/workflows/` directory.
 
 3. **Make all changes in staging.** Create, edit, or delete files only in `.argus/tmp/workflows/`.
 

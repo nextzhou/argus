@@ -1,4 +1,4 @@
-package install
+package lifecycle
 
 import (
 	"bytes"
@@ -23,56 +23,54 @@ const (
 	codexConfigRelativePath    = ".codex/config.toml"
 )
 
-// InstallHooks installs Argus-managed hook files for the requested agents.
-//
-//nolint:revive // package-qualified API name is required by the install command surface.
-func InstallHooks(projectRoot string, agents []string) error {
-	return installHooks(projectRoot, agents, nil)
+// SetupHooks sets up Argus-managed hook files for the requested agents.
+func SetupHooks(projectRoot string, agents []string) error {
+	return setupHooks(projectRoot, agents, nil)
 }
 
-func installHooks(projectRoot string, agents []string, tracker *mutationTracker) error {
+func setupHooks(projectRoot string, agents []string, tracker *mutationTracker) error {
 	for _, agent := range agents {
-		if err := installHooksForAgent(projectRoot, agent, tracker); err != nil {
-			return fmt.Errorf("installing %s hooks: %w", agent, err)
+		if err := setupHooksForAgent(projectRoot, agent, tracker); err != nil {
+			return fmt.Errorf("setting up %s hooks: %w", agent, err)
 		}
 	}
 
 	return nil
 }
 
-// UninstallHooks removes only Argus-managed hook files for the requested agents.
-func UninstallHooks(projectRoot string, agents []string) error {
-	return uninstallHooks(projectRoot, agents, nil)
+// TeardownHooks removes only Argus-managed hook files for the requested agents.
+func TeardownHooks(projectRoot string, agents []string) error {
+	return teardownHooks(projectRoot, agents, nil)
 }
 
-func uninstallHooks(projectRoot string, agents []string, tracker *mutationTracker) error {
+func teardownHooks(projectRoot string, agents []string, tracker *mutationTracker) error {
 	for _, agent := range agents {
-		if err := uninstallHooksForAgent(projectRoot, agent, tracker); err != nil {
-			return fmt.Errorf("uninstalling %s hooks: %w", agent, err)
+		if err := teardownHooksForAgent(projectRoot, agent, tracker); err != nil {
+			return fmt.Errorf("tearing down %s hooks: %w", agent, err)
 		}
 	}
 
 	return nil
 }
 
-func installHooksForAgent(projectRoot string, agent string, tracker *mutationTracker) error {
+func setupHooksForAgent(projectRoot string, agent string, tracker *mutationTracker) error {
 	switch agent {
 	case agentClaudeCode:
-		return installClaudeCodeHooks(projectRoot, tracker)
+		return setupClaudeCodeHooks(projectRoot, tracker)
 	case agentCodex:
-		return installCodexHooks(projectRoot, tracker)
+		return setupCodexHooks(projectRoot, tracker)
 	case agentOpenCode:
-		return installOpenCodeHooks(projectRoot, tracker)
+		return setupOpenCodeHooks(projectRoot, tracker)
 	default:
 		_, err := RenderHookTemplate(agent, false)
 		return err
 	}
 }
 
-func uninstallHooksForAgent(projectRoot string, agent string, tracker *mutationTracker) error {
+func teardownHooksForAgent(projectRoot string, agent string, tracker *mutationTracker) error {
 	switch agent {
 	case agentClaudeCode:
-		return uninstallClaudeCodeHooks(projectRoot, tracker)
+		return teardownClaudeCodeHooks(projectRoot, tracker)
 	case agentCodex:
 		return removeIfExistsTracked(filepath.Join(projectRoot, codexHooksRelativePath), tracker)
 	case agentOpenCode:
@@ -83,11 +81,11 @@ func uninstallHooksForAgent(projectRoot string, agent string, tracker *mutationT
 	}
 }
 
-func installClaudeCodeHooks(projectRoot string, tracker *mutationTracker) error {
-	return installClaudeCodeHooksAt(filepath.Join(projectRoot, claudeSettingsRelativePath), false, tracker)
+func setupClaudeCodeHooks(projectRoot string, tracker *mutationTracker) error {
+	return setupClaudeCodeHooksAt(filepath.Join(projectRoot, claudeSettingsRelativePath), false, tracker)
 }
 
-func installClaudeCodeHooksAt(settingsPath string, global bool, tracker *mutationTracker) error {
+func setupClaudeCodeHooksAt(settingsPath string, global bool, tracker *mutationTracker) error {
 	settings, err := loadJSONObject(settingsPath)
 	if err != nil {
 		return fmt.Errorf("parsing claude code settings: %w", err)
@@ -126,12 +124,12 @@ func installClaudeCodeHooksAt(settingsPath string, global bool, tracker *mutatio
 	return writeJSONObjectTracked(settingsPath, settings, tracker)
 }
 
-func uninstallClaudeCodeHooks(projectRoot string, tracker *mutationTracker) error {
+func teardownClaudeCodeHooks(projectRoot string, tracker *mutationTracker) error {
 	settingsPath := filepath.Join(projectRoot, claudeSettingsRelativePath)
-	return uninstallClaudeCodeHooksAt(settingsPath, tracker)
+	return teardownClaudeCodeHooksAt(settingsPath, tracker)
 }
 
-func uninstallClaudeCodeHooksAt(settingsPath string, tracker *mutationTracker) error {
+func teardownClaudeCodeHooksAt(settingsPath string, tracker *mutationTracker) error {
 	settings, err := loadJSONObjectIfExists(settingsPath)
 	if err != nil {
 		return fmt.Errorf("parsing claude code settings: %w", err)
@@ -176,11 +174,11 @@ func uninstallClaudeCodeHooksAt(settingsPath string, tracker *mutationTracker) e
 	return writeJSONObjectTracked(settingsPath, settings, tracker)
 }
 
-func installCodexHooks(projectRoot string, tracker *mutationTracker) error {
-	return installCodexHooksAt(filepath.Join(projectRoot, codexHooksRelativePath), false, tracker)
+func setupCodexHooks(projectRoot string, tracker *mutationTracker) error {
+	return setupCodexHooksAt(filepath.Join(projectRoot, codexHooksRelativePath), false, tracker)
 }
 
-func installCodexHooksAt(hooksPath string, global bool, tracker *mutationTracker) error {
+func setupCodexHooksAt(hooksPath string, global bool, tracker *mutationTracker) error {
 	rendered, err := RenderHookTemplate(agentCodex, global)
 	if err != nil {
 		return err
@@ -197,11 +195,11 @@ func installCodexHooksAt(hooksPath string, global bool, tracker *mutationTracker
 	return nil
 }
 
-func installOpenCodeHooks(projectRoot string, tracker *mutationTracker) error {
-	return installOpenCodeHooksAt(filepath.Join(projectRoot, opencodePluginRelativePath), false, tracker)
+func setupOpenCodeHooks(projectRoot string, tracker *mutationTracker) error {
+	return setupOpenCodeHooksAt(filepath.Join(projectRoot, opencodePluginRelativePath), false, tracker)
 }
 
-func installOpenCodeHooksAt(pluginPath string, global bool, tracker *mutationTracker) error {
+func setupOpenCodeHooksAt(pluginPath string, global bool, tracker *mutationTracker) error {
 	rendered, err := RenderHookTemplate(agentOpenCode, global)
 	if err != nil {
 		return err

@@ -1,4 +1,4 @@
-package install
+package lifecycle
 
 import (
 	"os"
@@ -29,22 +29,22 @@ type ProjectOperationResult struct {
 
 // WorkspaceOperationResult captures workspace-scoped lifecycle output data.
 type WorkspaceOperationResult struct {
-	Path                  string
-	AlreadyRegistered     bool
-	RemovedGlobalResource bool
-	Report                Report
+	Path                    string
+	AlreadyRegistered       bool
+	ToreDownGlobalResources bool
+	Report                  Report
 }
 
-// WorkspaceInstallPreview contains the information needed to decide whether an
-// install confirmation prompt is required.
-type WorkspaceInstallPreview struct {
+// WorkspaceSetupPreview contains the information needed to decide whether an
+// setup confirmation prompt is required.
+type WorkspaceSetupPreview struct {
 	Path              string
 	AlreadyRegistered bool
 }
 
-// WorkspaceUninstallPreview contains the information needed to decide which
-// uninstall confirmation prompt to show.
-type WorkspaceUninstallPreview struct {
+// WorkspaceTeardownPreview contains the information needed to decide which
+// teardown confirmation prompt to show.
+type WorkspaceTeardownPreview struct {
 	Path   string
 	IsLast bool
 }
@@ -77,7 +77,7 @@ type summaryRule struct {
 //
 // Centralizing the hard-coded summaries here keeps the output contract
 // explicit, reviewable, and synchronized with docs/tests instead of scattering
-// ad-hoc formatting logic across install/uninstall code paths.
+// ad-hoc formatting logic across setup/teardown code paths.
 type summaryProfile struct {
 	affectedPaths []string
 	rules         []summaryRule
@@ -231,13 +231,13 @@ func displayPath(projectRoot, homeDir, path string) string {
 	return path
 }
 
-// buildProjectInstallReport declares the success-output summaries for project
-// install. The literals below are intentionally explicit because this function
+// buildProjectSetupReport declares the success-output summaries for project
+// lifecycle. The literals below are intentionally explicit because this function
 // defines the user-visible contract for "affected_paths" and summarized
 // changes; hiding them behind inference would make review harder and would blur
 // the difference between concrete filesystem writes and the merged semantics we
 // promise to users.
-func buildProjectInstallReport(projectRoot, homeDir string, tracker *mutationTracker) Report {
+func buildProjectSetupReport(projectRoot, homeDir string, tracker *mutationTracker) Report {
 	return summaryProfile{
 		affectedPaths: []string{
 			".argus/{workflows,invariants,rules,pipelines,logs,data,tmp}/",
@@ -248,7 +248,7 @@ func buildProjectInstallReport(projectRoot, homeDir string, tracker *mutationTra
 			".opencode/plugins/argus.ts",
 			"~/.codex/config.toml",
 		},
-		// These rules define the public output summaries for project install.
+		// These rules define the public output summaries for project lifecycle.
 		rules: []summaryRule{
 			prefixRule(filepath.Join(projectRoot, ".argus"), ".argus/{workflows,invariants,rules,pipelines,logs,data,tmp}/"),
 			prefixRule(filepath.Join(projectRoot, ".agents", "skills"), ".agents/skills/argus-*/SKILL.md"),
@@ -262,7 +262,7 @@ func buildProjectInstallReport(projectRoot, homeDir string, tracker *mutationTra
 	}.buildReport(tracker)
 }
 
-func buildProjectUninstallReport(projectRoot, homeDir string, tracker *mutationTracker) Report {
+func buildProjectTeardownReport(projectRoot, homeDir string, tracker *mutationTracker) Report {
 	return summaryProfile{
 		affectedPaths: []string{
 			".argus/",
@@ -272,7 +272,7 @@ func buildProjectUninstallReport(projectRoot, homeDir string, tracker *mutationT
 			".codex/hooks.json",
 			".opencode/plugins/argus.ts",
 		},
-		// Uninstall uses a different summary contract from install for some paths,
+		// Teardown uses a different summary contract from setup for some paths,
 		// notably skill directories and the top-level .argus removal.
 		rules: []summaryRule{
 			prefixRule(filepath.Join(projectRoot, ".argus"), ".argus/"),
@@ -287,9 +287,10 @@ func buildProjectUninstallReport(projectRoot, homeDir string, tracker *mutationT
 	}.buildReport(tracker)
 }
 
-func buildWorkspaceInstallReport(homeDir string, tracker *mutationTracker) Report {
+func buildWorkspaceSetupReport(homeDir string, tracker *mutationTracker) Report {
 	return summaryProfile{
 		affectedPaths: []string{
+			"~/.config/argus/{invariants,workflows,pipelines,logs}/",
 			"~/.config/argus/config.yaml",
 			"~/.claude/settings.json",
 			"~/.codex/{hooks.json,config.toml}",
@@ -298,8 +299,19 @@ func buildWorkspaceInstallReport(homeDir string, tracker *mutationTracker) Repor
 			"~/.agents/skills/argus-*/SKILL.md",
 			"~/.config/opencode/skills/argus-*/SKILL.md",
 		},
-		// Workspace install reports user-scoped hook/config/skill summaries.
+		// Workspace setup reports user-scoped config, hook, skill, and global
+		// artifact summaries.
 		rules: []summaryRule{
+			anyOfRule([]string{
+				filepath.Join(homeDir, ".config", "argus", "invariants"),
+				filepath.Join(homeDir, ".config", "argus", "workflows"),
+				filepath.Join(homeDir, ".config", "argus", "pipelines"),
+				filepath.Join(homeDir, ".config", "argus", "logs"),
+			}, "~/.config/argus/{invariants,workflows,pipelines,logs}/"),
+			prefixRule(filepath.Join(homeDir, ".config", "argus", "invariants"), "~/.config/argus/{invariants,workflows,pipelines,logs}/"),
+			prefixRule(filepath.Join(homeDir, ".config", "argus", "workflows"), "~/.config/argus/{invariants,workflows,pipelines,logs}/"),
+			prefixRule(filepath.Join(homeDir, ".config", "argus", "pipelines"), "~/.config/argus/{invariants,workflows,pipelines,logs}/"),
+			prefixRule(filepath.Join(homeDir, ".config", "argus", "logs"), "~/.config/argus/{invariants,workflows,pipelines,logs}/"),
 			exactRule(userConfigPathForHome(homeDir), "~/.config/argus/config.yaml"),
 			exactRule(filepath.Join(homeDir, claudeSettingsRelativePath), "~/.claude/settings.json"),
 			anyOfRule([]string{
@@ -315,12 +327,13 @@ func buildWorkspaceInstallReport(homeDir string, tracker *mutationTracker) Repor
 	}.buildReport(tracker)
 }
 
-func buildWorkspaceUninstallReport(homeDir string, tracker *mutationTracker, removedGlobalResources bool) Report {
+func buildWorkspaceTeardownReport(homeDir string, tracker *mutationTracker, toreDownGlobalResources bool) Report {
 	affectedPaths := []string{
 		"~/.config/argus/config.yaml",
 	}
-	if removedGlobalResources {
+	if toreDownGlobalResources {
 		affectedPaths = append(affectedPaths,
+			"~/.config/argus/",
 			"~/.claude/settings.json",
 			"~/.codex/hooks.json",
 			"~/.config/opencode/plugins/argus.ts",
@@ -332,9 +345,11 @@ func buildWorkspaceUninstallReport(homeDir string, tracker *mutationTracker, rem
 
 	return summaryProfile{
 		affectedPaths: affectedPaths,
-		// Workspace uninstall only reports global hook/skill summaries when the
-		// last workspace registration is removed.
+		// Workspace teardown only reports global hook/skill/artifact summaries
+		// when the last workspace registration is removed.
 		rules: []summaryRule{
+			exactRule(filepath.Join(homeDir, ".config", "argus"), "~/.config/argus/"),
+			prefixRule(filepath.Join(homeDir, ".config", "argus"), "~/.config/argus/"),
 			exactRule(userConfigPathForHome(homeDir), "~/.config/argus/config.yaml"),
 			exactRule(filepath.Join(homeDir, claudeSettingsRelativePath), "~/.claude/settings.json"),
 			exactRule(filepath.Join(homeDir, codexHooksRelativePath), "~/.codex/hooks.json"),

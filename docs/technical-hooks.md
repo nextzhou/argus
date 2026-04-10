@@ -17,7 +17,7 @@ This heterogeneity makes it easy for logic to drift if orchestration behavior is
 
 ### Core Approach
 
-Argus uses a forwarding model. Each installed agent-specific hook acts only as a wrapper that forwards event context to `argus tick`. `argus trap` remains a reserved internal command, but `argus install` does not wire tool-use hooks in Phase 1. All business logic and state evaluation live in the Go CLI.
+Argus uses a forwarding model. Each configured agent-specific hook acts only as a wrapper that forwards event context to `argus tick`. `argus trap` remains a reserved internal command, but `argus setup` does not wire tool-use hooks in Phase 1. All business logic and state evaluation live in the Go CLI.
 
 ```text
 Agent Hook Event -> Agent-specific wrapper -> argus CLI command -> Go business logic
@@ -253,7 +253,7 @@ When debugging agent hook integrations, prefer this order of evidence:
 3. The actual installed hook or plugin artifact
 4. Repository templates and official docs
 
-This order matters because host integration APIs can change before older templates or prose examples are updated. After changing a hook template, remember that user machines will continue running the previously installed artifact until `argus install` or `argus install --workspace` refreshes it.
+This order matters because host integration APIs can change before older templates or prose examples are updated. After changing a hook template, remember that user machines will continue running the previously installed artifact until `argus setup` or `argus setup --workspace` refreshes it.
 
 For OpenCode specifically, synthetic context insertion should happen in `experimental.chat.messages.transform`, not by treating `chat.message` as a generic append-only surface. The runtime validates inserted message parts more strictly than the minimal `chat.message` output type suggests, so synthetic parts should be created in the transform stage with the message metadata that OpenCode expects.
 
@@ -261,7 +261,7 @@ For OpenCode specifically, synthetic context insertion should happen in `experim
 
 ## 9.3 `trap` Implementation
 
-`trap` is the reserved operation-gating entry point. It stays in the CLI as a hidden internal command, but `argus install` and `argus install --workspace` do not install tool-use hooks in Phase 1.
+`trap` is the reserved operation-gating entry point. It stays in the CLI as a hidden internal command, but `argus setup` and `argus setup --workspace` do not wire tool-use hooks in Phase 1.
 
 **Phase 1 note**: gating logic is not enforced yet. The command defaults to allow. Argus deliberately avoids wiring a no-op gate into agent configs, because that would add hook surface area without changing behavior.
 
@@ -293,17 +293,17 @@ Keeping `trap` as a stable internal command preserves the CLI surface and its ou
 
 ### Legacy Cleanup
 
-Older Argus installs may already contain `PreToolUse` or equivalent `argus trap` entries. Reinstall and uninstall continue to recognize and remove those legacy entries so repositories converge toward the new tick-only configuration.
+Older Argus setups may already contain `PreToolUse` or equivalent `argus trap` entries. Re-running `argus setup` and `argus teardown` continues to recognize and remove those legacy entries so repositories converge toward the new tick-only configuration.
 
 ---
 
-## 9.4 Install and Uninstall
+## 9.4 Setup and Teardown
 
-`argus install` injects context-injection (`tick`) hook configuration into each agent-specific location.
+`argus setup` injects context-injection (`tick`) hook configuration into each agent-specific location.
 
 ### Write Locations
 
-- **Claude Code**: `.claude/settings.json`. This file should be committed to the repository so the team shares the configuration. The installer merges configuration and preserves existing non-Argus hooks.
+- **Claude Code**: `.claude/settings.json`. This file should be committed to the repository so the team shares the configuration. The setup flow merges configuration and preserves existing non-Argus hooks.
 - **Codex**: `.codex/hooks.json`, plus ensure `codex_hooks = true` in `~/.codex/config.toml`
 - **OpenCode**: `.opencode/plugins/argus.ts`
 
@@ -316,17 +316,17 @@ If the binary is missing:
 - **Shell wrappers (Claude Code / Codex)**: fail open with exit code 0 and print an installation hint
 - **TypeScript plugin (OpenCode)**: check the binary path and push an installation hint part when missing
 
-The exact installation hint string is not a protocol contract in Phase 1. A generic message such as `Please install Argus CLI. See project README for instructions.` is sufficient for now.
+The exact CLI installation hint string is not a protocol contract in Phase 1. A generic message such as `Please install Argus CLI. See project README for instructions.` is sufficient for now.
 
-### Uninstall Behavior
+### Teardown Behavior
 
-`argus uninstall` performs the inverse operation.
+`argus teardown` performs the inverse operation.
 
-For Codex, Argus intentionally **does not** disable the global `codex_hooks` toggle during uninstall, because that could break unrelated custom hooks managed by the user.
+For Codex, Argus intentionally **does not** disable the global `codex_hooks` toggle during teardown, because that could break unrelated custom hooks managed by the user.
 
 ### Identifying Argus-Owned Hook Entries
 
-Install and uninstall must merge or remove Argus-owned entries safely.
+Setup and teardown must merge or remove Argus-owned entries safely.
 
 - **Claude Code / Codex**: identify entries by matching hook command content. The command field should be checked for `argus tick` or legacy `argus trap`, using substring matching rather than exact-match equality because users may install `argus` via absolute paths.
 - **OpenCode**: identify by filename. Argus owns `.opencode/plugins/argus.ts`.
@@ -369,7 +369,7 @@ This keeps `doctor` focused on integration-layer problems instead of conflating 
 
 ### Pre-Install Logging Policy
 
-When `.argus/logs/` does not exist yet, for example when a workspace global hook fires inside an uninitialized project, logging falls back to `~/.config/argus/logs/hook.log`. This avoids creating project-level `.argus/` only for logging and preserves the non-intrusive workspace model.
+When `.argus/logs/` does not exist yet, for example when a workspace global hook fires inside a project without project-level Argus set up, logging falls back to `~/.config/argus/logs/hook.log`. This avoids creating project-level `.argus/` only for logging and preserves the non-intrusive workspace model.
 
 Argus prefers inline hook logic over extra wrapper scripts to reduce file lookup overhead and keep integration behavior stable.
 
@@ -377,7 +377,7 @@ Argus prefers inline hook logic over extra wrapper scripts to reduce file lookup
 
 ## 9.6 Capability Matrix
 
-Current installers wire only `tick`. The interception-oriented rows below describe host-agent capabilities that matter to a future `trap` rollout; they are not active Argus integrations in Phase 1.
+Current setup flows wire only `tick`. The interception-oriented rows below describe host-agent capabilities that matter to a future `trap` rollout; they are not active Argus integrations in Phase 1.
 
 | Capability Area | Feature | Claude Code | Codex | OpenCode |
 | :--- | :--- | :---: | :---: | :---: |

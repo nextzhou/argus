@@ -1,4 +1,4 @@
-package install
+package lifecycle
 
 import (
 	"os"
@@ -10,19 +10,19 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestCheckInstallPreconditionsRequiresGitRepository(t *testing.T) {
+func TestCheckSetupPreconditionsRequiresGitRepository(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	nonGitDir := t.TempDir()
 	t.Chdir(nonGitDir)
 
-	projectRoot, isSubdir, err := CheckInstallPreconditions()
+	projectRoot, isSubdir, err := CheckSetupPreconditions()
 	require.Error(t, err)
 	assert.Empty(t, projectRoot)
 	assert.False(t, isSubdir)
 	assert.Contains(t, err.Error(), "git repository")
 }
 
-func TestCheckInstallPreconditionsRejectsNestedInstall(t *testing.T) {
+func TestCheckSetupPreconditionsRejectsNestedSetup(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	projectRoot := newTestProjectRoot(t)
 	require.NoError(t, os.Mkdir(filepath.Join(projectRoot, ".argus"), 0o700))
@@ -31,13 +31,13 @@ func TestCheckInstallPreconditionsRejectsNestedInstall(t *testing.T) {
 	require.NoError(t, os.MkdirAll(nestedDir, 0o700))
 	t.Chdir(nestedDir)
 
-	_, _, err := CheckInstallPreconditions()
+	_, _, err := CheckSetupPreconditions()
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "ancestor .argus/")
 	assert.Contains(t, err.Error(), projectRoot)
 }
 
-func TestCheckInstallPreconditionsSubdirectoryDetection(t *testing.T) {
+func TestCheckSetupPreconditionsSubdirectoryDetection(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	projectRoot := newTestProjectRoot(t)
 	subdir := filepath.Join(projectRoot, "pkg", "cli")
@@ -46,7 +46,7 @@ func TestCheckInstallPreconditionsSubdirectoryDetection(t *testing.T) {
 	t.Run("git root", func(t *testing.T) {
 		t.Chdir(projectRoot)
 
-		gotRoot, isSubdir, err := CheckInstallPreconditions()
+		gotRoot, isSubdir, err := CheckSetupPreconditions()
 		require.NoError(t, err)
 		assert.Equal(t, projectRoot, gotRoot)
 		assert.False(t, isSubdir)
@@ -55,31 +55,31 @@ func TestCheckInstallPreconditionsSubdirectoryDetection(t *testing.T) {
 	t.Run("git subdirectory", func(t *testing.T) {
 		t.Chdir(subdir)
 
-		gotRoot, isSubdir, err := CheckInstallPreconditions()
+		gotRoot, isSubdir, err := CheckSetupPreconditions()
 		require.NoError(t, err)
 		assert.Equal(t, subdir, gotRoot)
 		assert.True(t, isSubdir)
 	})
 }
 
-func TestCheckInstallPreconditionsAcceptsGitFileMarker(t *testing.T) {
+func TestCheckSetupPreconditionsAcceptsGitFileMarker(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	projectRoot := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(projectRoot, ".git"), []byte("gitdir: /tmp/example\n"), 0o600))
 	t.Chdir(projectRoot)
 
-	gotRoot, isSubdir, err := CheckInstallPreconditions()
+	gotRoot, isSubdir, err := CheckSetupPreconditions()
 	require.NoError(t, err)
 	assert.Equal(t, projectRoot, gotRoot)
 	assert.False(t, isSubdir)
 }
 
-func TestInstallCreatesProjectStructureAndAssets(t *testing.T) {
+func TestSetupCreatesProjectStructureAndAssets(t *testing.T) {
 	homeDir := t.TempDir()
 	t.Setenv("HOME", homeDir)
 	projectRoot := newTestProjectRoot(t)
 
-	result, err := InstallWithReport(projectRoot)
+	result, err := SetupWithReport(projectRoot)
 	require.NoError(t, err)
 	assert.Equal(t, projectRoot, result.Root)
 	assert.Contains(t, result.Report.AffectedPaths, ".argus/{workflows,invariants,rules,pipelines,logs,data,tmp}/")
@@ -97,8 +97,8 @@ func TestInstallCreatesProjectStructureAndAssets(t *testing.T) {
 		assert.DirExists(t, filepath.Join(projectRoot, relDir))
 	}
 
-	assertReleasedAsset(t, projectRoot, "workflows/argus-init.yaml", ".argus/workflows/argus-init.yaml")
-	assertReleasedAsset(t, projectRoot, "invariants/argus-init.yaml", ".argus/invariants/argus-init.yaml")
+	assertReleasedAsset(t, projectRoot, "workflows/argus-project-init.yaml", ".argus/workflows/argus-project-init.yaml")
+	assertReleasedAsset(t, projectRoot, "invariants/argus-project-init.yaml", ".argus/invariants/argus-project-init.yaml")
 	for _, skillPath := range SkillPaths() {
 		assertReleasedAsset(t, projectRoot, "skills/argus-doctor/SKILL.md", filepath.Join(skillPath, "argus-doctor", "SKILL.md"))
 	}
@@ -112,15 +112,15 @@ func TestInstallCreatesProjectStructureAndAssets(t *testing.T) {
 	assert.FileExists(t, filepath.Join(homeDir, ".codex", "config.toml"))
 }
 
-func TestInstallIsIdempotent(t *testing.T) {
+func TestSetupIsIdempotent(t *testing.T) {
 	homeDir := t.TempDir()
 	t.Setenv("HOME", homeDir)
 	projectRoot := newTestProjectRoot(t)
 
-	_, err := InstallWithReport(projectRoot)
+	_, err := SetupWithReport(projectRoot)
 	require.NoError(t, err)
 
-	result, err := InstallWithReport(projectRoot)
+	result, err := SetupWithReport(projectRoot)
 	require.NoError(t, err)
 	assert.Empty(t, result.Report.Changes.Created)
 	assert.Empty(t, result.Report.Changes.Updated)
@@ -132,12 +132,12 @@ func TestInstallIsIdempotent(t *testing.T) {
 	assert.Empty(t, hookCommandsForEvent(t, settings, "PreToolUse"))
 
 	for _, skillPath := range SkillPaths() {
-		assertReleasedAsset(t, projectRoot, "skills/argus-install/SKILL.md", filepath.Join(skillPath, "argus-install", "SKILL.md"))
+		assertReleasedAsset(t, projectRoot, "skills/argus-setup/SKILL.md", filepath.Join(skillPath, "argus-setup", "SKILL.md"))
 	}
 	assert.FileExists(t, filepath.Join(homeDir, ".codex", "config.toml"))
 }
 
-func TestInstallPrunesObsoleteBuiltinSkills(t *testing.T) {
+func TestSetupPrunesObsoleteBuiltinSkills(t *testing.T) {
 	homeDir := t.TempDir()
 	t.Setenv("HOME", homeDir)
 	projectRoot := newTestProjectRoot(t)
@@ -148,7 +148,7 @@ func TestInstallPrunesObsoleteBuiltinSkills(t *testing.T) {
 		require.NoError(t, os.WriteFile(filepath.Join(legacySkillDir, "SKILL.md"), []byte("# legacy\n"), 0o600))
 	}
 
-	result, err := InstallWithReport(projectRoot)
+	result, err := SetupWithReport(projectRoot)
 	require.NoError(t, err)
 
 	for _, skillPath := range SkillPaths() {
@@ -159,6 +159,34 @@ func TestInstallPrunesObsoleteBuiltinSkills(t *testing.T) {
 	}
 
 	assert.Contains(t, result.Report.Changes.Removed, ".agents/skills/argus-*/SKILL.md")
+}
+
+func TestSetupPrunesObsoleteBuiltinYAML(t *testing.T) {
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+	projectRoot := newTestProjectRoot(t)
+
+	writeTestFile(t, filepath.Join(projectRoot, ".argus", "workflows", "argus-init.yaml"), "version: v0.1.0\nid: argus-init\njobs:\n  - id: legacy\n    prompt: legacy\n")
+	writeTestFile(t, filepath.Join(projectRoot, ".argus", "invariants", "argus-project-setup.yaml"), "version: v0.1.0\nid: argus-project-setup\ncheck:\n  - shell: test -d .argus\n")
+	writeTestFile(t, filepath.Join(projectRoot, ".argus", "workflows", "team-workflow.yaml"), "version: v0.1.0\nid: team-workflow\njobs:\n  - id: keep\n    prompt: keep\n")
+	writeTestFile(t, filepath.Join(projectRoot, ".argus", "invariants", "team-invariant.yaml"), "version: v0.1.0\nid: team-invariant\nprompt: keep\ncheck:\n  - shell: true\n")
+
+	_, err := SetupWithReport(projectRoot)
+	require.NoError(t, err)
+
+	_, err = os.Stat(filepath.Join(projectRoot, ".argus", "workflows", "argus-init.yaml"))
+	require.ErrorIs(t, err, os.ErrNotExist)
+	_, err = os.Stat(filepath.Join(projectRoot, ".argus", "invariants", "argus-project-setup.yaml"))
+	require.ErrorIs(t, err, os.ErrNotExist)
+
+	_, err = os.Stat(filepath.Join(projectRoot, ".argus", "workflows", "argus-project-init.yaml"))
+	require.NoError(t, err)
+	_, err = os.Stat(filepath.Join(projectRoot, ".argus", "invariants", "argus-project-init.yaml"))
+	require.NoError(t, err)
+	_, err = os.Stat(filepath.Join(projectRoot, ".argus", "workflows", "team-workflow.yaml"))
+	require.NoError(t, err)
+	_, err = os.Stat(filepath.Join(projectRoot, ".argus", "invariants", "team-invariant.yaml"))
+	require.NoError(t, err)
 }
 
 func assertReleasedAsset(t *testing.T, projectRoot, srcPath, dstPath string) {

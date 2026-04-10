@@ -51,10 +51,39 @@ func TestFindProjectRoot_GitAtCWD(t *testing.T) {
 	assert.True(t, root.HasGit)
 }
 
+func TestFindProjectRoot_GitFileAtCWD(t *testing.T) {
+	base := t.TempDir()
+	gitFile := filepath.Join(base, ".git")
+	require.NoError(t, os.WriteFile(gitFile, []byte("gitdir: /tmp/worktrees/example\n"), 0o600))
+
+	root, err := FindProjectRoot(base)
+	require.NoError(t, err)
+	require.NotNil(t, root)
+	assert.Equal(t, base, root.Path)
+	assert.False(t, root.HasArgus)
+	assert.True(t, root.HasGit)
+}
+
 func TestFindProjectRoot_GitInParent(t *testing.T) {
 	base := t.TempDir()
 	gitDir := filepath.Join(base, ".git")
 	require.NoError(t, os.Mkdir(gitDir, 0o700))
+
+	subdir := filepath.Join(base, "subdir", "nested")
+	require.NoError(t, os.MkdirAll(subdir, 0o700))
+
+	root, err := FindProjectRoot(subdir)
+	require.NoError(t, err)
+	require.NotNil(t, root)
+	assert.Equal(t, base, root.Path)
+	assert.False(t, root.HasArgus)
+	assert.True(t, root.HasGit)
+}
+
+func TestFindProjectRoot_GitFileInParent(t *testing.T) {
+	base := t.TempDir()
+	gitFile := filepath.Join(base, ".git")
+	require.NoError(t, os.WriteFile(gitFile, []byte("gitdir: /tmp/worktrees/example\n"), 0o600))
 
 	subdir := filepath.Join(base, "subdir", "nested")
 	require.NoError(t, os.MkdirAll(subdir, 0o700))
@@ -73,6 +102,21 @@ func TestFindProjectRoot_BothArgusAndGit(t *testing.T) {
 	gitDir := filepath.Join(base, ".git")
 	require.NoError(t, os.Mkdir(argusDir, 0o700))
 	require.NoError(t, os.Mkdir(gitDir, 0o700))
+
+	root, err := FindProjectRoot(base)
+	require.NoError(t, err)
+	require.NotNil(t, root)
+	assert.Equal(t, base, root.Path)
+	assert.True(t, root.HasArgus)
+	assert.True(t, root.HasGit)
+}
+
+func TestFindProjectRoot_BothArgusAndGitFile(t *testing.T) {
+	base := t.TempDir()
+	argusDir := filepath.Join(base, ".argus")
+	gitFile := filepath.Join(base, ".git")
+	require.NoError(t, os.Mkdir(argusDir, 0o700))
+	require.NoError(t, os.WriteFile(gitFile, []byte("gitdir: /tmp/worktrees/example\n"), 0o600))
 
 	root, err := FindProjectRoot(base)
 	require.NoError(t, err)

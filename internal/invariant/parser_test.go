@@ -21,15 +21,15 @@ func TestParseInvariant(t *testing.T) {
 			name: "auto always",
 			yaml: `
 version: v0.1.0
-id: argus-init
+id: argus-project-init
 description: "project initialized"
 auto: always
 check:
   - shell: "test -d .argus/rules"
     description: "Rules dir exists"
-workflow: argus-init
+workflow: argus-project-init
 `,
-			wantID:     "argus-init",
+			wantID:     "argus-project-init",
 			wantAuto:   "always",
 			wantChecks: 1,
 		},
@@ -128,7 +128,7 @@ check:
     description: "CLAUDE.md exists"
   - shell: "test -f .agents/skills/argus-doctor/SKILL.md && test -f .claude/skills/argus-doctor/SKILL.md"
     description: "Skills generated with Claude mirror"
-workflow: argus-init
+workflow: argus-project-init
 `,
 			wantID:     "full-check",
 			wantAuto:   "always",

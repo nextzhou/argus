@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/nextzhou/argus/internal/install"
+	"github.com/nextzhou/argus/internal/lifecycle"
 	"github.com/nextzhou/argus/internal/session"
 	"github.com/nextzhou/argus/internal/sessiontest"
 	workspacecfg "github.com/nextzhou/argus/internal/workspace"
@@ -16,24 +16,24 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func executeWorkspaceInstallCmd(t *testing.T, workspacePath string) ([]byte, error) {
-	return executeWorkspaceInstallCmdWithArgs(t, workspacePath, "--yes")
+func executeWorkspaceSetupCmd(t *testing.T, workspacePath string) ([]byte, error) {
+	return executeWorkspaceSetupCmdWithArgs(t, workspacePath, "--yes")
 }
 
-func executeWorkspaceInstallCmdWithArgs(t *testing.T, workspacePath string, args ...string) ([]byte, error) {
+func executeWorkspaceSetupCmdWithArgs(t *testing.T, workspacePath string, args ...string) ([]byte, error) {
 	t.Helper()
 
-	return executeJSONCommand(t, newInstallCmd(), append(args, "--workspace", workspacePath)...)
+	return executeJSONCommand(t, newSetupCmd(), append(args, "--workspace", workspacePath)...)
 }
 
-func executeWorkspaceUninstallCmd(t *testing.T, workspacePath string) ([]byte, error) {
-	return executeWorkspaceUninstallCmdWithArgs(t, workspacePath, "--yes")
+func executeWorkspaceTeardownCmd(t *testing.T, workspacePath string) ([]byte, error) {
+	return executeWorkspaceTeardownCmdWithArgs(t, workspacePath, "--yes")
 }
 
-func executeWorkspaceUninstallCmdWithArgs(t *testing.T, workspacePath string, args ...string) ([]byte, error) {
+func executeWorkspaceTeardownCmdWithArgs(t *testing.T, workspacePath string, args ...string) ([]byte, error) {
 	t.Helper()
 
-	return executeJSONCommand(t, newUninstallCmd(), append(args, "--workspace", workspacePath)...)
+	return executeJSONCommand(t, newTeardownCmd(), append(args, "--workspace", workspacePath)...)
 }
 
 func executeGlobalTickCmd(t *testing.T, store session.Store, stdinJSON string) ([]byte, error) {
@@ -70,9 +70,18 @@ func parseWorkspaceLifecycleOutput(t *testing.T, output []byte) map[string]any {
 func readWorkspaceConfig(t *testing.T) *workspacecfg.Config {
 	t.Helper()
 
-	config, err := workspacecfg.LoadConfig(install.UserConfigPath())
+	config, err := workspacecfg.LoadConfig(lifecycle.UserConfigPath())
 	require.NoError(t, err)
 	return config
+}
+
+func assertWorkspaceConfigMissing(t *testing.T) {
+	t.Helper()
+
+	_, err := os.Stat(lifecycle.UserConfigPath())
+	require.ErrorIs(t, err, os.ErrNotExist)
+	_, err = os.Stat(filepath.Dir(lifecycle.UserConfigPath()))
+	require.ErrorIs(t, err, os.ErrNotExist)
 }
 
 func readFileString(t *testing.T, path string) string {
@@ -99,8 +108,8 @@ func readOptionalFileString(t *testing.T, path string) (string, bool) {
 func assertGlobalSkillState(t *testing.T, wantPresent bool) {
 	t.Helper()
 
-	for _, skillPath := range install.GlobalSkillPaths() {
-		for _, skillName := range install.GlobalSkillNames() {
+	for _, skillPath := range lifecycle.GlobalSkillPaths() {
+		for _, skillName := range lifecycle.GlobalSkillNames() {
 			skillFile := filepath.Join(skillPath, skillName, "SKILL.md")
 			_, err := os.Stat(skillFile)
 			if wantPresent {
@@ -120,20 +129,21 @@ func TestWorkspaceLifecycle_Complete(t *testing.T) {
 
 	workspaceDir := filepath.Join(homeDir, "work")
 	projectDir := filepath.Join(workspaceDir, "myproject")
-	postUninstallProjectDir := filepath.Join(workspaceDir, "otherproject")
+	postTeardownProjectDir := filepath.Join(workspaceDir, "otherproject")
 	require.NoError(t, os.MkdirAll(projectDir, 0o700))
-	require.NoError(t, os.MkdirAll(postUninstallProjectDir, 0o700))
+	require.NoError(t, os.MkdirAll(postTeardownProjectDir, 0o700))
 	initGitRepoAt(t, projectDir)
-	initGitRepoAt(t, postUninstallProjectDir)
+	initGitRepoAt(t, postTeardownProjectDir)
 
 	settingsPath := filepath.Join(homeDir, ".claude", "settings.json")
 
-	output, cmdErr := executeWorkspaceInstallCmd(t, workspaceDir)
+	output, cmdErr := executeWorkspaceSetupCmd(t, workspaceDir)
 	require.NoError(t, cmdErr)
 	data := parseWorkspaceLifecycleOutput(t, output)
 	assert.Equal(t, "ok", data["status"])
 	assert.Equal(t, "~/work", data["path"])
 	assertLifecycleReportShape(t, data,
+		"~/.config/argus/{invariants,workflows,pipelines,logs}/",
 		"~/.config/argus/config.yaml",
 		"~/.claude/settings.json",
 		"~/.codex/{hooks.json,config.toml}",
@@ -151,40 +161,42 @@ func TestWorkspaceLifecycle_Complete(t *testing.T) {
 	}))
 	require.NoError(t, cmdErr)
 	assertHookSafeTickText(t, string(output))
-	assert.Contains(t, string(output), "argus install")
-	assert.Contains(t, string(output), "argus-install")
+	assert.Contains(t, string(output), "argus setup")
+	assert.Contains(t, string(output), "argus-setup")
 
-	output, cmdErr = executeInstallCmd(t, "--yes")
+	output, cmdErr = executeSetupCmd(t, "--yes")
 	require.NoError(t, cmdErr)
 	data = parseWorkspaceLifecycleOutput(t, output)
 	assert.Equal(t, "ok", data["status"])
 	_, err := os.Stat(filepath.Join(projectDir, ".argus"))
-	require.NoError(t, err, "%s should exist after project install", filepath.Join(projectDir, ".argus"))
+	require.NoError(t, err, "%s should exist after project setup", filepath.Join(projectDir, ".argus"))
 
 	output, cmdErr = executeGlobalTickCmd(t, store, mustJSONInput(t, map[string]string{
 		"session_id": sessionID,
 	}))
 	require.NoError(t, cmdErr)
-	assert.Empty(t, string(output))
+	assertHookSafeTickText(t, string(output))
+	assert.Contains(t, string(output), "argus-project-init")
+	assert.NotContains(t, string(output), "argus-project-setup")
 
-	output, cmdErr = executeWorkspaceUninstallCmd(t, workspaceDir)
+	output, cmdErr = executeWorkspaceTeardownCmd(t, workspaceDir)
 	require.NoError(t, cmdErr)
 	data = parseWorkspaceLifecycleOutput(t, output)
 	assert.Equal(t, "ok", data["status"])
 	assertLifecycleReportShape(t, data,
+		"~/.config/argus/",
 		"~/.config/argus/config.yaml",
 		"~/.claude/settings.json",
 		"~/.codex/hooks.json",
 	)
-	config = readWorkspaceConfig(t)
-	assert.Empty(t, config.Workspaces)
+	assertWorkspaceConfigMissing(t)
 	if settingsData, ok := readOptionalFileString(t, settingsPath); ok {
 		assert.NotContains(t, settingsData, "argus tick")
 		assert.NotContains(t, settingsData, "--global")
 	}
 	assertGlobalSkillState(t, false)
 
-	t.Chdir(postUninstallProjectDir)
+	t.Chdir(postTeardownProjectDir)
 	output, cmdErr = executeGlobalTickCmd(t, store, mustJSONInput(t, map[string]string{
 		"session_id": sessionID,
 	}))
@@ -203,21 +215,21 @@ func TestWorkspaceLifecycle_MultiWorkspace(t *testing.T) {
 
 	settingsPath := filepath.Join(homeDir, ".claude", "settings.json")
 
-	output, cmdErr := executeWorkspaceInstallCmd(t, workspaceAlpha)
+	output, cmdErr := executeWorkspaceSetupCmd(t, workspaceAlpha)
 	require.NoError(t, cmdErr)
 	data := parseWorkspaceLifecycleOutput(t, output)
 	assert.Equal(t, "ok", data["status"])
-	assertLifecycleReportShape(t, data, "~/.config/argus/config.yaml")
+	assertLifecycleReportShape(t, data, "~/.config/argus/{invariants,workflows,pipelines,logs}/", "~/.config/argus/config.yaml")
 
-	output, cmdErr = executeWorkspaceInstallCmd(t, workspaceBeta)
+	output, cmdErr = executeWorkspaceSetupCmd(t, workspaceBeta)
 	require.NoError(t, cmdErr)
 	data = parseWorkspaceLifecycleOutput(t, output)
 	assert.Equal(t, "ok", data["status"])
-	assertLifecycleReportShape(t, data, "~/.config/argus/config.yaml")
+	assertLifecycleReportShape(t, data, "~/.config/argus/{invariants,workflows,pipelines,logs}/", "~/.config/argus/config.yaml")
 	config := readWorkspaceConfig(t)
 	assert.Equal(t, []string{"~/ws-alpha", "~/ws-beta"}, config.Workspaces)
 
-	output, cmdErr = executeWorkspaceUninstallCmd(t, workspaceAlpha)
+	output, cmdErr = executeWorkspaceTeardownCmd(t, workspaceAlpha)
 	require.NoError(t, cmdErr)
 	data = parseWorkspaceLifecycleOutput(t, output)
 	assert.Equal(t, "ok", data["status"])
@@ -229,13 +241,12 @@ func TestWorkspaceLifecycle_MultiWorkspace(t *testing.T) {
 	assert.Contains(t, settingsData, "--global")
 	assertGlobalSkillState(t, true)
 
-	output, cmdErr = executeWorkspaceUninstallCmd(t, workspaceBeta)
+	output, cmdErr = executeWorkspaceTeardownCmd(t, workspaceBeta)
 	require.NoError(t, cmdErr)
 	data = parseWorkspaceLifecycleOutput(t, output)
 	assert.Equal(t, "ok", data["status"])
-	assertLifecycleReportShape(t, data, "~/.config/argus/config.yaml", "~/.claude/settings.json")
-	config = readWorkspaceConfig(t)
-	assert.Empty(t, config.Workspaces)
+	assertLifecycleReportShape(t, data, "~/.config/argus/", "~/.config/argus/config.yaml", "~/.claude/settings.json")
+	assertWorkspaceConfigMissing(t)
 	if settingsData, ok := readOptionalFileString(t, settingsPath); ok {
 		assert.NotContains(t, settingsData, "argus tick")
 		assert.NotContains(t, settingsData, "--global")
@@ -252,63 +263,63 @@ func TestWorkspaceLifecycle_PathNormalization(t *testing.T) {
 	require.NoError(t, os.MkdirAll(workspaceDir, 0o700))
 	t.Chdir(baseDir)
 
-	output, cmdErr := executeWorkspaceInstallCmd(t, "./myworkspace")
+	output, cmdErr := executeWorkspaceSetupCmd(t, "./myworkspace")
 	require.NoError(t, cmdErr)
 	data := parseWorkspaceLifecycleOutput(t, output)
 	assert.Equal(t, "ok", data["status"])
-	assertLifecycleReportShape(t, data, "~/.config/argus/config.yaml")
+	assertLifecycleReportShape(t, data, "~/.config/argus/{invariants,workflows,pipelines,logs}/", "~/.config/argus/config.yaml")
 	config := readWorkspaceConfig(t)
 	assert.Equal(t, []string{workspaceDir}, config.Workspaces)
 
-	output, cmdErr = executeWorkspaceUninstallCmd(t, workspaceDir)
+	output, cmdErr = executeWorkspaceTeardownCmd(t, workspaceDir)
 	require.NoError(t, cmdErr)
 	data = parseWorkspaceLifecycleOutput(t, output)
 	assert.Equal(t, "ok", data["status"])
-	assertLifecycleReportShape(t, data, "~/.config/argus/config.yaml")
-	config = readWorkspaceConfig(t)
-	assert.Empty(t, config.Workspaces)
+	assertLifecycleReportShape(t, data, "~/.config/argus/", "~/.config/argus/config.yaml")
+	assertWorkspaceConfigMissing(t)
 }
 
-func TestWorkspaceInstallDuplicateRegistrationIsNoOp(t *testing.T) {
+func TestWorkspaceSetupDuplicateRegistrationIsNoOp(t *testing.T) {
 	homeDir := t.TempDir()
 	t.Setenv("HOME", homeDir)
 
 	workspaceDir := filepath.Join(homeDir, "work")
 	require.NoError(t, os.MkdirAll(workspaceDir, 0o700))
 
-	_, cmdErr := executeWorkspaceInstallCmd(t, workspaceDir)
+	_, cmdErr := executeWorkspaceSetupCmd(t, workspaceDir)
 	require.NoError(t, cmdErr)
 
-	output, cmdErr := executeWorkspaceInstallCmdWithArgs(t, workspaceDir, "--yes")
+	output, cmdErr := executeWorkspaceSetupCmdWithArgs(t, workspaceDir, "--yes")
 	require.NoError(t, cmdErr)
 	data := parseWorkspaceLifecycleOutput(t, output)
 	assert.Equal(t, "workspace already registered; global resources already up to date", data["message"])
 	assertEmptyLifecycleChanges(t, data)
-	assertLifecycleReportShape(t, data, "~/.config/argus/config.yaml")
+	assertLifecycleReportShape(t, data, "~/.config/argus/{invariants,workflows,pipelines,logs}/", "~/.config/argus/config.yaml")
 }
 
-func TestWorkspaceInstallDuplicateRegistrationRefreshesResources(t *testing.T) {
+func TestWorkspaceSetupDuplicateRegistrationRefreshesResources(t *testing.T) {
 	homeDir := t.TempDir()
 	t.Setenv("HOME", homeDir)
 
 	workspaceDir := filepath.Join(homeDir, "work")
 	require.NoError(t, os.MkdirAll(workspaceDir, 0o700))
 
-	_, cmdErr := executeWorkspaceInstallCmd(t, workspaceDir)
+	_, cmdErr := executeWorkspaceSetupCmd(t, workspaceDir)
 	require.NoError(t, cmdErr)
 
-	for _, skillPath := range install.GlobalSkillPaths() {
+	for _, skillPath := range lifecycle.GlobalSkillPaths() {
 		require.NoError(t, os.MkdirAll(filepath.Join(skillPath, "argus-concepts"), 0o700))
 		require.NoError(t, os.WriteFile(filepath.Join(skillPath, "argus-concepts", "SKILL.md"), []byte("# legacy\n"), 0o600))
 	}
 	require.NoError(t, os.WriteFile(filepath.Join(homeDir, ".agents", "skills", "argus-intro", "SKILL.md"), []byte("# stale intro\n"), 0o600))
 
-	output, cmdErr := executeWorkspaceInstallCmdWithArgs(t, workspaceDir, "--yes")
+	output, cmdErr := executeWorkspaceSetupCmdWithArgs(t, workspaceDir, "--yes")
 	require.NoError(t, cmdErr)
 	data := parseWorkspaceLifecycleOutput(t, output)
 	assert.Equal(t, "workspace already registered; global resources refreshed", data["message"])
+	assertLifecycleReportShape(t, data, "~/.config/argus/{invariants,workflows,pipelines,logs}/", "~/.config/argus/config.yaml")
 
-	for _, skillPath := range install.GlobalSkillPaths() {
+	for _, skillPath := range lifecycle.GlobalSkillPaths() {
 		_, err := os.Stat(filepath.Join(skillPath, "argus-concepts"))
 		assert.True(t, os.IsNotExist(err), "%s/argus-concepts should be pruned", skillPath)
 		_, err = os.Stat(filepath.Join(skillPath, "argus-intro", "SKILL.md"))
@@ -316,14 +327,14 @@ func TestWorkspaceInstallDuplicateRegistrationRefreshesResources(t *testing.T) {
 	}
 }
 
-func TestWorkspaceInstallNonInteractiveWithoutYes(t *testing.T) {
+func TestWorkspaceSetupNonInteractiveWithoutYes(t *testing.T) {
 	homeDir := t.TempDir()
 	t.Setenv("HOME", homeDir)
 
 	workspaceDir := filepath.Join(homeDir, "work")
 	require.NoError(t, os.MkdirAll(workspaceDir, 0o700))
 
-	output, cmdErr := executeJSONCommandWithInput(t, newInstallCmd(), bytes.NewBuffer(nil), "--workspace", workspaceDir)
+	output, cmdErr := executeJSONCommandWithInput(t, newSetupCmd(), bytes.NewBuffer(nil), "--workspace", workspaceDir)
 	require.Error(t, cmdErr)
 	assert.Contains(t, cmdErr.Error(), "--yes")
 
@@ -332,16 +343,16 @@ func TestWorkspaceInstallNonInteractiveWithoutYes(t *testing.T) {
 	assert.Contains(t, data["message"], "use --yes")
 }
 
-func TestWorkspaceInstallDuplicateNonInteractiveWithoutYes(t *testing.T) {
+func TestWorkspaceSetupDuplicateNonInteractiveWithoutYes(t *testing.T) {
 	homeDir := t.TempDir()
 	t.Setenv("HOME", homeDir)
 
 	workspaceDir := filepath.Join(homeDir, "work")
 	require.NoError(t, os.MkdirAll(workspaceDir, 0o700))
-	_, cmdErr := executeWorkspaceInstallCmd(t, workspaceDir)
+	_, cmdErr := executeWorkspaceSetupCmd(t, workspaceDir)
 	require.NoError(t, cmdErr)
 
-	output, cmdErr := executeJSONCommandWithInput(t, newInstallCmd(), bytes.NewBuffer(nil), "--workspace", workspaceDir)
+	output, cmdErr := executeJSONCommandWithInput(t, newSetupCmd(), bytes.NewBuffer(nil), "--workspace", workspaceDir)
 	require.Error(t, cmdErr)
 	assert.Contains(t, cmdErr.Error(), "--yes")
 
@@ -350,16 +361,16 @@ func TestWorkspaceInstallDuplicateNonInteractiveWithoutYes(t *testing.T) {
 	assert.Contains(t, data["message"], "use --yes")
 }
 
-func TestWorkspaceUninstallNonInteractiveWithoutYes(t *testing.T) {
+func TestWorkspaceTeardownNonInteractiveWithoutYes(t *testing.T) {
 	homeDir := t.TempDir()
 	t.Setenv("HOME", homeDir)
 
 	workspaceDir := filepath.Join(homeDir, "work")
 	require.NoError(t, os.MkdirAll(workspaceDir, 0o700))
-	_, cmdErr := executeWorkspaceInstallCmd(t, workspaceDir)
+	_, cmdErr := executeWorkspaceSetupCmd(t, workspaceDir)
 	require.NoError(t, cmdErr)
 
-	output, cmdErr := executeJSONCommandWithInput(t, newUninstallCmd(), bytes.NewBuffer(nil), "--workspace", workspaceDir)
+	output, cmdErr := executeJSONCommandWithInput(t, newTeardownCmd(), bytes.NewBuffer(nil), "--workspace", workspaceDir)
 	require.Error(t, cmdErr)
 	assert.Contains(t, cmdErr.Error(), "--yes")
 

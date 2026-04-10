@@ -172,16 +172,16 @@ jobs:
 
 	t.Run("built-in argus prefix allowed by allowlist", func(t *testing.T) {
 		dir := t.TempDir()
-		writeTestFile(t, dir, "argus-init.yaml", `
+		writeTestFile(t, dir, "argus-project-init.yaml", `
 version: v0.1.0
-id: argus-init
+id: argus-project-init
 jobs:
   - prompt: "do something"
 `)
-		report, err := InspectDirectory(dir, func(id string) bool { return id == "argus-init" })
+		report, err := InspectDirectory(dir, func(id string) bool { return id == "argus-project-init" })
 		require.NoError(t, err)
 		assert.True(t, report.Valid)
-		assert.True(t, report.Files["argus-init.yaml"].Valid)
+		assert.True(t, report.Files["argus-project-init.yaml"].Valid)
 	})
 
 	t.Run("workflow filename must match id", func(t *testing.T) {

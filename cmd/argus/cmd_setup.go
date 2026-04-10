@@ -7,37 +7,37 @@ import (
 	"os"
 	"strings"
 
-	"github.com/nextzhou/argus/internal/install"
+	"github.com/nextzhou/argus/internal/lifecycle"
 	"github.com/spf13/cobra"
 )
 
-// SEQUENCE-TEST: cmd_install_lifecycle_test.go
+// SEQUENCE-TEST: cmd_setup_lifecycle_test.go
 // SEQUENCE-TEST: cmd_workspace_lifecycle_test.go
-func newInstallCmd() *cobra.Command {
+func newSetupCmd() *cobra.Command {
 	var yesFlag bool
 	var jsonFlag bool
 	var workspacePath string
 
 	cmd := &cobra.Command{
-		Use:   "install",
-		Short: "Install Argus in the current project",
+		Use:   "setup",
+		Short: "Set up project-level Argus in the current directory",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			input := cmd.InOrStdin()
 			if cmd.Flags().Changed("workspace") {
-				preview, err := install.PrepareWorkspaceInstall(workspacePath)
+				preview, err := lifecycle.PrepareWorkspaceSetup(workspacePath)
 				if err != nil {
 					writeCommandError(cmd, jsonFlag, err.Error())
 					return err
 				}
 
 				if !yesFlag {
-					confirmed, confirmErr := confirmWorkspaceInstall(cmd, preview.Path, preview.AlreadyRegistered, input, inputIsTTY(input))
+					confirmed, confirmErr := confirmWorkspaceSetup(cmd, preview.Path, preview.AlreadyRegistered, input, inputIsTTY(input))
 					if confirmErr != nil {
 						writeCommandError(cmd, jsonFlag, confirmErr.Error())
 						return confirmErr
 					}
 					if !confirmed {
-						cancelErr := fmt.Errorf("workspace installation cancelled")
+						cancelErr := fmt.Errorf("workspace setup cancelled")
 						if preview.AlreadyRegistered {
 							cancelErr = fmt.Errorf("workspace refresh cancelled")
 						}
@@ -46,7 +46,7 @@ func newInstallCmd() *cobra.Command {
 					}
 				}
 
-				result, err := install.InstallWorkspaceWithReport(workspacePath)
+				result, err := lifecycle.SetupWorkspaceWithReport(workspacePath)
 				if err != nil {
 					writeCommandError(cmd, jsonFlag, err.Error())
 					return err
@@ -75,33 +75,33 @@ func newInstallCmd() *cobra.Command {
 				return nil
 			}
 
-			projectRoot, isSubdir, err := install.CheckInstallPreconditions()
+			projectRoot, isSubdir, err := lifecycle.CheckSetupPreconditions()
 			if err != nil {
 				writeCommandError(cmd, jsonFlag, err.Error())
 				return err
 			}
 
 			if isSubdir && !yesFlag {
-				confirmed, confirmErr := confirmSubdirectoryInstall(cmd, projectRoot, input, inputIsTTY(input))
+				confirmed, confirmErr := confirmSubdirectorySetup(cmd, projectRoot, input, inputIsTTY(input))
 				if confirmErr != nil {
 					writeCommandError(cmd, jsonFlag, confirmErr.Error())
 					return confirmErr
 				}
 				if !confirmed {
-					cancelErr := fmt.Errorf("installation cancelled")
+					cancelErr := fmt.Errorf("setup cancelled")
 					writeCommandError(cmd, jsonFlag, cancelErr.Error())
 					return cancelErr
 				}
 			}
 
-			result, err := install.InstallWithReport(projectRoot)
+			result, err := lifecycle.SetupWithReport(projectRoot)
 			if err != nil {
 				writeCommandError(cmd, jsonFlag, err.Error())
 				return err
 			}
 
 			output := lifecycleOutput{
-				Message: "Argus installed successfully",
+				Message: "Project-level Argus set up successfully",
 				Root:    result.Root,
 				Report:  result.Report,
 			}
@@ -111,32 +111,32 @@ func newInstallCmd() *cobra.Command {
 			}
 
 			renderLifecycleText(cmd.OutOrStdout(), output, []string{
-				"Run argus workflow start argus-init to complete project initialization.",
+				"Run argus workflow start argus-project-init to complete project initialization.",
 			})
 			return nil
 		},
 	}
 
 	cmd.Flags().BoolVar(&yesFlag, "yes", false, "Skip confirmation prompts")
-	cmd.Flags().StringVar(&workspacePath, "workspace", "", "Register a workspace path and install global hooks and skills")
+	cmd.Flags().StringVar(&workspacePath, "workspace", "", "Register a workspace path and set up global hooks, skills, and bootstrap artifacts")
 	bindJSONFlag(cmd, &jsonFlag)
 	return cmd
 }
 
-func confirmSubdirectoryInstall(cmd *cobra.Command, projectRoot string, stdinReader io.Reader, isTTY bool) (bool, error) {
+func confirmSubdirectorySetup(cmd *cobra.Command, projectRoot string, stdinReader io.Reader, isTTY bool) (bool, error) {
 	return confirmWithPrompt(cmd, []string{
 		"Current directory is not the Git root.",
-		"Install Argus in this subdirectory instead: " + projectRoot,
-	}, stdinReader, isTTY, "current directory is not the Git root — use --yes to install here anyway")
+		"Set up project-level Argus in this subdirectory instead: " + projectRoot,
+	}, stdinReader, isTTY, "current directory is not the Git root — use --yes to set up here anyway")
 }
 
-func confirmWorkspaceInstall(cmd *cobra.Command, normalizedPath string, alreadyRegistered bool, stdinReader io.Reader, isTTY bool) (bool, error) {
+func confirmWorkspaceSetup(cmd *cobra.Command, normalizedPath string, alreadyRegistered bool, stdinReader io.Reader, isTTY bool) (bool, error) {
 	if alreadyRegistered {
 		return confirmWithPrompt(cmd, []string{
 			"This workspace path is already registered:",
 			"  " + normalizedPath,
 			"",
-			"Argus will refresh global hooks, global skills, and global artifacts for this user account.",
+			"Argus will refresh global hooks, global skills, and global bootstrap artifacts for this user account.",
 			"Use this after upgrading Argus or when built-in global resources need to be restored.",
 		}, stdinReader, isTTY, "workspace refresh requires confirmation in interactive mode; use --yes to skip confirmation")
 	}
@@ -145,10 +145,10 @@ func confirmWorkspaceInstall(cmd *cobra.Command, normalizedPath string, alreadyR
 		"This will register the workspace path:",
 		"  " + normalizedPath,
 		"",
-		"Argus will install global hooks and global skills for this user account.",
-		"This does not install Argus into any project yet.",
-		"Projects inside this workspace may be guided to run project-level Argus install.",
-	}, stdinReader, isTTY, "workspace installation requires confirmation in interactive mode; use --yes to skip confirmation")
+		"Argus will set up global hooks, global skills, and global bootstrap artifacts for this user account.",
+		"This does not set up project-level Argus in any repository yet.",
+		"Repositories inside this workspace may be guided to run project-level Argus setup.",
+	}, stdinReader, isTTY, "workspace setup requires confirmation in interactive mode; use --yes to skip confirmation")
 }
 
 func confirmWithPrompt(cmd *cobra.Command, lines []string, stdinReader io.Reader, isTTY bool, nonTTYMessage string) (bool, error) {
@@ -193,6 +193,6 @@ func inputIsTTY(reader io.Reader) bool {
 	return info.Mode()&os.ModeCharDevice != 0
 }
 
-func reportHasChanges(report install.Report) bool {
+func reportHasChanges(report lifecycle.Report) bool {
 	return len(report.Changes.Created) > 0 || len(report.Changes.Updated) > 0 || len(report.Changes.Removed) > 0
 }

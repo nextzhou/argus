@@ -12,7 +12,7 @@ import (
 
 // ResolveScopeForTick resolves the artifact scope for tick after the caller has
 // already identified the project root and whether the hook came from a global
-// installation.
+// setup.
 func ResolveScopeForTick(root *workspace.ProjectRoot, global bool) (Scope, error) {
 	if root == nil {
 		return nil, nil
@@ -26,15 +26,7 @@ func ResolveScopeForTick(root *workspace.ProjectRoot, global bool) (Scope, error
 	}
 
 	if root.HasArgus {
-		// TODO: Strategy 2 -- allow global scope to contribute invariants
-		// alongside project scope. Currently project scope completely overrides
-		// global scope (Strategy 1). Strategy 2 complexity:
-		// - Remediation workflow location is ambiguous when both scopes are active
-		//   (should global invariant failures trigger global-scope or project-scope pipelines?)
-		// - Conflicts with "single active pipeline" design if both scopes can have pipelines
-		// - Requires a "scope merge" mechanism for tick output composition
-		// See docs/issues/005-restore-global-tick-to-the-shared-scope-model.md
-		return nil, nil
+		return NewProjectScope(root.Path), nil
 	}
 
 	return resolveWorkspaceGlobalScope(root.Path)

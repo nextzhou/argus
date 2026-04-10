@@ -195,8 +195,8 @@ jobs:
 			name:       "built-in reserved workflow id is accepted",
 			wantStatus: "ok",
 			setupFiles: map[string]string{
-				"argus-init.yaml": `version: v0.1.0
-id: argus-init
+				"argus-project-init.yaml": `version: v0.1.0
+id: argus-project-init
 description: Built-in workflow
 jobs:
   - id: step1
@@ -208,8 +208,8 @@ jobs:
 				files, ok := data["files"].(map[string]any)
 				require.True(t, ok, "files should be an object")
 
-				builtinFile, ok := files["argus-init.yaml"].(map[string]any)
-				require.True(t, ok, "argus-init.yaml should exist")
+				builtinFile, ok := files["argus-project-init.yaml"].(map[string]any)
+				require.True(t, ok, "argus-project-init.yaml should exist")
 				assert.True(t, builtinFile["valid"].(bool))
 			},
 		},

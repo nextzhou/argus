@@ -1,6 +1,7 @@
-package install
+package lifecycle
 
 import (
+	"errors"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -14,30 +15,31 @@ import (
 )
 
 func TestWorkspace(t *testing.T) {
-	t.Run("InstallWorkspace_Success", TestInstallWorkspace_Success)
-	t.Run("InstallWorkspace_DuplicateRegistration", TestInstallWorkspace_DuplicateRegistration)
-	t.Run("InstallWorkspace_NonExistentPath", TestInstallWorkspace_NonExistentPath)
-	t.Run("InstallWorkspace_NotDirectory", TestInstallWorkspace_NotDirectory)
-	t.Run("InstallWorkspace_NestedPathsAreStoredSeparately", TestInstallWorkspace_NestedPathsAreStoredSeparately)
-	t.Run("InstallWorkspace_GlobalArtifacts", TestInstallWorkspace_GlobalArtifacts)
-	t.Run("InstallGlobalHooks_ClaudeCode", TestInstallGlobalHooks_ClaudeCode)
-	t.Run("InstallGlobalHooks_Codex", TestInstallGlobalHooks_Codex)
-	t.Run("InstallGlobalHooks_OpenCode", TestInstallGlobalHooks_OpenCode)
-	t.Run("InstallGlobalSkills", TestInstallGlobalSkills)
+	t.Run("SetupWorkspace_Success", TestSetupWorkspace_Success)
+	t.Run("SetupWorkspace_DuplicateRegistration", TestSetupWorkspace_DuplicateRegistration)
+	t.Run("SetupWorkspace_NonExistentPath", TestSetupWorkspace_NonExistentPath)
+	t.Run("SetupWorkspace_NotDirectory", TestSetupWorkspace_NotDirectory)
+	t.Run("SetupWorkspace_NestedPathsAreStoredSeparately", TestSetupWorkspace_NestedPathsAreStoredSeparately)
+	t.Run("SetupWorkspace_GlobalArtifacts", TestSetupWorkspace_GlobalArtifacts)
+	t.Run("SetupGlobalHooks_ClaudeCode", TestSetupGlobalHooks_ClaudeCode)
+	t.Run("SetupGlobalHooks_Codex", TestSetupGlobalHooks_Codex)
+	t.Run("SetupGlobalHooks_OpenCode", TestSetupGlobalHooks_OpenCode)
+	t.Run("SetupGlobalSkills", TestSetupGlobalSkills)
 	t.Run("GlobalSkillNames", TestGlobalSkillNames)
 	t.Run("GlobalSkillPaths", TestGlobalSkillPaths)
 	t.Run("UserConfigPath", TestUserConfigPath)
 }
 
-func TestInstallWorkspace_Success(t *testing.T) {
+func TestSetupWorkspace_Success(t *testing.T) {
 	homeDir := t.TempDir()
 	t.Setenv("HOME", homeDir)
 
 	workspaceDir := filepath.Join(homeDir, "work", "company")
 	require.NoError(t, os.MkdirAll(workspaceDir, 0o700))
 
-	result, err := InstallWorkspaceWithReport(workspaceDir + string(filepath.Separator))
+	result, err := SetupWorkspaceWithReport(workspaceDir + string(filepath.Separator))
 	require.NoError(t, err)
+	assert.Contains(t, result.Report.AffectedPaths, "~/.config/argus/{invariants,workflows,pipelines,logs}/")
 	assert.Equal(t, "~/work/company", result.Path)
 	assert.Contains(t, result.Report.AffectedPaths, "~/.config/argus/config.yaml")
 	assert.Contains(t, result.Report.Changes.Created, "~/.config/argus/config.yaml")
@@ -66,14 +68,14 @@ func TestInstallWorkspace_Success(t *testing.T) {
 	assertGlobalSkillsReleased(t)
 }
 
-func TestInstallWorkspace_GlobalArtifacts(t *testing.T) {
+func TestSetupWorkspace_GlobalArtifacts(t *testing.T) {
 	homeDir := t.TempDir()
 	t.Setenv("HOME", homeDir)
 
 	workspaceDir := filepath.Join(homeDir, "work", "company")
 	require.NoError(t, os.MkdirAll(workspaceDir, 0o700))
 
-	require.NoError(t, InstallWorkspace(workspaceDir))
+	require.NoError(t, SetupWorkspace(workspaceDir))
 
 	globalRoot := filepath.Join(homeDir, ".config", "argus")
 
@@ -86,32 +88,33 @@ func TestInstallWorkspace_GlobalArtifacts(t *testing.T) {
 	}
 
 	// Verify only global-specific invariant is released (not project-level ones)
-	projectInitPath := filepath.Join(globalRoot, "invariants", "argus-project-init.yaml")
+	projectInitPath := filepath.Join(globalRoot, "invariants", "argus-project-setup.yaml")
 	_, err := os.Stat(projectInitPath)
-	require.NoError(t, err, "argus-project-init.yaml should exist")
+	require.NoError(t, err, "argus-project-setup.yaml should exist")
 
 	//nolint:gosec // Test reads an invariant file created under its temp HOME directory.
 	data, err := os.ReadFile(projectInitPath)
 	require.NoError(t, err)
-	assert.Contains(t, string(data), "id: argus-project-init")
+	assert.Contains(t, string(data), "id: argus-project-setup")
 	assert.Contains(t, string(data), "test -d .argus")
 
-	argusInitPath := filepath.Join(globalRoot, "invariants", "argus-init.yaml")
+	argusInitPath := filepath.Join(globalRoot, "invariants", "argus-project-init.yaml")
 	_, err = os.Stat(argusInitPath)
-	assert.True(t, os.IsNotExist(err), "argus-init.yaml should NOT exist in global scope")
+	assert.True(t, os.IsNotExist(err), "argus-project-init.yaml should NOT exist in global scope")
 }
 
-func TestInstallWorkspace_DuplicateRegistration(t *testing.T) {
+func TestSetupWorkspace_DuplicateRegistration(t *testing.T) {
 	homeDir := t.TempDir()
 	t.Setenv("HOME", homeDir)
 
 	workspaceDir := filepath.Join(homeDir, "work", "company")
 	require.NoError(t, os.MkdirAll(workspaceDir, 0o700))
-	require.NoError(t, InstallWorkspace(workspaceDir))
+	require.NoError(t, SetupWorkspace(workspaceDir))
 
-	result, err := InstallWorkspaceWithReport(filepath.Join(workspaceDir, "."))
+	result, err := SetupWorkspaceWithReport(filepath.Join(workspaceDir, "."))
 	require.NoError(t, err)
 	assert.True(t, result.AlreadyRegistered)
+	assert.Contains(t, result.Report.AffectedPaths, "~/.config/argus/{invariants,workflows,pipelines,logs}/")
 	assert.Empty(t, result.Report.Changes.Created)
 	assert.Empty(t, result.Report.Changes.Updated)
 	assert.Empty(t, result.Report.Changes.Removed)
@@ -121,27 +124,27 @@ func TestInstallWorkspace_DuplicateRegistration(t *testing.T) {
 	assert.Equal(t, []string{"~/work/company"}, config.Workspaces)
 }
 
-func TestInstallWorkspace_NonExistentPath(t *testing.T) {
+func TestSetupWorkspace_NonExistentPath(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 
-	err := InstallWorkspace(filepath.Join(os.Getenv("HOME"), "missing"))
+	err := SetupWorkspace(filepath.Join(os.Getenv("HOME"), "missing"))
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "workspace path does not exist")
 }
 
-func TestInstallWorkspace_NotDirectory(t *testing.T) {
+func TestSetupWorkspace_NotDirectory(t *testing.T) {
 	homeDir := t.TempDir()
 	t.Setenv("HOME", homeDir)
 
 	filePath := filepath.Join(homeDir, "not-a-directory")
 	require.NoError(t, os.WriteFile(filePath, []byte("content"), 0o600))
 
-	err := InstallWorkspace(filePath)
+	err := SetupWorkspace(filePath)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "workspace path is not a directory")
 }
 
-func TestInstallWorkspace_NestedPathsAreStoredSeparately(t *testing.T) {
+func TestSetupWorkspace_NestedPathsAreStoredSeparately(t *testing.T) {
 	homeDir := t.TempDir()
 	t.Setenv("HOME", homeDir)
 
@@ -149,45 +152,76 @@ func TestInstallWorkspace_NestedPathsAreStoredSeparately(t *testing.T) {
 	nestedDir := filepath.Join(parentDir, "client-x")
 	require.NoError(t, os.MkdirAll(nestedDir, 0o700))
 
-	require.NoError(t, InstallWorkspace(parentDir))
-	require.NoError(t, InstallWorkspace(nestedDir))
+	require.NoError(t, SetupWorkspace(parentDir))
+	require.NoError(t, SetupWorkspace(nestedDir))
 
 	config, err := workspacecfg.LoadConfig(UserConfigPath())
 	require.NoError(t, err)
 	assert.Equal(t, []string{"~/work", "~/work/client-x"}, config.Workspaces)
 }
 
-func TestUninstallWorkspaceWithReport(t *testing.T) {
+func TestTeardownWorkspaceWithReport(t *testing.T) {
 	homeDir := t.TempDir()
 	t.Setenv("HOME", homeDir)
 
 	workspaceDir := filepath.Join(homeDir, "work")
 	require.NoError(t, os.MkdirAll(workspaceDir, 0o700))
-	require.NoError(t, InstallWorkspace(workspaceDir))
+	require.NoError(t, SetupWorkspace(workspaceDir))
 
-	result, err := UninstallWorkspaceWithReport(workspaceDir)
+	result, err := TeardownWorkspaceWithReport(workspaceDir)
 	require.NoError(t, err)
-	assert.True(t, result.RemovedGlobalResource)
+	assert.True(t, result.ToreDownGlobalResources)
+	assert.Contains(t, result.Report.AffectedPaths, "~/.config/argus/")
 	assert.Contains(t, result.Report.AffectedPaths, "~/.config/argus/config.yaml")
+	assert.Contains(t, result.Report.Changes.Removed, "~/.config/argus/")
 	assert.Contains(t, result.Report.Changes.Removed, "~/.claude/skills/argus-*")
+	_, err = os.Stat(filepath.Join(homeDir, ".config", "argus"))
+	require.ErrorIs(t, err, os.ErrNotExist)
 }
 
-func TestInstallGlobalHooks_ClaudeCode(t *testing.T) {
+func TestTeardownWorkspaceWithReport_LastWorkspaceFailureKeepsRegistration(t *testing.T) {
 	homeDir := t.TempDir()
 	t.Setenv("HOME", homeDir)
 
-	require.NoError(t, InstallGlobalHooks([]string{agentClaudeCode}))
+	workspaceDir := filepath.Join(homeDir, "work")
+	require.NoError(t, os.MkdirAll(workspaceDir, 0o700))
+	require.NoError(t, SetupWorkspace(workspaceDir))
+
+	_, err := teardownWorkspaceWithReport(workspaceDir, workspaceTeardownOps{
+		teardownArtifacts: func(_ string, _ *mutationTracker) error {
+			return errors.New("boom")
+		},
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "tearing down global artifacts")
+
+	config, loadErr := workspacecfg.LoadConfig(UserConfigPath())
+	require.NoError(t, loadErr)
+	assert.Equal(t, []string{"~/work"}, config.Workspaces)
+
+	result, err := TeardownWorkspaceWithReport(workspaceDir)
+	require.NoError(t, err)
+	assert.True(t, result.ToreDownGlobalResources)
+	_, err = os.Stat(filepath.Join(homeDir, ".config", "argus"))
+	require.ErrorIs(t, err, os.ErrNotExist)
+}
+
+func TestSetupGlobalHooks_ClaudeCode(t *testing.T) {
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+
+	require.NoError(t, SetupGlobalHooks([]string{agentClaudeCode}))
 
 	settings := readJSONFile(t, filepath.Join(homeDir, claudeSettingsRelativePath))
 	assert.Equal(t, []string{"argus tick --agent claude-code --global"}, hookCommandsForEvent(t, settings, "UserPromptSubmit"))
 	assert.Empty(t, hookCommandsForEvent(t, settings, "PreToolUse"))
 }
 
-func TestInstallGlobalHooks_Codex(t *testing.T) {
+func TestSetupGlobalHooks_Codex(t *testing.T) {
 	homeDir := t.TempDir()
 	t.Setenv("HOME", homeDir)
 
-	require.NoError(t, InstallGlobalHooks([]string{agentCodex}))
+	require.NoError(t, SetupGlobalHooks([]string{agentCodex}))
 
 	hooks := readJSONFile(t, filepath.Join(homeDir, codexHooksRelativePath))
 	assert.Equal(t, []string{"argus tick --agent codex --global"}, hookCommandsForEvent(t, hooks, "UserPromptSubmit"))
@@ -197,11 +231,11 @@ func TestInstallGlobalHooks_Codex(t *testing.T) {
 	assert.Equal(t, true, config["codex_hooks"])
 }
 
-func TestInstallGlobalHooks_OpenCode(t *testing.T) {
+func TestSetupGlobalHooks_OpenCode(t *testing.T) {
 	homeDir := t.TempDir()
 	t.Setenv("HOME", homeDir)
 
-	require.NoError(t, InstallGlobalHooks([]string{agentOpenCode}))
+	require.NoError(t, SetupGlobalHooks([]string{agentOpenCode}))
 
 	pluginPath := filepath.Join(homeDir, ".config", "opencode", "plugins", "argus.ts")
 	//nolint:gosec // Test reads a plugin file created under its temp HOME directory.
@@ -213,11 +247,11 @@ func TestInstallGlobalHooks_OpenCode(t *testing.T) {
 	assert.NotContains(t, string(plugin), "argus trap --agent opencode --global")
 }
 
-func TestInstallGlobalSkills(t *testing.T) {
+func TestSetupGlobalSkills(t *testing.T) {
 	homeDir := t.TempDir()
 	t.Setenv("HOME", homeDir)
 
-	require.NoError(t, InstallGlobalSkills())
+	require.NoError(t, SetupGlobalSkills())
 
 	assertGlobalSkillsReleased(t)
 
@@ -231,18 +265,18 @@ func TestInstallGlobalSkills(t *testing.T) {
 
 func TestGlobalSkillNames(t *testing.T) {
 	assert.True(t, slices.Equal(
-		[]string{"argus-configure-invariant", "argus-configure-workflow", "argus-doctor", "argus-install", "argus-intro", "argus-uninstall"},
+		[]string{"argus-configure-invariant", "argus-configure-workflow", "argus-doctor", "argus-setup", "argus-intro", "argus-teardown"},
 		GlobalSkillNames(),
 	))
 }
 
-func TestInstallWorkspace_RefreshesGlobalResources(t *testing.T) {
+func TestSetupWorkspace_RefreshesGlobalResources(t *testing.T) {
 	homeDir := t.TempDir()
 	t.Setenv("HOME", homeDir)
 
 	workspaceDir := filepath.Join(homeDir, "work", "company")
 	require.NoError(t, os.MkdirAll(workspaceDir, 0o700))
-	require.NoError(t, InstallWorkspace(workspaceDir))
+	require.NoError(t, SetupWorkspace(workspaceDir))
 
 	for _, skillPath := range GlobalSkillPaths() {
 		require.NoError(t, os.MkdirAll(filepath.Join(skillPath, "argus-concepts"), 0o700))
@@ -252,9 +286,10 @@ func TestInstallWorkspace_RefreshesGlobalResources(t *testing.T) {
 	introPath := filepath.Join(homeDir, ".agents", "skills", "argus-intro", "SKILL.md")
 	require.NoError(t, os.WriteFile(introPath, []byte("# stale intro\n"), 0o600))
 
-	result, err := InstallWorkspaceWithReport(workspaceDir)
+	result, err := SetupWorkspaceWithReport(workspaceDir)
 	require.NoError(t, err)
 	assert.True(t, result.AlreadyRegistered)
+	assert.Contains(t, result.Report.AffectedPaths, "~/.config/argus/{invariants,workflows,pipelines,logs}/")
 	assert.NotEmpty(t, result.Report.Changes.Updated)
 	assert.NotEmpty(t, result.Report.Changes.Removed)
 
@@ -264,6 +299,39 @@ func TestInstallWorkspace_RefreshesGlobalResources(t *testing.T) {
 		_, statErr = os.Stat(filepath.Join(skillPath, "argus-intro", "SKILL.md"))
 		require.NoError(t, statErr, "%s/argus-intro/SKILL.md should exist", skillPath)
 	}
+}
+
+func TestSetupWorkspace_PrunesObsoleteManagedYAML(t *testing.T) {
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+
+	workspaceDir := filepath.Join(homeDir, "work", "company")
+	require.NoError(t, os.MkdirAll(workspaceDir, 0o700))
+	require.NoError(t, SetupWorkspace(workspaceDir))
+
+	globalRoot := filepath.Join(homeDir, ".config", "argus")
+	writeTestFile(t, filepath.Join(globalRoot, "invariants", "argus-init.yaml"), "version: v0.1.0\nid: argus-init\ncheck:\n  - shell: true\n")
+	writeTestFile(t, filepath.Join(globalRoot, "invariants", "argus-project-init.yaml"), "version: v0.1.0\nid: argus-project-init\ncheck:\n  - shell: true\n")
+	writeTestFile(t, filepath.Join(globalRoot, "workflows", "argus-project-init.yaml"), "version: v0.1.0\nid: argus-project-init\njobs:\n  - id: legacy\n    prompt: legacy\n")
+	writeTestFile(t, filepath.Join(globalRoot, "invariants", "team-check.yaml"), "version: v0.1.0\nid: team-check\nprompt: keep\ncheck:\n  - shell: true\n")
+	writeTestFile(t, filepath.Join(globalRoot, "workflows", "team-workflow.yaml"), "version: v0.1.0\nid: team-workflow\njobs:\n  - id: keep\n    prompt: keep\n")
+
+	_, err := SetupWorkspaceWithReport(workspaceDir)
+	require.NoError(t, err)
+
+	_, err = os.Stat(filepath.Join(globalRoot, "invariants", "argus-init.yaml"))
+	require.ErrorIs(t, err, os.ErrNotExist)
+	_, err = os.Stat(filepath.Join(globalRoot, "invariants", "argus-project-init.yaml"))
+	require.ErrorIs(t, err, os.ErrNotExist)
+	_, err = os.Stat(filepath.Join(globalRoot, "workflows", "argus-project-init.yaml"))
+	require.ErrorIs(t, err, os.ErrNotExist)
+
+	_, err = os.Stat(filepath.Join(globalRoot, "invariants", "argus-project-setup.yaml"))
+	require.NoError(t, err)
+	_, err = os.Stat(filepath.Join(globalRoot, "invariants", "team-check.yaml"))
+	require.NoError(t, err)
+	_, err = os.Stat(filepath.Join(globalRoot, "workflows", "team-workflow.yaml"))
+	require.NoError(t, err)
 }
 
 func TestGlobalSkillPaths(t *testing.T) {

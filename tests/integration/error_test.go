@@ -17,7 +17,7 @@ func TestError_WorkflowNotFound(t *testing.T) {
 
 	projectDir := setupGitRepo(t)
 
-	result := runArgusJSON(t, projectDir, "install", "--yes")
+	result := runArgusJSON(t, projectDir, "setup", "--yes")
 	requireOK(t, result)
 
 	result = runArgusJSON(t, projectDir, "workflow", "start", "nonexistent")
@@ -31,7 +31,7 @@ func TestError_DuplicateWorkflowStart(t *testing.T) {
 
 	projectDir := setupGitRepo(t)
 
-	result := runArgusJSON(t, projectDir, "install", "--yes")
+	result := runArgusJSON(t, projectDir, "setup", "--yes")
 	requireOK(t, result)
 
 	writeFile(t, projectDir, ".argus/workflows/dup-test.yaml", `version: v0.1.0
@@ -54,7 +54,7 @@ func TestError_JobDoneNoActivePipeline(t *testing.T) {
 
 	projectDir := setupGitRepo(t)
 
-	result := runArgusJSON(t, projectDir, "install", "--yes")
+	result := runArgusJSON(t, projectDir, "setup", "--yes")
 	requireOK(t, result)
 
 	result = runArgusJSON(t, projectDir, "job-done")
@@ -67,7 +67,7 @@ func TestError_CancelNoActivePipeline(t *testing.T) {
 
 	projectDir := setupGitRepo(t)
 
-	result := runArgusJSON(t, projectDir, "install", "--yes")
+	result := runArgusJSON(t, projectDir, "setup", "--yes")
 	requireOK(t, result)
 
 	result = runArgusJSON(t, projectDir, "workflow", "cancel")
@@ -80,7 +80,7 @@ func TestError_InvalidWorkflowID(t *testing.T) {
 
 	projectDir := setupGitRepo(t)
 
-	result := runArgusJSON(t, projectDir, "install", "--yes")
+	result := runArgusJSON(t, projectDir, "setup", "--yes")
 	requireOK(t, result)
 
 	result = runArgusJSON(t, projectDir, "workflow", "start", "../etc/passwd")
@@ -94,7 +94,7 @@ func TestError_CorruptYAMLWorkflowInspect(t *testing.T) {
 
 	projectDir := setupGitRepo(t)
 
-	result := runArgusJSON(t, projectDir, "install", "--yes")
+	result := runArgusJSON(t, projectDir, "setup", "--yes")
 	requireOK(t, result)
 
 	writeFile(t, projectDir, ".argus/workflows/corrupt.yaml", `{{{invalid yaml`)
@@ -111,7 +111,7 @@ func TestError_CorruptYAMLInvariantInspect(t *testing.T) {
 
 	projectDir := setupGitRepo(t)
 
-	result := runArgusJSON(t, projectDir, "install", "--yes")
+	result := runArgusJSON(t, projectDir, "setup", "--yes")
 	requireOK(t, result)
 
 	writeFile(t, projectDir, ".argus/invariants/corrupt.yaml", `not: [valid: yaml: {{`)
@@ -139,7 +139,7 @@ func TestError_TickSubAgentSkip(t *testing.T) {
 
 	projectDir := setupGitRepo(t)
 
-	result := runArgusJSON(t, projectDir, "install", "--yes")
+	result := runArgusJSON(t, projectDir, "setup", "--yes")
 	requireOK(t, result)
 
 	writeFile(t, projectDir, ".argus/workflows/skip-test.yaml", `version: v0.1.0
@@ -193,24 +193,24 @@ jobs:
 	assert.Contains(t, result.Stdout, "FAIL")
 }
 
-func TestError_UninstallNotInstalled(t *testing.T) {
+func TestError_TeardownWithoutProjectSetup(t *testing.T) {
 	homeDir := t.TempDir()
 	t.Setenv("HOME", homeDir)
 
 	projectDir := setupGitRepo(t)
 
-	result := runArgusJSON(t, projectDir, "uninstall", "--yes")
+	result := runArgusJSON(t, projectDir, "teardown", "--yes")
 	data := requireError(t, result)
-	assert.Contains(t, data["message"].(string), "no Argus installation found")
+	assert.Contains(t, data["message"].(string), "no project-level Argus setup found")
 }
 
-func TestError_InstallNonGitDirectory(t *testing.T) {
+func TestError_SetupNonGitDirectory(t *testing.T) {
 	homeDir := t.TempDir()
 	t.Setenv("HOME", homeDir)
 
 	nonGitDir := t.TempDir()
 
-	result := runArgusJSON(t, nonGitDir, "install", "--yes")
+	result := runArgusJSON(t, nonGitDir, "setup", "--yes")
 	data := requireError(t, result)
 	assert.Contains(t, strings.ToLower(data["message"].(string)), "git")
 }
@@ -221,7 +221,7 @@ func TestError_SnoozeNoActivePipeline(t *testing.T) {
 
 	projectDir := setupGitRepo(t)
 
-	result := runArgusJSON(t, projectDir, "install", "--yes")
+	result := runArgusJSON(t, projectDir, "setup", "--yes")
 	requireOK(t, result)
 
 	sessionID := newDefaultSessionID(t, "error-snooze-no-active")
@@ -235,7 +235,7 @@ func TestError_RecoverAfterError(t *testing.T) {
 
 	projectDir := setupGitRepo(t)
 
-	result := runArgusJSON(t, projectDir, "install", "--yes")
+	result := runArgusJSON(t, projectDir, "setup", "--yes")
 	requireOK(t, result)
 
 	writeFile(t, projectDir, ".argus/workflows/recover-test.yaml", `version: v0.1.0
@@ -264,7 +264,7 @@ func TestError_ErrorEnvelopeFormat(t *testing.T) {
 
 	projectDir := setupGitRepo(t)
 
-	result := runArgusJSON(t, projectDir, "install", "--yes")
+	result := runArgusJSON(t, projectDir, "setup", "--yes")
 	requireOK(t, result)
 
 	result = runArgusJSON(t, projectDir, "workflow", "start", "does-not-exist")
@@ -278,7 +278,7 @@ func TestError_InvariantCheckNotFound(t *testing.T) {
 
 	projectDir := setupGitRepo(t)
 
-	result := runArgusJSON(t, projectDir, "install", "--yes")
+	result := runArgusJSON(t, projectDir, "setup", "--yes")
 	requireOK(t, result)
 
 	result = runArgusJSON(t, projectDir, "invariant", "check", "nonexistent-inv")
@@ -292,7 +292,7 @@ func TestError_WorkflowMissingFile(t *testing.T) {
 
 	projectDir := setupGitRepo(t)
 
-	result := runArgusJSON(t, projectDir, "install", "--yes")
+	result := runArgusJSON(t, projectDir, "setup", "--yes")
 	requireOK(t, result)
 
 	writeFile(t, projectDir, ".argus/workflows/missing-ref.yaml", `version: v0.1.0
@@ -312,7 +312,7 @@ func TestError_JobDoneAfterPipelineCompleted(t *testing.T) {
 
 	projectDir := setupGitRepo(t)
 
-	result := runArgusJSON(t, projectDir, "install", "--yes")
+	result := runArgusJSON(t, projectDir, "setup", "--yes")
 	requireOK(t, result)
 
 	writeFile(t, projectDir, ".argus/workflows/done-test.yaml", `version: v0.1.0
@@ -358,7 +358,7 @@ func TestError_FailEndPipelineCombination(t *testing.T) {
 
 	projectDir := setupGitRepo(t)
 
-	result := runArgusJSON(t, projectDir, "install", "--yes")
+	result := runArgusJSON(t, projectDir, "setup", "--yes")
 	requireOK(t, result)
 
 	writeFile(t, projectDir, ".argus/workflows/combo-test.yaml", `version: v0.1.0

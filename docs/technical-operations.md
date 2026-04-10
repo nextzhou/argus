@@ -59,7 +59,7 @@ Doctor covers the following 13 dimensions.
 #### 8. Log Health
 
 - read the full project-level log from `.argus/logs/hook.log` when it exists
-- otherwise fall back to `~/.config/argus/logs/hook.log`, which may contain pre-install global-hook records
+- otherwise fall back to `~/.config/argus/logs/hook.log`, which may contain pre-setup global-hook records
 - report `ERROR` records
 - `doctor` is a low-frequency command, so it may read complete logs rather than sampling them
 
@@ -108,7 +108,7 @@ To prevent path traversal, any external input used to build a file path must be 
 
 ### 13.2 Namespace Reservation
 
-The `argus-` prefix is reserved for built-in workflows, invariants, and skills. `install` and `inspect` must reject user-defined items using that prefix, while allowing built-in IDs embedded in the current Argus binary.
+The `argus-` prefix is reserved for built-in workflows, invariants, and skills. `setup` and `inspect` must reject user-defined items using that prefix, while allowing built-in IDs embedded in the current Argus binary.
 
 Workflow and invariant definition files also use a canonical path contract: except for `.argus/workflows/_shared.yaml`, the file name must be `<id>.yaml`.
 

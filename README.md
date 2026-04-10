@@ -20,7 +20,7 @@ Argus solves these by acting as an **orchestration layer** — it does not repla
 | **Codex** | Supported | Bash only |
 | **OpenCode** | Supported | Full (Bash, files, MCP) |
 
-\* **Trap is a reserved future capability.** In Phase 1, `argus install` wires only `tick` hooks; no tool-use hooks are installed yet. The "Full" and "Bash only" columns describe each agent's underlying capability — what Argus will be able to gate once trap policies are implemented. Codex's hook system can only intercept Bash commands, not file edits or MCP tools.
+\* **Trap is a reserved future capability.** In Phase 1, `argus setup` wires only `tick` hooks; no tool-use hooks are set up yet. The "Full" and "Bash only" columns describe each agent's underlying capability — what Argus will be able to gate once trap policies are implemented. Codex's hook system can only intercept Bash commands, not file edits or MCP tools.
 
 All three agents share the same state on disk: pipeline progress in `.argus/pipelines/`, invariant definitions in `.argus/invariants/`, and freshness data in `.argus/data/`. You can switch agents mid-workflow — the new agent picks up where the previous one left off because the state lives on disk, not in the agent's memory.
 
@@ -50,19 +50,19 @@ make build
 ```bash
 cd your-project
 
-# Install Argus into the project
-argus install
+# Set up Argus in the project
+argus setup
 
 # Run the built-in initialization workflow
-argus workflow start argus-init
+argus workflow start argus-project-init
 
 # Verify everything is set up
 argus doctor
 ```
 
-`argus install` creates the `.argus/` directory, releases built-in workflows/invariants/skills, and configures hooks for all supported agents. It is idempotent — safe to run multiple times.
+`argus setup` creates the `.argus/` directory, releases built-in workflows/invariants/skills, and configures hooks for all supported agents. It establishes the project-level Argus scaffold and is idempotent — safe to run multiple times.
 
-The `argus-init` workflow walks the agent through generating project rules, setting up git hooks, configuring `.gitignore`, and creating project-specific workflows and example invariants.
+The `argus-project-init` workflow walks the agent through generating project rules, setting up git hooks, configuring `.gitignore`, and creating project-specific workflows and example invariants.
 
 ## Core Concepts
 
@@ -132,7 +132,7 @@ Progress: 2/5
 
 A **skill** is a SKILL.md file that provides specialized instructions to agents — like a reference card for a specific operation. Workflow jobs can reference skills by name.
 
-**Rules** are project-specific coding standards generated during `argus-init`, stored in `.argus/rules/`, and used to produce agent-native rule files (`CLAUDE.md`, `AGENTS.md`).
+**Rules** are project-specific coding standards generated during `argus-project-init`, stored in `.argus/rules/`, and used to produce agent-native rule files (`CLAUDE.md`, `AGENTS.md`).
 
 > To write your own workflows, invariants, or skills, see the [Reference Guide](docs/reference.md).
 
@@ -161,7 +161,7 @@ Every time the user submits a message, the agent's hook calls `argus tick`. Argu
 
 Before the agent executes a tool (Bash command, file edit, etc.), `argus trap` can allow or deny the operation based on pipeline state.
 
-> **Note:** In the current version, `trap` remains a reserved internal command. Phase 1 installs do not wire tool-use hooks yet; only `tick` is installed.
+> **Note:** In the current version, `trap` remains a reserved internal command. Phase 1 setup does not wire tool-use hooks yet; only `tick` is set up.
 
 ### job-done — Progress Advancement
 
@@ -229,24 +229,25 @@ For developers working across multiple projects, Argus supports workspace-level 
 
 ```bash
 # Register a workspace (can register multiple)
-argus install --workspace ~/work/company
-argus install --workspace ~/work/client-x
+argus setup --workspace ~/work/company
+argus setup --workspace ~/work/client-x
 
 # Remove a workspace
-argus uninstall --workspace ~/work/client-x
+argus teardown --workspace ~/work/client-x
 ```
 
-A workspace is a registered parent directory. The `--workspace` flag does three things:
+A workspace is a registered parent directory. The `--workspace` flag does four things:
 
-1. **Installs global hooks** — writes `argus tick` into each agent's **user-level** (global) hook configuration, so it fires for projects inside registered workspaces, not just Argus-initialized ones.
-2. **Installs global skills** — releases the current managed global built-in skills (`argus-configure-invariant`, `argus-configure-workflow`, `argus-doctor`, `argus-install`, `argus-intro`, and `argus-uninstall`) to each agent's global skill directory.
-3. **Records the workspace path** in `~/.config/argus/config.yaml`.
+1. **Sets up global hooks** — writes `argus tick` into each agent's **user-level** (global) hook configuration, so it fires for projects inside registered workspaces, not just projects with project-level Argus set up.
+2. **Sets up global skills** — releases the current managed global built-in skills (`argus-configure-invariant`, `argus-configure-workflow`, `argus-doctor`, `argus-setup`, `argus-intro`, and `argus-teardown`) to each agent's global skill directory.
+3. **Sets up global bootstrap artifacts** — releases managed global-scope invariants and related artifacts under `~/.config/argus/` so workspace ticks can guide setup before a repository has project-level Argus.
+4. **Records the workspace path** in `~/.config/argus/config.yaml`.
 
-Re-running `argus install --workspace <path>` for an already registered workspace refreshes those global hooks, skills, and bootstrap artifacts to match the current Argus binary.
+Re-running `argus setup --workspace <path>` for an already registered workspace refreshes those global hooks, skills, and bootstrap artifacts to match the current Argus binary.
 
-When the global hook fires inside a workspace directory, Argus checks whether the current project has a `.argus/` directory. If not, it guides the agent to either install Argus, explain what Argus is, or ignore the reminder and continue. The workspace itself doesn't manage projects or aggregate state — it's purely a discovery and onboarding mechanism.
+When the global hook fires inside a workspace directory, Argus checks whether the current project has a `.argus/` directory. If not, it guides the agent to either set up Argus, explain what Argus is, or ignore the reminder and continue. The workspace itself doesn't manage projects or aggregate state — it's purely a discovery and onboarding mechanism.
 
-Multiple workspaces can be registered. Remove one with `argus uninstall --workspace <path>`.
+Multiple workspaces can be registered. Remove one with `argus teardown --workspace <path>`.
 
 ## Documentation
 

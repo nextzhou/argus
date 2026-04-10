@@ -13,23 +13,23 @@ Argus CLI commands fall into two groups, distinguished by how they appear in hel
 
 All commands except explicitly scope-free ones are scope-aware. During execution, Argus resolves scope from `cwd` through `scope.ResolveScope(cwd)`:
 
-- **Project scope**: when the current working directory belongs to an initialized project
+- **Project scope**: when the current working directory belongs to a project with project-level Argus set up
 - **Global/workspace scope**: when the current working directory is inside a registered workspace path
 - **No scope**: when neither condition applies. In that case, most internal commands such as `status` or `workflow` respond with guidance appropriate to the situation
 
 This model lets a single command set load the correct artifact root automatically.
 
-Argus uses an agent-centric interaction model. The external command set stays deliberately small and focuses on install/uninstall, `doctor`, `version`, and `help`.
+Argus uses an agent-centric interaction model. The external command set stays deliberately small and focuses on setup/teardown, `doctor`, `version`, and `help`.
 
 ## 7.2 External Commands
 
 | Command | Description | Exit codes |
 | :--- | :--- | :--- |
-| `argus install [--yes] [--json]` | Install Argus into the current project. Create `.argus/`, configure agent `tick` hooks, and release built-in skills. The command is idempotent. The installer merges configuration and preserves existing non-Argus hooks. When run from a subdirectory, confirmation may be required unless `--yes` is used (see [workspace §10.3.1](technical-workspace.md) for details). Default output is human-readable text; `--json` returns a structured result. | `0` success, `1` failure |
-| `argus install --workspace <path> [--yes] [--json]` | Register a workspace path. Install global `tick` hooks, the current managed global built-in skills, and global-scope artifacts under `~/.config/argus/`. If the workspace is already registered, rerunning the command refreshes those managed global resources to match the current binary. Confirmation is required unless `--yes` is used. Default output is text; `--json` returns a structured result. | `0` success, `1` failure |
-| `argus uninstall [--yes] [--json]` | Remove Argus from the current project. Delete `.argus/`, remove Argus-managed project-level skills (`.agents/skills/argus-*` and `.claude/skills/argus-*`; non-`argus-` prefixed user skills are preserved), and remove Argus hook configuration. Git-tracked files can be restored through Git if needed. Confirmation is required unless `--yes` is used. | `0` success, `1` failure |
-| `argus uninstall --workspace <path> [--yes] [--json]` | Remove one registered workspace path. If no workspaces remain, also remove global hooks and global skills. Confirmation is required unless `--yes` is used. | `0` success, `1` failure |
-| `argus doctor [--json]` | Diagnose Argus installation and configuration health. Reports only, never repairs. Default output is a human-readable report; `--json` returns structured data. | `0` all checks passed, `1` findings present |
+| `argus setup [--yes] [--json]` | Set up project-level Argus in the current directory. Create `.argus/`, configure agent `tick` hooks, and release built-in skills. The command is idempotent. The setup flow merges configuration and preserves existing non-Argus hooks. When run from a subdirectory, confirmation may be required unless `--yes` is used (see [workspace §10.3.1](technical-workspace.md) for details). Default output is human-readable text; `--json` returns a structured result. | `0` success, `1` failure |
+| `argus setup --workspace <path> [--yes] [--json]` | Register a workspace path. Set up global `tick` hooks, the current managed global built-in skills, and global-scope artifacts under `~/.config/argus/`. If the workspace is already registered, rerunning the command refreshes those managed global resources to match the current binary. Confirmation is required unless `--yes` is used. Default output is text; `--json` returns a structured result. | `0` success, `1` failure |
+| `argus teardown [--yes] [--json]` | Remove project-level Argus setup from the current directory. Delete `.argus/`, remove Argus-managed project-level skills (`.agents/skills/argus-*` and `.claude/skills/argus-*`; non-`argus-` prefixed user skills are preserved), and remove Argus hook configuration. Git-tracked files can be restored through Git if needed. Confirmation is required unless `--yes` is used. | `0` success, `1` failure |
+| `argus teardown --workspace <path> [--yes] [--json]` | Remove one registered workspace path. If no workspaces remain, also remove global hooks, global skills, global bootstrap artifacts, and the managed `~/.config/argus/` root. Confirmation is required unless `--yes` is used. | `0` success, `1` failure |
+| `argus doctor [--json]` | Diagnose Argus setup and configuration health. Reports only, never repairs. Default output is a human-readable report; `--json` returns structured data. | `0` all checks passed, `1` findings present |
 | `argus version [--json]` | Show the current version. Default output is brief text; `--json` returns structured data. | Always `0` |
 | `argus help [--all]` | Show help. `--all` includes internal commands. | Always `0` |
 
@@ -38,7 +38,7 @@ Argus uses an agent-centric interaction model. The external command set stays de
 | Command | Description |
 | :--- | :--- |
 | `argus tick` | Passive coordination point triggered whenever the user sends input to the agent. Checks state and injects context. |
-| `argus trap` | Reserved operation-gating entry point. In Phase 1 it always allows operations and is not installed by `argus install`. |
+| `argus trap` | Reserved operation-gating entry point. In Phase 1 it always allows operations and is not wired by `argus setup`. |
 | `argus job-done [--fail] [--end-pipeline] [--message "..."] [--json]` | Report that the current job is finished. `--fail` marks failure. `--end-pipeline` ends the pipeline early (defaults to success; combined with `--fail` it becomes an early failure). `--message` records an optional summary. Default output is readable text; `--json` returns structured data. |
 | `argus status [--json]` | Show a project-level overview including pipeline progress and invariant status. Runs real-time invariant checks. |
 | `argus workflow start <workflow-id> [--json]` | Start a workflow. Phase 1 enforces a single active pipeline: if another pipeline is already running, Argus returns an error and asks the caller to finish or cancel it first. |
@@ -62,12 +62,12 @@ Except for protocol-style or utility commands such as `tick`, `trap`, and `toolb
 
 ## 7.3.2 Successful `--json` Output for Lifecycle Commands
 
-`install` and `uninstall` return a common JSON envelope on success:
+`setup` and `teardown` return a common JSON envelope on success:
 
 - `status: "ok"`
 - `message`: success summary
-- `root`: returned only by project-level install
-- `path`: returned only by workspace install or uninstall; the normalized workspace path
+- `root`: returned only by project-level setup
+- `path`: returned only by workspace setup or teardown; the normalized workspace path
 - `changes`: grouped filesystem changes under `created`, `updated`, and `removed`
 - `affected_paths`: a stable summary of managed paths
 
@@ -118,8 +118,8 @@ argus toolbox touch-timestamp .argus/data/lint-passed
 
 | Flag | Description |
 | :--- | :--- |
-| `--agent <name>[,<name>...]` | Select target agents (`claude-code`, `codex`, `opencode`). Used by `tick` and `trap` to parse incoming hook JSON, and by `install`/`uninstall` to select which agent configs to manage. Multiple values are comma-separated. When omitted, Argus operates on all known agents where applicable. |
-| `--global` | Used only by `tick` and `trap`. Marks that the invocation came from a global hook configuration. Written automatically by `install --workspace`. |
+| `--agent <name>[,<name>...]` | Select target agents (`claude-code`, `codex`, `opencode`). Used only by `tick` and `trap` to parse incoming hook JSON. Multiple values are comma-separated. |
+| `--global` | Used only by `tick` and `trap`. Marks that the invocation came from a global hook configuration. Written automatically by `setup --workspace`. |
 
 ## 7.6 Exit-Code Conventions
 
@@ -142,7 +142,7 @@ Specific commands define their own inner fields (see §8.2 `workflow start`, §8
 ### Common Command Rules
 
 - Human-facing and internal commands that support `--json` return `0` on success and `1` on business errors such as invalid parameters or invalid state
-- `install` / `uninstall`: `0` success, `1` failure
+- `setup` / `teardown`: `0` success, `1` failure
 - `version` / `help`: always `0`
 - `doctor`: `0` when all checks pass, `1` when findings exist
 
@@ -169,7 +169,7 @@ Argus: No active pipeline.
 
 Available workflows:
   - release: Standard release process
-  - argus-init: Initialize Argus for the project
+  - argus-project-init: Initialize Argus for the project
 
 To start: argus workflow start <workflow-id>
 ```
@@ -205,8 +205,8 @@ When no active pipeline exists, `tick` evaluates auto invariants and stops at th
 
 ```markdown
 Argus: Invariant check failed:
-  - argus-init: The project has completed Argus initialization
-    Suggestion: Run argus workflow start argus-init
+  - argus-project-init: The project has completed Argus initialization
+    Suggestion: Run argus workflow start argus-project-init
 ```
 
 ### Scenario 6: No Active Pipeline, Invariants Passed, No Workflows Available
@@ -436,7 +436,7 @@ Invariants: 2 passed, 1 failed
     "passed": 2,
     "failed": 1,
     "details": [
-      {"id": "argus-init", "description": "The project has completed Argus initialization", "status": "passed"},
+      {"id": "argus-project-init", "description": "The project has completed Argus initialization", "status": "passed"},
       {"id": "lint-clean", "description": "The codebase should pass lint", "status": "failed"},
       {"id": "gitignore-complete", "description": ".gitignore should include Argus temporary files", "status": "passed"}
     ]
@@ -466,7 +466,7 @@ Notes:
     "passed": 3,
     "failed": 0,
     "details": [
-      {"id": "argus-init", "description": "The project has completed Argus initialization", "status": "passed"},
+      {"id": "argus-project-init", "description": "The project has completed Argus initialization", "status": "passed"},
       {"id": "lint-clean", "description": "The codebase should pass lint", "status": "passed"},
       {"id": "gitignore-complete", "description": ".gitignore should include Argus temporary files", "status": "passed"}
     ]

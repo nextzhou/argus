@@ -16,8 +16,8 @@ func NewRootCmd(version string) *cobra.Command {
 
 	// External commands (visible by default)
 	rootCmd.AddCommand(newVersionCmd(version))
-	rootCmd.AddCommand(newInstallCmd())
-	rootCmd.AddCommand(newUninstallCmd())
+	rootCmd.AddCommand(newSetupCmd())
+	rootCmd.AddCommand(newTeardownCmd())
 	rootCmd.AddCommand(newDoctorCmd())
 
 	// Internal commands (hidden by default)

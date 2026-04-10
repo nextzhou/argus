@@ -43,7 +43,7 @@ Rules are generated and consumed through agent-native systems such as `AGENTS.md
 | Workflow | The imperative blueprint of jobs | A pipeline instance |
 | Invariant | A condition that should always hold | A one-off check command |
 | Rule | A coding or architecture constraint | A skill |
-| Argus command | A CLI subcommand such as `argus install` | A slash command exposed by an agent |
+| Argus command | A CLI subcommand such as `argus setup` | A slash command exposed by an agent |
 
 `Invariant` is the chosen term because it expresses "a condition that should remain true" more precisely than alternatives like `check`, `guard`, or `policy`.
 
@@ -75,13 +75,13 @@ Argus keeps a strict boundary between git-tracked team state and local runtime s
 
 | Artifact | Path | Managed by |
 |----------|------|------------|
-| Workflow definitions | `.argus/workflows/*.yaml` | `install` plus user or agent edits |
+| Workflow definitions | `.argus/workflows/*.yaml` | `setup` plus user or agent edits |
 | Shared job definitions | `.argus/workflows/_shared.yaml` | User or agent |
-| Invariant definitions | `.argus/invariants/*.yaml` | `install` plus user edits |
+| Invariant definitions | `.argus/invariants/*.yaml` | `setup` plus user edits |
 | Generated rules | `.argus/rules/` | Agent via workflow |
-| Skills | `.agents/skills/argus-*`, `.claude/skills/argus-*` | `install` |
+| Skills | `.agents/skills/argus-*`, `.claude/skills/argus-*` | `setup` |
 | Agent-native rules | `AGENTS.md`, `CLAUDE.md`, etc. | Agent |
-| Hook configuration | `.claude/settings.json`, `.codex/hooks.json`, `.opencode/plugins/argus.ts` | `install` |
+| Hook configuration | `.claude/settings.json`, `.codex/hooks.json`, `.opencode/plugins/argus.ts` | `setup` |
 | Git hook config | `.husky/pre-commit`, `.lefthook.yml`, `.pre-commit-config.yaml`, or fallback `.git/hooks/*` | Agent or user. `.git/hooks/*` itself is local-only and cannot be committed; team projects should prefer a git-tracked framework such as husky |
 | Shared data files | `.argus/data/` | Workflow and invariant logic |
 
@@ -99,16 +99,16 @@ Argus embeds several classes of assets under `internal/assets/`:
 
 ```text
 internal/assets/
-  skills/                        # Released by install
+  skills/                        # Released by setup
     argus-doctor/SKILL.md
     argus-intro/SKILL.md
-    argus-install/SKILL.md
+    argus-setup/SKILL.md
     ...
-  workflows/                     # Released by install
-    argus-init.yaml
-  invariants/                    # Released by install
-    argus-init.yaml
+  workflows/                     # Released by setup
     argus-project-init.yaml
+  invariants/                    # Released by setup
+    argus-project-init.yaml
+    argus-project-setup.yaml
   prompts/                       # Runtime-only templates
     tick-full-context.md.tmpl
     tick-minimal.md.tmpl
@@ -123,34 +123,34 @@ var embedded embed.FS
 
 Usage rules:
 
-- `skills/`, `workflows/`, and `invariants/` are released into project or global scope during installation. At project scope, skills are released to `.agents/skills/` and `.claude/skills/`. OpenCode discovers skills through compatible path scanning, so no separate `.opencode/skills/` is generated. At global scope (`install --workspace`), Argus releases the current managed global built-in skill set to each agent's global skill directory and refreshes those managed resources on repeat install (see [§11.5](technical-workspace.md)).
+- `skills/`, `workflows/`, and `invariants/` are released into project or global scope during setup. At project scope, skills are released to `.agents/skills/` and `.claude/skills/`. OpenCode discovers skills through compatible path scanning, so no separate `.opencode/skills/` is generated. At global scope (`setup --workspace`), Argus releases the current managed global built-in skill set to each agent's global skill directory and refreshes those managed resources on repeat setup (see [§11.5](technical-workspace.md)).
 - `prompts/` and `hooks/` are runtime assets read internally by the Argus binary for template rendering (tick injection, job-done output, hook wrapper generation). They are not released as project files.
 
 ---
 
-## 3. Scopes and Installation
+## 3. Scopes and Setup
 
 ### 3.1 Project Scope
 
 - Root: `.argus/` inside a repository
 - Stores project-specific workflows, invariants, rules, and pipeline data
-- Takes precedence whenever the current working tree has project-level Argus installed
+- Takes precedence whenever the current working tree has project-level Argus set up
 
 ### 3.2 Global / Workspace Scope
 
 - Root: `~/.config/argus/`
-- Stores global artifacts used when a directory is inside a registered workspace but does not yet have project-level Argus installed
-- Supports installation guidance through global invariants such as `argus-project-init`
+- Stores global artifacts used when a directory is inside a registered workspace but does not yet have project-level Argus set up
+- Supports setup guidance through global invariants such as `argus-project-setup`
 
 ### 3.3 Unified Orchestration Model
 
 Commands such as `tick`, `job-done`, and `status` keep the same semantics across scopes. Scope resolution changes where Argus loads artifacts from and where it writes runtime state, but it does not introduce a different orchestration model.
 
-### 3.4 Installation Layers
+### 3.4 Setup Layers
 
 1. Install the Argus binary globally.
-2. Run `argus install` inside a repository for project-level artifacts.
-3. Run `argus install --workspace <path>` to register a workspace and enable global scope behavior.
+2. Run `argus setup` inside a repository for project-level artifacts.
+3. Run `argus setup --workspace <path>` to register a workspace and enable global scope behavior.
 
 ---
 

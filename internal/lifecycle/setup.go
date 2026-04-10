@@ -1,4 +1,4 @@
-package install
+package lifecycle
 
 import (
 	"fmt"
@@ -9,20 +9,18 @@ import (
 	"github.com/nextzhou/argus/internal/assets"
 )
 
-// Install performs project-level Argus installation.
+// Setup performs project-level Argus setup.
 //
 // It creates the .argus/ directory structure, releases built-in assets,
-// and installs Agent hook configurations. The operation is idempotent.
-func Install(projectRoot string, _ bool) error {
-	_, err := InstallWithReport(projectRoot)
+// and sets up Agent hook configurations. The operation is idempotent.
+func Setup(projectRoot string, _ bool) error {
+	_, err := SetupWithReport(projectRoot)
 	return err
 }
 
-// InstallWithReport performs project-level installation and returns the
+// SetupWithReport performs project-level setup and returns the
 // summarized filesystem changes produced by the operation.
-//
-//nolint:revive // package-qualified report API mirrors the existing install surface.
-func InstallWithReport(projectRoot string) (ProjectOperationResult, error) {
+func SetupWithReport(projectRoot string) (ProjectOperationResult, error) {
 	homeDir, err := resolveUserHomeDir()
 	if err != nil {
 		return ProjectOperationResult{}, err
@@ -47,9 +45,8 @@ func InstallWithReport(projectRoot string) (ProjectOperationResult, error) {
 	}
 
 	releaseMap := map[string][]string{
-		"workflows":  {filepath.Join(".argus", "workflows")},
-		"invariants": {filepath.Join(".argus", "invariants")},
-		"skills":     SkillPaths(),
+		"workflows": {filepath.Join(".argus", "workflows")},
+		"skills":    SkillPaths(),
 	}
 
 	for srcDir, dstDirs := range releaseMap {
@@ -60,6 +57,10 @@ func InstallWithReport(projectRoot string) (ProjectOperationResult, error) {
 		}
 	}
 
+	if err := releaseAssetFileTracked(projectRoot, filepath.Join("invariants", "argus-project-init.yaml"), filepath.Join(".argus", "invariants", "argus-project-init.yaml"), tracker); err != nil {
+		return ProjectOperationResult{}, fmt.Errorf("releasing project invariant asset: %w", err)
+	}
+
 	builtinSkillNames, err := BuiltinSkillNames()
 	if err != nil {
 		return ProjectOperationResult{}, err
@@ -67,15 +68,34 @@ func InstallWithReport(projectRoot string) (ProjectOperationResult, error) {
 	if err := pruneManagedSkills(projectSkillRoots(projectRoot), builtinSkillNames, tracker); err != nil {
 		return ProjectOperationResult{}, fmt.Errorf("pruning managed project skills: %w", err)
 	}
+	if err := pruneManagedYAMLFiles(filepath.Join(projectRoot, ".argus", "workflows"), projectBuiltinWorkflowIDs(), tracker); err != nil {
+		return ProjectOperationResult{}, fmt.Errorf("pruning managed project workflows: %w", err)
+	}
+	if err := pruneManagedYAMLFiles(filepath.Join(projectRoot, ".argus", "invariants"), projectBuiltinInvariantIDs(), tracker); err != nil {
+		return ProjectOperationResult{}, fmt.Errorf("pruning managed project invariants: %w", err)
+	}
 
-	if err := installHooks(projectRoot, managedAgents(), tracker); err != nil {
-		return ProjectOperationResult{}, fmt.Errorf("installing hooks: %w", err)
+	if err := setupHooks(projectRoot, managedAgents(), tracker); err != nil {
+		return ProjectOperationResult{}, fmt.Errorf("setting up hooks: %w", err)
 	}
 
 	return ProjectOperationResult{
 		Root:   projectRoot,
-		Report: buildProjectInstallReport(projectRoot, homeDir, tracker),
+		Report: buildProjectSetupReport(projectRoot, homeDir, tracker),
 	}, nil
+}
+
+func releaseAssetFileTracked(projectRoot, srcPath, dstPath string, tracker *mutationTracker) error {
+	data, err := assets.ReadAsset(srcPath)
+	if err != nil {
+		return err
+	}
+
+	if err := writeFileTracked(filepath.Join(projectRoot, dstPath), data, tracker); err != nil {
+		return fmt.Errorf("writing %s: %w", dstPath, err)
+	}
+
+	return nil
 }
 
 func managedAgents() []string {
@@ -137,10 +157,10 @@ func ensureDirTracked(path string, tracker *mutationTracker) error {
 	return nil
 }
 
-// CheckInstallPreconditions validates that installation can proceed.
-// It returns the installation target directory (the current working directory)
+// CheckSetupPreconditions validates that setup can proceed.
+// It returns the setup target directory (the current working directory)
 // and whether that directory is a subdirectory of the enclosing Git repository.
-func CheckInstallPreconditions() (projectRoot string, isSubdir bool, err error) {
+func CheckSetupPreconditions() (projectRoot string, isSubdir bool, err error) {
 	cwd, err := os.Getwd()
 	if err != nil {
 		return "", false, fmt.Errorf("getting working directory: %w", err)
@@ -162,7 +182,7 @@ func CheckInstallPreconditions() (projectRoot string, isSubdir bool, err error) 
 	if ancestorArgus, foundArgus, err := findAncestorArgus(projectRoot); err != nil {
 		return "", false, fmt.Errorf("checking ancestor .argus directories: %w", err)
 	} else if foundArgus {
-		return "", false, fmt.Errorf("ancestor .argus/ found at %s — nested Argus installations are not supported", ancestorArgus)
+		return "", false, fmt.Errorf("ancestor .argus/ found at %s — nested project-level Argus setup is not supported", ancestorArgus)
 	}
 
 	return projectRoot, projectRoot != gitRoot, nil

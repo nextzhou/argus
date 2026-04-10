@@ -11,11 +11,12 @@ import (
 type ProjectRoot struct {
 	Path     string // Absolute path to the project root directory
 	HasArgus bool   // .argus/ directory exists at this path
-	HasGit   bool   // .git/ directory exists at this path
+	HasGit   bool   // .git marker exists at this path (directory or file)
 }
 
 // FindProjectRoot searches upward from cwd for a project root.
-// It first looks for .argus/ directory (priority), then falls back to .git/.
+// It first looks for .argus/ directory (priority), then falls back to a .git
+// marker (directory or file, so git worktrees and submodules still count).
 // Returns nil, nil if neither is found (not an error).
 // Returns nil, error only if path normalization fails.
 func FindProjectRoot(cwd string) (*ProjectRoot, error) {
@@ -31,10 +32,10 @@ func FindProjectRoot(cwd string) (*ProjectRoot, error) {
 		argusPath := filepath.Join(current, ".argus")
 		gitPath := filepath.Join(current, ".git")
 
-		// Check if .argus/ exists
+		// Check if .argus/ exists.
 		if isDir(argusPath) {
-			// Found .argus/, check if .git/ also exists at this level
-			hasGit := isDir(gitPath)
+			// Found .argus/, check if a .git marker also exists at this level.
+			hasGit := pathExists(gitPath)
 			return &ProjectRoot{
 				Path:     current,
 				HasArgus: true,
@@ -56,8 +57,8 @@ func FindProjectRoot(cwd string) (*ProjectRoot, error) {
 	for {
 		gitPath := filepath.Join(current, ".git")
 
-		// Check if .git/ exists
-		if isDir(gitPath) {
+		// Check if a .git marker exists.
+		if pathExists(gitPath) {
 			return &ProjectRoot{
 				Path:     current,
 				HasArgus: false,
@@ -85,6 +86,11 @@ func isDir(path string) bool {
 		return false
 	}
 	return info.IsDir()
+}
+
+func pathExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
 }
 
 // IsSubdirectory checks if child path is under parent path using segment-based matching.

@@ -8,29 +8,29 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/nextzhou/argus/internal/install"
+	"github.com/nextzhou/argus/internal/lifecycle"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// executeInstallCmd runs the install command and captures stdout output.
-func executeInstallCmd(t *testing.T, args ...string) ([]byte, error) {
+// executeSetupCmd runs the setup command and captures stdout output.
+func executeSetupCmd(t *testing.T, args ...string) ([]byte, error) {
 	t.Helper()
 
-	return executeJSONCommand(t, newInstallCmd(), args...)
+	return executeJSONCommand(t, newSetupCmd(), args...)
 }
 
-// executeUninstallCmd runs the uninstall command and captures stdout output.
-func executeUninstallCmd(t *testing.T, args ...string) ([]byte, error) {
+// executeTeardownCmd runs the teardown command and captures stdout output.
+func executeTeardownCmd(t *testing.T, args ...string) ([]byte, error) {
 	t.Helper()
 
-	return executeJSONCommand(t, newUninstallCmd(), args...)
+	return executeJSONCommand(t, newTeardownCmd(), args...)
 }
 
-func executeUninstallCmdWithInput(t *testing.T, input *bytes.Buffer, args ...string) ([]byte, error) {
+func executeTeardownCmdWithInput(t *testing.T, input *bytes.Buffer, args ...string) ([]byte, error) {
 	t.Helper()
 
-	return executeJSONCommandWithInput(t, newUninstallCmd(), input, args...)
+	return executeJSONCommandWithInput(t, newTeardownCmd(), input, args...)
 }
 
 func initGitRepo(t *testing.T) {
@@ -82,12 +82,12 @@ func assertEmptyLifecycleChanges(t *testing.T, data map[string]any) {
 	}
 }
 
-func TestInstallLifecycle(t *testing.T) {
+func TestSetupLifecycle(t *testing.T) {
 	t.Chdir(t.TempDir())
 	t.Setenv("HOME", t.TempDir())
 	initGitRepo(t)
 
-	output, cmdErr := executeInstallCmd(t, "--yes")
+	output, cmdErr := executeSetupCmd(t, "--yes")
 	require.NoError(t, cmdErr)
 
 	data := parseLifecycleOutput(t, output)
@@ -103,19 +103,19 @@ func TestInstallLifecycle(t *testing.T) {
 		require.NoError(t, err, ".argus/%s should exist", dir)
 	}
 
-	_, err := os.Stat(filepath.Join(".argus", "workflows", "argus-init.yaml"))
-	require.NoError(t, err, "argus-init.yaml should exist")
+	_, err := os.Stat(filepath.Join(".argus", "workflows", "argus-project-init.yaml"))
+	require.NoError(t, err, "argus-project-init.yaml should exist")
 
 	skillEntries, err := os.ReadDir(filepath.Join(".agents", "skills"))
 	require.NoError(t, err)
 	assert.Len(t, skillEntries, 10, "should have 10 argus-* skill directories")
 
-	for _, skillPath := range install.SkillPaths() {
+	for _, skillPath := range lifecycle.SkillPaths() {
 		_, err = os.Stat(filepath.Join(skillPath, "argus-doctor", "SKILL.md"))
 		require.NoError(t, err, "%s/argus-doctor/SKILL.md should exist", skillPath)
 	}
 
-	output, cmdErr = executeUninstallCmd(t, "--yes")
+	output, cmdErr = executeTeardownCmd(t, "--yes")
 	require.NoError(t, cmdErr)
 
 	data = parseLifecycleOutput(t, output)
@@ -127,29 +127,29 @@ func TestInstallLifecycle(t *testing.T) {
 	)
 
 	_, err = os.Stat(".argus")
-	assert.True(t, os.IsNotExist(err), ".argus/ should not exist after uninstall")
+	assert.True(t, os.IsNotExist(err), ".argus/ should not exist after teardown")
 
-	for _, skillPath := range install.SkillPaths() {
+	for _, skillPath := range lifecycle.SkillPaths() {
 		_, err = os.Stat(filepath.Join(skillPath, "argus-doctor"))
-		assert.True(t, os.IsNotExist(err), "%s/argus-doctor should not exist after uninstall", skillPath)
+		assert.True(t, os.IsNotExist(err), "%s/argus-doctor should not exist after teardown", skillPath)
 	}
 
-	output, cmdErr = executeInstallCmd(t, "--yes")
+	output, cmdErr = executeSetupCmd(t, "--yes")
 	require.NoError(t, cmdErr)
 
 	data = parseLifecycleOutput(t, output)
 	assert.Equal(t, "ok", data["status"])
 
 	_, err = os.Stat(filepath.Join(".argus", "workflows"))
-	assert.NoError(t, err, ".argus/workflows should exist after reinstall")
+	assert.NoError(t, err, ".argus/workflows should exist after repeated setup")
 }
 
-func TestInstallEdgeCases(t *testing.T) {
+func TestSetupEdgeCases(t *testing.T) {
 	t.Run("non-git directory", func(t *testing.T) {
 		t.Chdir(t.TempDir())
 		t.Setenv("HOME", t.TempDir())
 
-		output, cmdErr := executeInstallCmd(t, "--yes")
+		output, cmdErr := executeSetupCmd(t, "--yes")
 		require.Error(t, cmdErr)
 
 		data := parseLifecycleOutput(t, output)
@@ -161,19 +161,19 @@ func TestInstallEdgeCases(t *testing.T) {
 			"error message should mention git, got: %s", msg)
 	})
 
-	t.Run("nested install prevention", func(t *testing.T) {
+	t.Run("nested setup prevention", func(t *testing.T) {
 		t.Chdir(t.TempDir())
 		t.Setenv("HOME", t.TempDir())
 		initGitRepo(t)
 
-		_, cmdErr := executeInstallCmd(t, "--yes")
+		_, cmdErr := executeSetupCmd(t, "--yes")
 		require.NoError(t, cmdErr)
 
 		subdir := filepath.Join("sub", "dir")
 		require.NoError(t, os.MkdirAll(subdir, 0o700))
 		t.Chdir(subdir)
 
-		output, cmdErr := executeInstallCmd(t, "--yes")
+		output, cmdErr := executeSetupCmd(t, "--yes")
 		require.Error(t, cmdErr)
 
 		data := parseLifecycleOutput(t, output)
@@ -184,15 +184,15 @@ func TestInstallEdgeCases(t *testing.T) {
 		assert.Contains(t, msg, ".argus", "error should mention ancestor .argus/")
 	})
 
-	t.Run("idempotent install", func(t *testing.T) {
+	t.Run("idempotent setup", func(t *testing.T) {
 		t.Chdir(t.TempDir())
 		t.Setenv("HOME", t.TempDir())
 		initGitRepo(t)
 
-		_, cmdErr := executeInstallCmd(t, "--yes")
+		_, cmdErr := executeSetupCmd(t, "--yes")
 		require.NoError(t, cmdErr)
 
-		output, cmdErr := executeInstallCmd(t, "--yes")
+		output, cmdErr := executeSetupCmd(t, "--yes")
 		require.NoError(t, cmdErr)
 
 		data := parseLifecycleOutput(t, output)
@@ -202,7 +202,7 @@ func TestInstallEdgeCases(t *testing.T) {
 
 		settingsData, err := os.ReadFile(filepath.Join(".claude", "settings.json"))
 		require.NoError(t, err)
-		assert.NotContains(t, string(settingsData), "argus trap", "project install should not configure argus trap")
+		assert.NotContains(t, string(settingsData), "argus trap", "project setup should not configure argus trap")
 
 		var settings map[string]any
 		require.NoError(t, json.Unmarshal(settingsData, &settings))
@@ -221,7 +221,7 @@ func TestInstallEdgeCases(t *testing.T) {
 				argusCount++
 			}
 		}
-		assert.Equal(t, 1, argusCount, "should have exactly one argus tick entry after double install")
+		assert.Equal(t, 1, argusCount, "should have exactly one argus tick entry after double setup")
 	})
 
 	t.Run("selective skill cleanup", func(t *testing.T) {
@@ -229,7 +229,7 @@ func TestInstallEdgeCases(t *testing.T) {
 		t.Setenv("HOME", t.TempDir())
 		initGitRepo(t)
 
-		_, cmdErr := executeInstallCmd(t, "--yes")
+		_, cmdErr := executeSetupCmd(t, "--yes")
 		require.NoError(t, cmdErr)
 
 		customSkillDir := filepath.Join(".agents", "skills", "my-custom")
@@ -248,18 +248,18 @@ func TestInstallEdgeCases(t *testing.T) {
 			0o600,
 		))
 
-		_, cmdErr = executeUninstallCmd(t, "--yes")
+		_, cmdErr = executeTeardownCmd(t, "--yes")
 		require.NoError(t, cmdErr)
 
 		_, err := os.Stat(filepath.Join(".agents", "skills", "my-custom", "SKILL.md"))
-		require.NoError(t, err, "non-argus skill should be preserved after uninstall")
+		require.NoError(t, err, "non-argus skill should be preserved after teardown")
 
 		_, err = os.Stat(filepath.Join(".claude", "skills", "my-custom", "SKILL.md"))
-		require.NoError(t, err, "non-argus Claude skill should be preserved after uninstall")
+		require.NoError(t, err, "non-argus Claude skill should be preserved after teardown")
 
-		for _, skillPath := range install.SkillPaths() {
+		for _, skillPath := range lifecycle.SkillPaths() {
 			_, err = os.Stat(filepath.Join(skillPath, "argus-doctor"))
-			assert.True(t, os.IsNotExist(err), "%s/argus-doctor should be removed after uninstall", skillPath)
+			assert.True(t, os.IsNotExist(err), "%s/argus-doctor should be removed after teardown", skillPath)
 		}
 	})
 
@@ -292,7 +292,7 @@ func TestInstallEdgeCases(t *testing.T) {
 			0o600,
 		))
 
-		_, cmdErr := executeInstallCmd(t, "--yes")
+		_, cmdErr := executeSetupCmd(t, "--yes")
 		require.NoError(t, cmdErr)
 
 		settingsData, err := os.ReadFile(filepath.Join(".claude", "settings.json"))
@@ -308,11 +308,11 @@ func TestInstallEdgeCases(t *testing.T) {
 		require.True(t, ok, "UserPromptSubmit should be an array")
 
 		settingsStr := string(settingsData)
-		assert.Contains(t, settingsStr, "my-other-tool", "non-argus hook should be present after install")
-		assert.Contains(t, settingsStr, "argus tick", "argus hook should be present after install")
+		assert.Contains(t, settingsStr, "my-other-tool", "non-argus hook should be present after setup")
+		assert.Contains(t, settingsStr, "argus tick", "argus hook should be present after setup")
 		assert.GreaterOrEqual(t, len(entries), 2, "should have at least 2 hook entries (non-argus + argus)")
 
-		_, cmdErr = executeUninstallCmd(t, "--yes")
+		_, cmdErr = executeTeardownCmd(t, "--yes")
 		require.NoError(t, cmdErr)
 
 		settingsData, err = os.ReadFile(filepath.Join(".claude", "settings.json"))
@@ -324,8 +324,8 @@ func TestInstallEdgeCases(t *testing.T) {
 		require.True(t, ok, "hooks should still be an object")
 
 		settingsStr = string(settingsData)
-		assert.Contains(t, settingsStr, "my-other-tool", "non-argus hook should be preserved after uninstall")
-		assert.NotContains(t, settingsStr, "argus tick", "argus tick hook should be removed after uninstall")
-		assert.NotContains(t, settingsStr, "argus trap", "argus trap hook should be removed after uninstall")
+		assert.Contains(t, settingsStr, "my-other-tool", "non-argus hook should be preserved after teardown")
+		assert.NotContains(t, settingsStr, "argus tick", "argus tick hook should be removed after teardown")
+		assert.NotContains(t, settingsStr, "argus trap", "argus trap hook should be removed after teardown")
 	})
 }

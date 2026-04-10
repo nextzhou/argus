@@ -116,17 +116,17 @@ prompt: "Fix it"
 
 	t.Run("built-in argus prefix allowed by allowlist", func(t *testing.T) {
 		dir := t.TempDir()
-		writeFile(t, dir, "argus-init.yaml", `
+		writeFile(t, dir, "argus-project-init.yaml", `
 version: v0.1.0
-id: argus-init
+id: argus-project-init
 check:
   - shell: "true"
-workflow: argus-init
+workflow: argus-project-init
 `)
-		report, err := InspectDirectory(dir, alwaysFound, func(id string) bool { return id == "argus-init" })
+		report, err := InspectDirectory(dir, alwaysFound, func(id string) bool { return id == "argus-project-init" })
 		require.NoError(t, err)
 		assert.True(t, report.Valid)
-		assert.True(t, report.Files["argus-init.yaml"].Valid)
+		assert.True(t, report.Files["argus-project-init.yaml"].Valid)
 	})
 
 	t.Run("invariant filename must match id", func(t *testing.T) {

@@ -27,8 +27,8 @@ func executeDoctorCmd(t *testing.T) (string, error) {
 
 func TestWriteDoctorReport_TextOutput(t *testing.T) {
 	results := []doctor.CheckResult{
-		{Name: "install-integrity", Status: "pass"},
-		{Name: "workflow-files", Status: "fail", Message: "workflow directory missing", Suggestion: "re-run `argus install`"},
+		{Name: "setup-integrity", Status: "pass"},
+		{Name: "workflow-files", Status: "fail", Message: "workflow directory missing", Suggestion: "re-run `argus setup`"},
 		{Name: "workspace-config", Status: "skip", Message: "no workspace config found"},
 	}
 
@@ -41,7 +41,7 @@ func TestWriteDoctorReport_TextOutput(t *testing.T) {
 	assert.Contains(t, output, "[PASS]", "output should contain [PASS] markers")
 	assert.Contains(t, output, "[FAIL]", "output should contain [FAIL] markers")
 	assert.Contains(t, output, "[SKIP]", "output should contain [SKIP] markers")
-	assert.Contains(t, output, "  → re-run `argus install`", "failed checks should include suggestions")
+	assert.Contains(t, output, "  → re-run `argus setup`", "failed checks should include suggestions")
 
 	assert.Regexp(t, `\d+ checks: \d+ passed, \d+ failed, \d+ skipped`, output,
 		"output should contain summary line with check counts")
@@ -54,7 +54,7 @@ func TestDoctorCmd_ExitCodeOnFailure(t *testing.T) {
 
 	require.Error(t, err, "doctor should return error when checks fail")
 	assert.Contains(t, err.Error(), "doctor found")
-	assert.Contains(t, out, "[FAIL] install-integrity")
+	assert.Contains(t, out, "[FAIL] setup-integrity")
 	assert.Regexp(t, `\d+ checks: \d+ passed, \d+ failed, \d+ skipped`, out,
 		"output should contain summary line with check counts")
 }
@@ -76,7 +76,7 @@ func TestDoctorCmd_NoProjectRoot(t *testing.T) {
 
 func TestWriteDoctorReport_OutputFormat(t *testing.T) {
 	results := []doctor.CheckResult{
-		{Name: "install-integrity", Status: "pass"},
+		{Name: "setup-integrity", Status: "pass"},
 		{Name: "workflow-files", Status: "fail", Message: "workflow directory missing"},
 		{Name: "workspace-config", Status: "skip", Message: "no workspace config found"},
 	}

@@ -9,7 +9,7 @@ import (
 // ID validation patterns.
 const (
 	// WorkflowIDPattern matches workflow and invariant IDs: lowercase, digits, hyphens.
-	// Example valid: "my-workflow", "argus-init", "123-test"
+	// Example valid: "my-workflow", "argus-project-init", "123-test"
 	WorkflowIDPattern = `^[a-z0-9]+(-[a-z0-9]+)*$`
 
 	// JobIDPattern matches job IDs: must start with letter, underscore separated.
@@ -34,7 +34,7 @@ var (
 
 // ValidateWorkflowID validates a workflow or invariant ID.
 // Valid: lowercase letters, digits, hyphens. Cannot start/end with hyphen.
-// Examples: "my-workflow", "argus-init", "release-v2"
+// Examples: "my-workflow", "argus-project-init", "release-v2"
 func ValidateWorkflowID(id string) error {
 	if id == "" {
 		return fmt.Errorf("workflow ID cannot be empty: %w", ErrInvalidID)

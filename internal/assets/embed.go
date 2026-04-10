@@ -11,7 +11,7 @@ import (
 var embedded embed.FS
 
 // ReadAsset reads a single embedded asset file by path (relative to assets root).
-// Example: ReadAsset("workflows/argus-init.yaml")
+// Example: ReadAsset("workflows/argus-project-init.yaml")
 func ReadAsset(path string) ([]byte, error) {
 	data, err := embedded.ReadFile(path)
 	if err != nil {
@@ -21,7 +21,7 @@ func ReadAsset(path string) ([]byte, error) {
 }
 
 // ListAssets returns the names of entries in a subdirectory.
-// Example: ListAssets("skills") returns ["argus-doctor", "argus-install", ...]
+// Example: ListAssets("skills") returns ["argus-doctor", "argus-setup", ...]
 func ListAssets(subdir string) ([]string, error) {
 	entries, err := embedded.ReadDir(subdir)
 	if err != nil {

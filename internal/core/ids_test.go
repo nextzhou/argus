@@ -16,7 +16,7 @@ func TestValidateWorkflowID(t *testing.T) {
 	}{
 		// Valid
 		{"simple", "my-workflow", false},
-		{"argus-reserved", "argus-init", false},
+		{"argus-reserved", "argus-project-init", false},
 		{"single-segment", "release", false},
 		{"digit-start", "123-workflow", false},
 		{"single-char", "a", false},
@@ -115,7 +115,7 @@ func TestIsArgusReserved(t *testing.T) {
 		id   string
 		want bool
 	}{
-		{"argus-init", "argus-init", true},
+		{"argus-project-init", "argus-project-init", true},
 		{"argus-doctor", "argus-doctor", true},
 		{"argus-prefix", "argus-", true},
 		{"user-workflow", "my-workflow", false},

@@ -49,7 +49,7 @@ func TestE2E_CompleteWorkflowLifecycle(t *testing.T) {
 	projectDir := setupGitRepo(t)
 	sessionID := newDefaultSessionID(t, "e2e-complete")
 
-	result := runArgusJSON(t, projectDir, "install", "--yes")
+	result := runArgusJSON(t, projectDir, "setup", "--yes")
 	requireOK(t, result)
 	require.True(t, fileExists(t, filepath.Join(projectDir, ".argus", "workflows")))
 	require.True(t, fileExists(t, filepath.Join(projectDir, ".argus", "invariants")))
@@ -119,7 +119,7 @@ func TestE2E_CompleteWorkflowLifecycle(t *testing.T) {
 	data = requireOK(t, result)
 	assert.Nil(t, data["pipeline"])
 
-	result = runArgusJSON(t, projectDir, "uninstall", "--yes")
+	result = runArgusJSON(t, projectDir, "teardown", "--yes")
 	requireOK(t, result)
 	require.False(t, fileExists(t, filepath.Join(projectDir, ".argus")))
 }
@@ -130,7 +130,7 @@ func TestE2E_InvariantCheckIntegration(t *testing.T) {
 
 	projectDir := setupGitRepo(t)
 
-	result := runArgusJSON(t, projectDir, "install", "--yes")
+	result := runArgusJSON(t, projectDir, "setup", "--yes")
 	requireOK(t, result)
 
 	writeFile(t, projectDir, ".argus/invariants/e2e-test-inv.yaml", testInvariant)
@@ -176,7 +176,7 @@ func TestE2E_WorkflowInspect(t *testing.T) {
 
 	projectDir := setupGitRepo(t)
 
-	result := runArgusJSON(t, projectDir, "install", "--yes")
+	result := runArgusJSON(t, projectDir, "setup", "--yes")
 	requireOK(t, result)
 
 	writeFile(t, projectDir, ".argus/workflows/e2e-test.yaml", testWorkflow)
@@ -200,7 +200,7 @@ func TestE2E_TickMultiAgentFormats(t *testing.T) {
 	codexSessionID := newDefaultSessionID(t, "agent-codex")
 	opencodeSessionID := newDefaultSessionID(t, "agent-opencode")
 
-	result := runArgusJSON(t, projectDir, "install", "--yes")
+	result := runArgusJSON(t, projectDir, "setup", "--yes")
 	requireOK(t, result)
 
 	writeFile(t, projectDir, ".argus/workflows/e2e-test.yaml", testWorkflow)
@@ -230,7 +230,7 @@ func TestE2E_CancelAndRestart(t *testing.T) {
 
 	projectDir := setupGitRepo(t)
 
-	result := runArgusJSON(t, projectDir, "install", "--yes")
+	result := runArgusJSON(t, projectDir, "setup", "--yes")
 	requireOK(t, result)
 
 	writeFile(t, projectDir, ".argus/workflows/e2e-test.yaml", testWorkflow)
@@ -259,7 +259,7 @@ func TestE2E_FailedJob(t *testing.T) {
 
 	projectDir := setupGitRepo(t)
 
-	result := runArgusJSON(t, projectDir, "install", "--yes")
+	result := runArgusJSON(t, projectDir, "setup", "--yes")
 	requireOK(t, result)
 
 	writeFile(t, projectDir, ".argus/workflows/e2e-test.yaml", testWorkflow)
@@ -284,7 +284,7 @@ func TestE2E_EarlyExit(t *testing.T) {
 
 	projectDir := setupGitRepo(t)
 
-	result := runArgusJSON(t, projectDir, "install", "--yes")
+	result := runArgusJSON(t, projectDir, "setup", "--yes")
 	requireOK(t, result)
 
 	writeFile(t, projectDir, ".argus/workflows/e2e-test.yaml", testWorkflow)
@@ -305,7 +305,7 @@ func TestE2E_StatusWithInvariants(t *testing.T) {
 
 	projectDir := setupGitRepo(t)
 
-	result := runArgusJSON(t, projectDir, "install", "--yes")
+	result := runArgusJSON(t, projectDir, "setup", "--yes")
 	requireOK(t, result)
 
 	writeFile(t, projectDir, ".argus/workflows/e2e-test.yaml", testWorkflow)
@@ -353,7 +353,7 @@ func TestE2E_DoctorInInstalledProject(t *testing.T) {
 
 	projectDir := setupGitRepo(t)
 
-	result := runArgusJSON(t, projectDir, "install", "--yes")
+	result := runArgusJSON(t, projectDir, "setup", "--yes")
 	requireOK(t, result)
 
 	result = runArgusText(t, projectDir, "doctor")
@@ -381,7 +381,7 @@ func TestE2E_Snooze(t *testing.T) {
 	projectDir := setupGitRepo(t)
 	sessionID := newDefaultSessionID(t, "e2e-snooze")
 
-	result := runArgusJSON(t, projectDir, "install", "--yes")
+	result := runArgusJSON(t, projectDir, "setup", "--yes")
 	requireOK(t, result)
 
 	writeFile(t, projectDir, ".argus/workflows/e2e-test.yaml", testWorkflow)
@@ -407,7 +407,7 @@ func TestE2E_DefaultTextOutput(t *testing.T) {
 
 	projectDir := setupGitRepo(t)
 
-	result := runArgusJSON(t, projectDir, "install", "--yes")
+	result := runArgusJSON(t, projectDir, "setup", "--yes")
 	requireOK(t, result)
 
 	writeFile(t, projectDir, ".argus/workflows/e2e-test.yaml", testWorkflow)

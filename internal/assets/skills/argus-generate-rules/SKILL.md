@@ -10,7 +10,7 @@ Generate project rules for Agent-native rules systems.
 
 ## When to Use
 
-This skill is loaded during the `generate_rules` job of the `argus-init` workflow.
+This skill is loaded during the `generate_rules` job of the `argus-project-init` workflow.
 
 ## What to Generate
 

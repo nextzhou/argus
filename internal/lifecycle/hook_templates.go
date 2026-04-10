@@ -1,5 +1,5 @@
-// Package install provides installation and setup functionality for argus.
-package install
+// Package lifecycle provides setup, teardown, and asset release functionality for Argus.
+package lifecycle
 
 import (
 	"bytes"

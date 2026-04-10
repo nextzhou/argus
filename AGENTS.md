@@ -20,9 +20,9 @@ Argus is an AI Agent workflow orchestration tool. It provides a CLI binary (Go) 
 .claude/skills/argus-*/SKILL.md  # Claude Code project-level skill mirror (also scanned by OpenCode)
 assets/                          # Embedded assets in source code (Go embed)
                                  # Physical path: internal/assets/ (go:embed only refs package subdir)
-  skills/                        # Built-in skills (released on install)
-  workflows/                     # Built-in workflow definitions (released on install)
-  invariants/                    # Built-in invariant definitions (released on install)
+  skills/                        # Built-in skills (released on setup)
+  workflows/                     # Built-in workflow definitions (released on setup)
+  invariants/                    # Built-in invariant definitions (released on setup)
   prompts/                       # Runtime output templates (not released, internal use only)
   hooks/                         # Hook wrapper templates (not released, internal use only)
 ```
@@ -90,7 +90,7 @@ Argus is designed so the repository can be made public at any time without a cle
 Different Argus scopes (for example, project scope and user/workspace scope) are different configuration roots of the same orchestration model, not separate product modes.
 
 - Prefer one shared orchestration mechanism across scopes. If behavior differs by scope, first ask whether the difference can be expressed by loading different invariants, workflows, prompts, or state roots.
-- Scope-specific policy belongs in artifacts, not in hardcoded hook branches. Install guidance, skip/remind decisions, and remediation flows should normally be modeled as invariants plus workflows.
+- Scope-specific policy belongs in artifacts, not in hardcoded hook branches. Setup guidance, skip/remind decisions, and remediation flows should normally be modeled as invariants plus workflows.
 - Hardcoded scope logic is acceptable only for bootstrap concerns that artifacts cannot decide by themselves, such as input parsing, sub-agent suppression, project/scope discovery, and fail-open handling when no scope applies.
 - When a shortcut would create a second mental model for `tick`, `job-done`, or other orchestration entry points, treat that shortcut as design debt even if it is simpler to ship.
 
@@ -98,7 +98,7 @@ Different Argus scopes (for example, project scope and user/workspace scope) are
 
 ### Namespace reservation
 
-`argus-` prefix is reserved for built-in workflows, invariants, and skills. Users cannot use this prefix for their own definitions. Enforced at inspect/install time.
+`argus-` prefix is reserved for built-in workflows, invariants, and skills. Users cannot use this prefix for their own definitions. Enforced at inspect/setup time.
 
 ### Skill naming
 
@@ -113,7 +113,7 @@ Different Argus scopes (for example, project scope and user/workspace scope) are
 |------|---------|------------------------|
 | Pipeline | An instance of a workflow execution in Argus | GitLab Pipeline (different concept) |
 | Rule | Constraint/specification for coding | Skill (capability/procedure) |
-| Argus Command | CLI subcommand (`argus install`) | Slash Command (`/argus-doctor`) |
+| Argus Command | CLI subcommand (`argus setup`) | Slash Command (`/argus-doctor`) |
 
 ## Design Conventions
 
@@ -239,7 +239,7 @@ cmd -> internal/*
 - `internal/session/`: Session lifecycle management
 - `internal/hook/`: Hook command handlers (tick, trap, job-done)
 - `internal/workspace/`: Workspace discovery and management
-- `internal/install/`: Install and asset release logic
+- `internal/lifecycle/`: Setup, teardown, and asset release logic
 - `internal/doctor/`: Diagnostic reporting (read-only)
 - `internal/toolbox/`: Shared utilities (no dependencies on other internal packages)
 
@@ -308,7 +308,7 @@ Format: `type(scope): description`
 - `session`: Session lifecycle
 - `hook`: Hook command handlers
 - `workspace`: Workspace management
-- `install`: Install and asset release
+- `lifecycle`: Setup, teardown, and asset release
 - `doctor`: Diagnostic tools
 - `toolbox`: Shared utilities
 - `project`: Project-level configuration

@@ -15,8 +15,8 @@ import (
 
 	"github.com/nextzhou/argus/internal/assets"
 	"github.com/nextzhou/argus/internal/core"
-	"github.com/nextzhou/argus/internal/install"
 	"github.com/nextzhou/argus/internal/invariant"
+	"github.com/nextzhou/argus/internal/lifecycle"
 	"github.com/nextzhou/argus/internal/pipeline"
 	"github.com/nextzhou/argus/internal/workflow"
 	"github.com/nextzhou/argus/internal/workspace"
@@ -28,19 +28,19 @@ const (
 	statusFail = "fail"
 	statusSkip = "skip"
 
-	checkInstallIntegrity = "install-integrity"
-	checkHookConfig       = "hook-config"
-	checkWorkflowFiles    = "workflow-files"
-	checkInvariantFiles   = "invariant-files"
-	checkBuiltinChecks    = "builtin-invariants"
-	checkSkillIntegrity   = "skill-integrity"
-	checkGitignore        = "gitignore"
-	checkLogHealth        = "log-health"
-	checkVersionCompat    = "version-compat"
-	checkTmpPermissions   = "tmp-permissions"
-	checkPipelineData     = "pipeline-data"
-	checkShellEnv         = "shell-env"
-	checkWorkspaceConfig  = "workspace-config"
+	checkSetupIntegrity  = "setup-integrity"
+	checkHookConfig      = "hook-config"
+	checkWorkflowFiles   = "workflow-files"
+	checkInvariantFiles  = "invariant-files"
+	checkBuiltinChecks   = "builtin-invariants"
+	checkSkillIntegrity  = "skill-integrity"
+	checkGitignore       = "gitignore"
+	checkLogHealth       = "log-health"
+	checkVersionCompat   = "version-compat"
+	checkTmpPermissions  = "tmp-permissions"
+	checkPipelineData    = "pipeline-data"
+	checkShellEnv        = "shell-env"
+	checkWorkspaceConfig = "workspace-config"
 
 	tmpArgusDir                  = "/tmp/argus"
 	workspaceConfigRelativePath  = ".config/argus/config.yaml"
@@ -66,7 +66,7 @@ func RunAllChecks(projectRoot string) []CheckResult {
 	results := make([]CheckResult, 0, 13)
 	if projectRoot == "" {
 		results = append(results,
-			CheckInstallIntegrity(""),
+			CheckSetupIntegrity(""),
 			skippedProjectCheck(checkHookConfig),
 			skippedProjectCheck(checkWorkflowFiles),
 			skippedProjectCheck(checkInvariantFiles),
@@ -84,7 +84,7 @@ func RunAllChecks(projectRoot string) []CheckResult {
 	}
 
 	results = append(results,
-		CheckInstallIntegrity(projectRoot),
+		CheckSetupIntegrity(projectRoot),
 		CheckHookConfig(projectRoot),
 		CheckWorkflowFiles(projectRoot),
 		CheckInvariantFiles(projectRoot),
@@ -102,10 +102,10 @@ func RunAllChecks(projectRoot string) []CheckResult {
 	return results
 }
 
-// CheckInstallIntegrity verifies the core project install layout.
-func CheckInstallIntegrity(projectRoot string) CheckResult {
+// CheckSetupIntegrity verifies the core project setup layout.
+func CheckSetupIntegrity(projectRoot string) CheckResult {
 	if projectRoot == "" {
-		return failResult(checkInstallIntegrity, "Argus not installed", "run `argus install` in the project root")
+		return failResult(checkSetupIntegrity, "project-level Argus setup is missing", "run `argus setup` in the project root")
 	}
 
 	missing := make([]string, 0, 4)
@@ -121,13 +121,13 @@ func CheckInstallIntegrity(projectRoot string) CheckResult {
 	if len(missing) > 0 {
 		slices.Sort(missing)
 		return failResult(
-			checkInstallIntegrity,
-			fmt.Sprintf("missing install components: %s", strings.Join(missing, ", ")),
-			"re-run `argus install` and ensure the argus binary is available in PATH",
+			checkSetupIntegrity,
+			fmt.Sprintf("missing setup components: %s", strings.Join(missing, ", ")),
+			"re-run `argus setup` and ensure the argus binary is available in PATH",
 		)
 	}
 
-	return passResult(checkInstallIntegrity, "Argus is installed and project structure is complete")
+	return passResult(checkSetupIntegrity, "project-level Argus setup is complete")
 }
 
 // CheckHookConfig verifies existing project hook configurations.
@@ -199,7 +199,7 @@ func CheckHookConfig(projectRoot string) CheckResult {
 
 	if len(issues) > 0 {
 		slices.Sort(issues)
-		return failResult(checkHookConfig, strings.Join(issues, "; "), "re-run `argus install` to restore missing hook entries")
+		return failResult(checkHookConfig, strings.Join(issues, "; "), "re-run `argus setup` to restore missing hook entries")
 	}
 	if len(validatedAgents) == 0 {
 		return passResult(checkHookConfig, "no project-level agent hook configs found")
@@ -332,8 +332,8 @@ func CheckSkillIntegrity(projectRoot string) CheckResult {
 		return skippedProjectCheck(checkSkillIntegrity)
 	}
 
-	missing := make([]string, 0, len(install.SkillPaths()))
-	for _, skillDir := range install.SkillPaths() {
+	missing := make([]string, 0, len(lifecycle.SkillPaths()))
+	for _, skillDir := range lifecycle.SkillPaths() {
 		matches, err := filepath.Glob(filepath.Join(projectRoot, skillDir, "argus-*", "SKILL.md"))
 		if err != nil {
 			missing = append(missing, skillDir)
@@ -345,7 +345,7 @@ func CheckSkillIntegrity(projectRoot string) CheckResult {
 	}
 	if len(missing) > 0 {
 		slices.Sort(missing)
-		return failResult(checkSkillIntegrity, fmt.Sprintf("missing Argus skills under: %s", strings.Join(missing, ", ")), "re-run `argus install` to restore project skill files")
+		return failResult(checkSkillIntegrity, fmt.Sprintf("missing Argus skills under: %s", strings.Join(missing, ", ")), "re-run `argus setup` to restore project skill files")
 	}
 
 	return passResult(checkSkillIntegrity, "Argus project skill files are present in both managed directories")
@@ -546,7 +546,7 @@ func CheckWorkspaceConfig() CheckResult {
 
 	if len(issues) > 0 {
 		slices.Sort(issues)
-		return failResult(checkWorkspaceConfig, strings.Join(issues, "; "), "repair workspace registrations or re-run `argus install --workspace <path>`")
+		return failResult(checkWorkspaceConfig, strings.Join(issues, "; "), "repair workspace registrations or re-run `argus setup --workspace <path>`")
 	}
 
 	return passResult(checkWorkspaceConfig, fmt.Sprintf("workspace config is valid for %d workspaces", len(config.Workspaces)))

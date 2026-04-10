@@ -112,7 +112,7 @@ When creating or editing invariant files, use a staging directory to avoid corru
 
 1. **Prepare staging directory.** Clean `.argus/tmp/invariants/` if it exists, then create it fresh.
 
-2. **Copy existing user files.** Copy non-`argus-*` YAML files from `.argus/invariants/` to `.argus/tmp/invariants/`. Built-in `argus-*` files are managed by `argus install` — do not copy or edit them. If creating from scratch and no user files exist, just create the empty `.argus/tmp/invariants/` directory.
+2. **Copy existing user files.** Copy non-`argus-*` YAML files from `.argus/invariants/` to `.argus/tmp/invariants/`. Built-in `argus-*` files are managed by `argus setup` — do not copy or edit them. If creating from scratch and no user files exist, just create the empty `.argus/tmp/invariants/` directory.
 
 3. **Make all changes in staging.** Create, edit, or delete files only in `.argus/tmp/invariants/`.
 

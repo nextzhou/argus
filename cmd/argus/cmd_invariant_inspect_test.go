@@ -50,12 +50,12 @@ prompt: "Run the workflow"
 `
 
 const builtinInvariantForInspect = `version: v0.1.0
-id: argus-init
+id: argus-project-init
 description: Built-in invariant
 auto: always
 check:
   - shell: "true"
-workflow: argus-init
+workflow: argus-project-init
 `
 
 const invalidInvariantYAMLForInspect = `not: valid: yaml: [broken`
@@ -228,9 +228,9 @@ prompt: "Fix it"
 		{
 			name: "built-in reserved invariant id is accepted",
 			setup: func(t *testing.T) {
-				writeInvariantFixture(t, "argus-init", builtinInvariantForInspect)
-				writeWorkflowFixture(t, "argus-init", `version: v0.1.0
-id: argus-init
+				writeInvariantFixture(t, "argus-project-init", builtinInvariantForInspect)
+				writeWorkflowFixture(t, "argus-project-init", `version: v0.1.0
+id: argus-project-init
 description: Test workflow
 jobs:
   - id: build
@@ -242,9 +242,9 @@ jobs:
 				assert.Equal(t, true, data["valid"])
 
 				files := data["files"].(map[string]any)
-				fr := files["argus-init.yaml"].(map[string]any)
+				fr := files["argus-project-init.yaml"].(map[string]any)
 				assert.Equal(t, true, fr["valid"])
-				assert.Equal(t, "argus-init", fr["id"])
+				assert.Equal(t, "argus-project-init", fr["id"])
 			},
 		},
 		{

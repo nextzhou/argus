@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestCheckInstallIntegrity_Installed(t *testing.T) {
+func TestCheckSetupIntegrity_SetUp(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	projectRoot := t.TempDir()
 	installFakeArgusBinary(t)
@@ -19,18 +19,18 @@ func TestCheckInstallIntegrity_Installed(t *testing.T) {
 	createArgusDir(t, projectRoot, "workflows")
 	createArgusDir(t, projectRoot, "invariants")
 
-	result := CheckInstallIntegrity(projectRoot)
+	result := CheckSetupIntegrity(projectRoot)
 
-	assert.Equal(t, "install-integrity", result.Name)
+	assert.Equal(t, "setup-integrity", result.Name)
 	assert.Equal(t, "pass", result.Status)
-	assert.Contains(t, result.Message, "installed")
+	assert.Contains(t, result.Message, "project-level Argus setup is complete")
 }
 
-func TestCheckInstallIntegrity_MissingArgusDir(t *testing.T) {
+func TestCheckSetupIntegrity_MissingArgusDir(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	projectRoot := t.TempDir()
 
-	result := CheckInstallIntegrity(projectRoot)
+	result := CheckSetupIntegrity(projectRoot)
 
 	assert.Equal(t, "fail", result.Status)
 	assert.Contains(t, result.Message, ".argus")
@@ -135,7 +135,7 @@ func TestCheckBuiltinInvariants_SkipsMisnamedBuiltinFile(t *testing.T) {
 	projectRoot := t.TempDir()
 	createArgusDir(t, projectRoot, "invariants")
 
-	writeInvariantFile(t, projectRoot, "wrong-name.yaml", "argus-init", "argus-init")
+	writeInvariantFile(t, projectRoot, "wrong-name.yaml", "argus-project-init", "argus-project-init")
 
 	result := CheckBuiltinInvariants(projectRoot)
 
@@ -292,9 +292,9 @@ func TestRunAllChecks_InstalledProject(t *testing.T) {
 	createArgusDir(t, projectRoot, "pipelines")
 
 	writeWorkflowFile(t, projectRoot, "release.yaml", "release")
-	writeWorkflowFile(t, projectRoot, "argus-init.yaml", "argus-init")
+	writeWorkflowFile(t, projectRoot, "argus-project-init.yaml", "argus-project-init")
 	writeInvariantFile(t, projectRoot, "release-check.yaml", "release-check", "release")
-	writeInvariantFile(t, projectRoot, "argus-init.yaml", "argus-init", "argus-init")
+	writeInvariantFile(t, projectRoot, "argus-project-init.yaml", "argus-project-init", "argus-project-init")
 	writePipelineFile(t, projectRoot, "release-20260408T000000Z", "release")
 
 	writeProjectSkill(t, projectRoot, ".agents")

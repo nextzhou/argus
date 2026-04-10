@@ -256,11 +256,11 @@ These commands default to human-readable text. Add `--json` when you need struct
 
 | Command | Description |
 |---------|-------------|
-| `argus install [--yes] [--json]` | Install Argus into the current project |
-| `argus install --workspace <path> [--yes] [--json]` | Register a workspace and set up or refresh the global/user scope |
-| `argus uninstall [--yes] [--json]` | Remove Argus from the current project |
-| `argus uninstall --workspace <path> [--yes] [--json]` | Remove a registered workspace |
-| `argus doctor [--json]` | Diagnose installation and configuration issues |
+| `argus setup [--yes] [--json]` | Set up project-level Argus in the current directory |
+| `argus setup --workspace <path> [--yes] [--json]` | Register a workspace and set up or refresh global bootstrap resources |
+| `argus teardown [--yes] [--json]` | Remove project-level Argus setup from the current directory |
+| `argus teardown --workspace <path> [--yes] [--json]` | Remove a registered workspace; if it is the last one, also remove managed global hooks, skills, bootstrap artifacts, and the `~/.config/argus/` root |
+| `argus doctor [--json]` | Diagnose setup and configuration issues |
 | `argus version [--json]` | Show version |
 
 ### Workflow and Pipeline Commands
@@ -304,12 +304,12 @@ Built-in portable tools (no external dependencies required):
 
 ### Hook Commands
 
-Called automatically by installed agent hooks, or reserved for internal integration:
+Called automatically by configured agent hooks, or reserved for internal integration:
 
 | Command | Description |
 |---------|-------------|
 | `argus tick --agent <name>` | Context injection (on every user message) |
-| `argus trap --agent <name>` | Reserved operation-gating entry point; not installed by default in Phase 1 |
+| `argus trap --agent <name>` | Reserved operation-gating entry point; not wired by default in Phase 1 |
 
 ## Built-in Content
 
@@ -319,18 +319,18 @@ Everything prefixed with `argus-` is built-in and reserved. Users cannot create 
 
 | ID | Description |
 |----|-------------|
-| `argus-init` | Project initialization: generate rules, set up git hooks, configure .gitignore, create workflows and example invariants |
+| `argus-project-init` | Project initialization: generate rules, set up git hooks, configure .gitignore, create workflows and example invariants |
 
 ### Built-in Invariant
 
 | ID | Description |
 |----|-------------|
-| `argus-init` | Checks that the project has completed initialization (rules exist, skills installed, git hooks configured, .gitignore set up, workflows generated, example invariants created) |
-| `argus-project-init` | Workspace-scope installation reminder that checks whether the current project has Argus installed and, if not, guides the agent to present install / explain / ignore choices |
+| `argus-project-init` | Checks that the project has completed initialization (rules exist, skills are set up, git hooks are configured, .gitignore is set up, workflows are generated, example invariants are created) |
+| `argus-project-setup` | Workspace-scope bootstrap reminder that checks whether project-level Argus has been set up and, if not, guides the agent to present setup / explain / ignore choices |
 
 ### Built-in Skills
 
-Released during `argus install` to `.agents/skills/` and `.claude/skills/`:
+Released during `argus setup` to `.agents/skills/` and `.claude/skills/`:
 
 | Skill | Description |
 |-------|-------------|
@@ -338,9 +338,9 @@ Released during `argus install` to `.agents/skills/` and `.claude/skills/`:
 | `argus-configure-workflow` | YAML authoring reference for writing workflows with validation and safe-write flow |
 | `argus-doctor` | Diagnostic troubleshooting |
 | `argus-generate-rules` | Guide for generating project rules into `.argus/rules/` |
-| `argus-install` | Installation and upgrade guidance |
-| `argus-intro` | Bootstrap explanation of what Argus is and what installation changes |
+| `argus-setup` | Project setup and upgrade guidance |
+| `argus-intro` | Bootstrap explanation of what Argus is and what setup changes |
 | `argus-invariant-check` | Invariant check operations |
 | `argus-status` | Pipeline and job status queries |
-| `argus-uninstall` | Uninstallation guidance |
+| `argus-teardown` | Teardown guidance |
 | `argus-workflow` | Workflow lifecycle management |

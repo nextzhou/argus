@@ -1,4 +1,4 @@
-package install
+package lifecycle
 
 import (
 	"bytes"
@@ -12,11 +12,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestClaudeCodeHookInstallUninstall(t *testing.T) {
+func TestClaudeCodeHookSetupTeardown(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	projectRoot := newTestProjectRoot(t)
 
-	require.NoError(t, InstallHooks(projectRoot, []string{"claude-code"}))
+	require.NoError(t, SetupHooks(projectRoot, []string{"claude-code"}))
 
 	settingsPath := filepath.Join(projectRoot, ".claude", "settings.json")
 	settings := readJSONFile(t, settingsPath)
@@ -24,7 +24,7 @@ func TestClaudeCodeHookInstallUninstall(t *testing.T) {
 	assert.Equal(t, []string{"argus tick --agent claude-code"}, hookCommandsForEvent(t, settings, "UserPromptSubmit"))
 	assert.Empty(t, hookCommandsForEvent(t, settings, "PreToolUse"))
 
-	require.NoError(t, UninstallHooks(projectRoot, []string{"claude-code"}))
+	require.NoError(t, TeardownHooks(projectRoot, []string{"claude-code"}))
 
 	settings = readJSONFile(t, settingsPath)
 	assert.NotContains(t, settings, "hooks")
@@ -80,9 +80,9 @@ func TestClaudeCodePreserveNonArgusHooks(t *testing.T) {
 	  }
 	}`)
 
-	require.NoError(t, InstallHooks(projectRoot, []string{"claude-code"}))
+	require.NoError(t, SetupHooks(projectRoot, []string{"claude-code"}))
 
-	//nolint:gosec // The test reads the settings file it just asked InstallHooks to create.
+	//nolint:gosec // The test reads the settings file it just asked SetupHooks to create.
 	rawSettings, err := os.ReadFile(settingsPath)
 	require.NoError(t, err)
 	assert.Contains(t, string(rawSettings), "custom <hook>")
@@ -93,7 +93,7 @@ func TestClaudeCodePreserveNonArgusHooks(t *testing.T) {
 	assert.Equal(t, []string{"custom pre-tool"}, hookCommandsForEvent(t, settings, "PreToolUse"))
 	assert.Equal(t, map[string]any{"allow": []any{"Read"}}, settings["permissions"])
 
-	require.NoError(t, UninstallHooks(projectRoot, []string{"claude-code"}))
+	require.NoError(t, TeardownHooks(projectRoot, []string{"claude-code"}))
 
 	settings = readJSONFile(t, settingsPath)
 	assert.Equal(t, []string{"custom <hook>"}, hookCommandsForEvent(t, settings, "UserPromptSubmit"))
@@ -101,12 +101,12 @@ func TestClaudeCodePreserveNonArgusHooks(t *testing.T) {
 	assert.Equal(t, map[string]any{"allow": []any{"Read"}}, settings["permissions"])
 }
 
-func TestIdempotentInstall(t *testing.T) {
+func TestIdempotentSetup(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	projectRoot := newTestProjectRoot(t)
 
-	require.NoError(t, InstallHooks(projectRoot, []string{"claude-code"}))
-	require.NoError(t, InstallHooks(projectRoot, []string{"claude-code"}))
+	require.NoError(t, SetupHooks(projectRoot, []string{"claude-code"}))
+	require.NoError(t, SetupHooks(projectRoot, []string{"claude-code"}))
 
 	settings := readJSONFile(t, filepath.Join(projectRoot, ".claude", "settings.json"))
 	assert.Equal(t, []string{"argus tick --agent claude-code"}, hookCommandsForEvent(t, settings, "UserPromptSubmit"))
@@ -117,7 +117,7 @@ func TestClaudeCodeSettingsNotExists(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	projectRoot := newTestProjectRoot(t)
 
-	require.NoError(t, InstallHooks(projectRoot, []string{"claude-code"}))
+	require.NoError(t, SetupHooks(projectRoot, []string{"claude-code"}))
 
 	_, err := os.Stat(filepath.Join(projectRoot, ".claude", "settings.json"))
 	assert.NoError(t, err)
@@ -130,7 +130,7 @@ func TestClaudeCodeSettingsInvalidJSON(t *testing.T) {
 
 	writeTestFile(t, settingsPath, `{invalid json`)
 
-	err := InstallHooks(projectRoot, []string{"claude-code"})
+	err := SetupHooks(projectRoot, []string{"claude-code"})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "parsing claude code settings")
 }
@@ -141,7 +141,7 @@ func TestCodexConfigToml(t *testing.T) {
 		t.Setenv("HOME", homeDir)
 		projectRoot := newTestProjectRoot(t)
 
-		require.NoError(t, InstallHooks(projectRoot, []string{"codex"}))
+		require.NoError(t, SetupHooks(projectRoot, []string{"codex"}))
 
 		config := readTOMLFile(t, filepath.Join(homeDir, ".codex", "config.toml"))
 		assert.Equal(t, true, config["codex_hooks"])
@@ -155,7 +155,7 @@ func TestCodexConfigToml(t *testing.T) {
 
 		writeTestFile(t, configPath, "theme = \"dark\"\n[nested]\nvalue = 1\n")
 
-		require.NoError(t, InstallHooks(projectRoot, []string{"codex"}))
+		require.NoError(t, SetupHooks(projectRoot, []string{"codex"}))
 
 		config := readTOMLFile(t, configPath)
 		assert.Equal(t, true, config["codex_hooks"])
@@ -168,14 +168,14 @@ func TestCodexHooksJson(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	projectRoot := newTestProjectRoot(t)
 
-	require.NoError(t, InstallHooks(projectRoot, []string{"codex"}))
+	require.NoError(t, SetupHooks(projectRoot, []string{"codex"}))
 
 	hooksPath := filepath.Join(projectRoot, ".codex", "hooks.json")
 	hooks := readJSONFile(t, hooksPath)
 	assert.Equal(t, []string{"argus tick --agent codex"}, hookCommandsForEvent(t, hooks, "UserPromptSubmit"))
 	assert.Empty(t, hookCommandsForEvent(t, hooks, "PreToolUse"))
 
-	require.NoError(t, UninstallHooks(projectRoot, []string{"codex"}))
+	require.NoError(t, TeardownHooks(projectRoot, []string{"codex"}))
 
 	_, err := os.Stat(hooksPath)
 	require.ErrorIs(t, err, os.ErrNotExist)
@@ -188,10 +188,10 @@ func TestOpenCodePlugin(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	projectRoot := newTestProjectRoot(t)
 
-	require.NoError(t, InstallHooks(projectRoot, []string{"opencode"}))
+	require.NoError(t, SetupHooks(projectRoot, []string{"opencode"}))
 
 	pluginPath := filepath.Join(projectRoot, ".opencode", "plugins", "argus.ts")
-	//nolint:gosec // The test reads the plugin file it just asked InstallHooks to create.
+	//nolint:gosec // The test reads the plugin file it just asked SetupHooks to create.
 	pluginContent, err := os.ReadFile(pluginPath)
 	require.NoError(t, err)
 	assert.Contains(t, string(pluginContent), "argus tick --agent opencode")
@@ -202,17 +202,17 @@ func TestOpenCodePlugin(t *testing.T) {
 	assert.Contains(t, string(pluginContent), "synthetic: true")
 	assert.NotContains(t, string(pluginContent), "argus trap --agent opencode")
 
-	require.NoError(t, UninstallHooks(projectRoot, []string{"opencode"}))
+	require.NoError(t, TeardownHooks(projectRoot, []string{"opencode"}))
 
 	_, err = os.Stat(pluginPath)
 	assert.ErrorIs(t, err, os.ErrNotExist)
 }
 
-func TestUninstallNotInstalled(t *testing.T) {
+func TestTeardownNotSetup(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	projectRoot := newTestProjectRoot(t)
 
-	assert.NoError(t, UninstallHooks(projectRoot, []string{"claude-code", "codex", "opencode"}))
+	assert.NoError(t, TeardownHooks(projectRoot, []string{"claude-code", "codex", "opencode"}))
 }
 
 func newTestProjectRoot(t *testing.T) string {

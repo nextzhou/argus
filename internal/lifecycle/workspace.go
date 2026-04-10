@@ -1,4 +1,4 @@
-package install
+package lifecycle
 
 import (
 	"errors"
@@ -14,7 +14,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-type workspaceInstallState struct {
+type workspaceSetupState struct {
 	homeDir           string
 	configPath        string
 	normalizedPath    string
@@ -22,7 +22,7 @@ type workspaceInstallState struct {
 	alreadyRegistered bool
 }
 
-type workspaceUninstallState struct {
+type workspaceTeardownState struct {
 	homeDir        string
 	configPath     string
 	normalizedPath string
@@ -31,20 +31,40 @@ type workspaceUninstallState struct {
 	isLast         bool
 }
 
-// InstallWorkspace registers a workspace path and installs global Argus resources.
-//
-//nolint:revive // package-qualified API name is required by the CLI/install surface.
-func InstallWorkspace(path string) error {
-	_, err := InstallWorkspaceWithReport(path)
+type workspaceTeardownOps struct {
+	saveConfig        func(string, *workspacecfg.Config, *mutationTracker) error
+	teardownHooks     func(string, []string, *mutationTracker) error
+	teardownSkills    func(string, *mutationTracker) error
+	teardownArtifacts func(string, *mutationTracker) error
+}
+
+func (ops workspaceTeardownOps) withDefaults() workspaceTeardownOps {
+	if ops.saveConfig == nil {
+		ops.saveConfig = saveWorkspaceConfigTracked
+	}
+	if ops.teardownHooks == nil {
+		ops.teardownHooks = teardownGlobalHooks
+	}
+	if ops.teardownSkills == nil {
+		ops.teardownSkills = teardownGlobalSkills
+	}
+	if ops.teardownArtifacts == nil {
+		ops.teardownArtifacts = teardownGlobalArtifacts
+	}
+	return ops
+}
+
+// SetupWorkspace registers a workspace path and sets up global Argus resources.
+func SetupWorkspace(path string) error {
+	_, err := SetupWorkspaceWithReport(path)
 	return err
 }
 
-// InstallWorkspaceWithReport registers a workspace path and returns the
-// summarized filesystem changes produced by the operation.
-//
-//nolint:revive // package-qualified report API mirrors the existing install surface.
-func InstallWorkspaceWithReport(path string) (WorkspaceOperationResult, error) {
-	state, err := prepareWorkspaceInstall(path)
+// SetupWorkspaceWithReport registers a workspace path, refreshes global
+// resources as needed, and returns the summarized filesystem changes produced
+// by the operation.
+func SetupWorkspaceWithReport(path string) (WorkspaceOperationResult, error) {
+	state, err := prepareWorkspaceSetup(path)
 	if err != nil {
 		return WorkspaceOperationResult{}, err
 	}
@@ -57,74 +77,76 @@ func InstallWorkspaceWithReport(path string) (WorkspaceOperationResult, error) {
 		}
 	}
 
-	if err := installGlobalHooks(state.homeDir, managedAgents(), tracker); err != nil {
-		return WorkspaceOperationResult{}, fmt.Errorf("installing global hooks: %w", err)
+	if err := setupGlobalHooks(state.homeDir, managedAgents(), tracker); err != nil {
+		return WorkspaceOperationResult{}, fmt.Errorf("setting up global hooks: %w", err)
 	}
 
-	if err := installGlobalSkills(state.homeDir, tracker); err != nil {
-		return WorkspaceOperationResult{}, fmt.Errorf("installing global skills: %w", err)
+	if err := setupGlobalSkills(state.homeDir, tracker); err != nil {
+		return WorkspaceOperationResult{}, fmt.Errorf("setting up global skills: %w", err)
 	}
 
-	if err := installGlobalArtifacts(state.homeDir, tracker); err != nil {
-		return WorkspaceOperationResult{}, fmt.Errorf("installing global artifacts: %w", err)
+	if err := setupGlobalArtifacts(state.homeDir, tracker); err != nil {
+		return WorkspaceOperationResult{}, fmt.Errorf("setting up global artifacts: %w", err)
+	}
+	if err := pruneManagedYAMLFiles(filepath.Join(state.homeDir, ".config", "argus", "workflows"), stringSet(), tracker); err != nil {
+		return WorkspaceOperationResult{}, fmt.Errorf("pruning managed global workflows: %w", err)
+	}
+	if err := pruneManagedYAMLFiles(filepath.Join(state.homeDir, ".config", "argus", "invariants"), globalBuiltinInvariantIDs(), tracker); err != nil {
+		return WorkspaceOperationResult{}, fmt.Errorf("pruning managed global invariants: %w", err)
 	}
 
 	return WorkspaceOperationResult{
 		Path:              state.normalizedPath,
 		AlreadyRegistered: state.alreadyRegistered,
-		Report:            buildWorkspaceInstallReport(state.homeDir, tracker),
+		Report:            buildWorkspaceSetupReport(state.homeDir, tracker),
 	}, nil
 }
 
-// PrepareWorkspaceInstall validates workspace install inputs and reports
+// PrepareWorkspaceSetup validates workspace setup inputs and reports
 // whether the operation is already satisfied.
-func PrepareWorkspaceInstall(path string) (WorkspaceInstallPreview, error) {
-	state, err := prepareWorkspaceInstall(path)
+func PrepareWorkspaceSetup(path string) (WorkspaceSetupPreview, error) {
+	state, err := prepareWorkspaceSetup(path)
 	if err != nil {
-		return WorkspaceInstallPreview{}, err
+		return WorkspaceSetupPreview{}, err
 	}
 
-	return WorkspaceInstallPreview{
+	return WorkspaceSetupPreview{
 		Path:              state.normalizedPath,
 		AlreadyRegistered: state.alreadyRegistered,
 	}, nil
 }
 
-// InstallGlobalHooks installs global Argus hook files for the requested agents.
-//
-//nolint:revive // package-qualified API name is required by the CLI/install surface.
-func InstallGlobalHooks(agents []string) error {
+// SetupGlobalHooks sets up global Argus hook files for the requested agents.
+func SetupGlobalHooks(agents []string) error {
 	homeDir, err := resolveUserHomeDir()
 	if err != nil {
 		return err
 	}
 
-	return installGlobalHooks(homeDir, agents, nil)
+	return setupGlobalHooks(homeDir, agents, nil)
 }
 
-func installGlobalHooks(homeDir string, agents []string, tracker *mutationTracker) error {
+func setupGlobalHooks(homeDir string, agents []string, tracker *mutationTracker) error {
 	for _, agent := range agents {
-		if err := installGlobalHooksForAgent(homeDir, agent, tracker); err != nil {
-			return fmt.Errorf("installing %s global hooks: %w", agent, err)
+		if err := setupGlobalHooksForAgent(homeDir, agent, tracker); err != nil {
+			return fmt.Errorf("setting up %s global hooks: %w", agent, err)
 		}
 	}
 
 	return nil
 }
 
-// InstallGlobalSkills releases independent Argus skills to global Agent skill directories.
-//
-//nolint:revive // package-qualified API name is required by the CLI/install surface.
-func InstallGlobalSkills() error {
+// SetupGlobalSkills releases independent Argus skills to global Agent skill directories.
+func SetupGlobalSkills() error {
 	homeDir, err := resolveUserHomeDir()
 	if err != nil {
 		return err
 	}
 
-	return installGlobalSkills(homeDir, nil)
+	return setupGlobalSkills(homeDir, nil)
 }
 
-func installGlobalSkills(homeDir string, tracker *mutationTracker) error {
+func setupGlobalSkills(homeDir string, tracker *mutationTracker) error {
 	targetRoots := globalSkillPathsForHome(homeDir)
 	for _, skillName := range GlobalSkillNames() {
 		if err := releaseGlobalSkill(skillName, targetRoots, tracker); err != nil {
@@ -139,89 +161,98 @@ func installGlobalSkills(homeDir string, tracker *mutationTracker) error {
 	return nil
 }
 
-// UninstallWorkspace removes a workspace registration and cleans up global resources
+// TeardownWorkspace removes a workspace registration and tears down global resources
 // if no workspaces remain.
-func UninstallWorkspace(path string) error {
-	_, err := UninstallWorkspaceWithReport(path)
+func TeardownWorkspace(path string) error {
+	_, err := TeardownWorkspaceWithReport(path)
 	return err
 }
 
-// UninstallWorkspaceWithReport removes a workspace registration and returns the
+// TeardownWorkspaceWithReport removes a workspace registration and returns the
 // summarized filesystem changes produced by the operation.
-func UninstallWorkspaceWithReport(path string) (WorkspaceOperationResult, error) {
-	state, err := prepareWorkspaceUninstall(path)
+func TeardownWorkspaceWithReport(path string) (WorkspaceOperationResult, error) {
+	return teardownWorkspaceWithReport(path, workspaceTeardownOps{})
+}
+
+func teardownWorkspaceWithReport(path string, ops workspaceTeardownOps) (WorkspaceOperationResult, error) {
+	ops = ops.withDefaults()
+
+	state, err := prepareWorkspaceTeardown(path)
 	if err != nil {
 		return WorkspaceOperationResult{}, err
 	}
 
 	tracker := newMutationTracker()
-	state.config.Workspaces = slices.Delete(state.config.Workspaces, state.index, state.index+1)
-	if err := saveWorkspaceConfigTracked(state.configPath, state.config, tracker); err != nil {
-		return WorkspaceOperationResult{}, fmt.Errorf("saving workspace config: %w", err)
-	}
-
-	removedGlobalResources := len(state.config.Workspaces) == 0
-	if removedGlobalResources {
-		if err := uninstallGlobalHooks(state.homeDir, managedAgents(), tracker); err != nil {
-			return WorkspaceOperationResult{}, fmt.Errorf("uninstalling global hooks: %w", err)
+	toreDownGlobalResources := state.isLast
+	if toreDownGlobalResources {
+		if err := ops.teardownHooks(state.homeDir, managedAgents(), tracker); err != nil {
+			return WorkspaceOperationResult{}, fmt.Errorf("tearing down global hooks: %w", err)
 		}
-		if err := uninstallGlobalSkills(state.homeDir, tracker); err != nil {
-			return WorkspaceOperationResult{}, fmt.Errorf("uninstalling global skills: %w", err)
+		if err := ops.teardownSkills(state.homeDir, tracker); err != nil {
+			return WorkspaceOperationResult{}, fmt.Errorf("tearing down global skills: %w", err)
+		}
+		if err := ops.teardownArtifacts(state.homeDir, tracker); err != nil {
+			return WorkspaceOperationResult{}, fmt.Errorf("tearing down global artifacts: %w", err)
+		}
+	} else {
+		state.config.Workspaces = slices.Delete(state.config.Workspaces, state.index, state.index+1)
+		if err := ops.saveConfig(state.configPath, state.config, tracker); err != nil {
+			return WorkspaceOperationResult{}, fmt.Errorf("saving workspace config: %w", err)
 		}
 	}
 
 	return WorkspaceOperationResult{
-		Path:                  state.normalizedPath,
-		RemovedGlobalResource: removedGlobalResources,
-		Report:                buildWorkspaceUninstallReport(state.homeDir, tracker, removedGlobalResources),
+		Path:                    state.normalizedPath,
+		ToreDownGlobalResources: toreDownGlobalResources,
+		Report:                  buildWorkspaceTeardownReport(state.homeDir, tracker, toreDownGlobalResources),
 	}, nil
 }
 
-// PrepareWorkspaceUninstall validates workspace uninstall inputs and reports
+// PrepareWorkspaceTeardown validates workspace teardown inputs and reports
 // whether removing the registration will also remove global resources.
-func PrepareWorkspaceUninstall(path string) (WorkspaceUninstallPreview, error) {
-	state, err := prepareWorkspaceUninstall(path)
+func PrepareWorkspaceTeardown(path string) (WorkspaceTeardownPreview, error) {
+	state, err := prepareWorkspaceTeardown(path)
 	if err != nil {
-		return WorkspaceUninstallPreview{}, err
+		return WorkspaceTeardownPreview{}, err
 	}
 
-	return WorkspaceUninstallPreview{
+	return WorkspaceTeardownPreview{
 		Path:   state.normalizedPath,
 		IsLast: state.isLast,
 	}, nil
 }
 
-// UninstallGlobalHooks removes global Argus hook files for the requested agents.
-func UninstallGlobalHooks(agents []string) error {
+// TeardownGlobalHooks removes global Argus hook files for the requested agents.
+func TeardownGlobalHooks(agents []string) error {
 	homeDir, err := resolveUserHomeDir()
 	if err != nil {
 		return err
 	}
 
-	return uninstallGlobalHooks(homeDir, agents, nil)
+	return teardownGlobalHooks(homeDir, agents, nil)
 }
 
-func uninstallGlobalHooks(homeDir string, agents []string, tracker *mutationTracker) error {
+func teardownGlobalHooks(homeDir string, agents []string, tracker *mutationTracker) error {
 	for _, agent := range agents {
-		if err := uninstallGlobalHooksForAgent(homeDir, agent, tracker); err != nil {
-			return fmt.Errorf("uninstalling %s global hooks: %w", agent, err)
+		if err := teardownGlobalHooksForAgent(homeDir, agent, tracker); err != nil {
+			return fmt.Errorf("tearing down %s global hooks: %w", agent, err)
 		}
 	}
 
 	return nil
 }
 
-// UninstallGlobalSkills removes argus-* skill directories from all global Agent skill paths.
-func UninstallGlobalSkills() error {
+// TeardownGlobalSkills removes argus-* skill directories from all global Agent skill paths.
+func TeardownGlobalSkills() error {
 	homeDir, err := resolveUserHomeDir()
 	if err != nil {
 		return err
 	}
 
-	return uninstallGlobalSkills(homeDir, nil)
+	return teardownGlobalSkills(homeDir, nil)
 }
 
-func uninstallGlobalSkills(homeDir string, tracker *mutationTracker) error {
+func teardownGlobalSkills(homeDir string, tracker *mutationTracker) error {
 	for _, skillPath := range globalSkillPathsForHome(homeDir) {
 		entries, err := os.ReadDir(skillPath)
 		if err != nil {
@@ -245,7 +276,7 @@ func uninstallGlobalSkills(homeDir string, tracker *mutationTracker) error {
 
 // GlobalSkillNames returns the built-in skills that are safe for global distribution.
 func GlobalSkillNames() []string {
-	return []string{"argus-configure-invariant", "argus-configure-workflow", "argus-doctor", "argus-install", "argus-intro", "argus-uninstall"}
+	return []string{"argus-configure-invariant", "argus-configure-workflow", "argus-doctor", "argus-setup", "argus-intro", "argus-teardown"}
 }
 
 // GlobalSkillPaths returns the global Agent skill directories Argus manages.
@@ -268,28 +299,28 @@ func UserConfigPath() string {
 	return userConfigPathForHome(homeDir)
 }
 
-func prepareWorkspaceInstall(path string) (workspaceInstallState, error) {
+func prepareWorkspaceSetup(path string) (workspaceSetupState, error) {
 	if _, err := validateWorkspacePath(path); err != nil {
-		return workspaceInstallState{}, err
+		return workspaceSetupState{}, err
 	}
 
 	normalizedPath, err := workspacecfg.NormalizePath(path)
 	if err != nil {
-		return workspaceInstallState{}, fmt.Errorf("normalizing workspace path: %w", err)
+		return workspaceSetupState{}, fmt.Errorf("normalizing workspace path: %w", err)
 	}
 
 	homeDir, err := resolveUserHomeDir()
 	if err != nil {
-		return workspaceInstallState{}, err
+		return workspaceSetupState{}, err
 	}
 
 	configPath := userConfigPathForHome(homeDir)
 	config, err := loadWorkspaceConfig(configPath)
 	if err != nil {
-		return workspaceInstallState{}, err
+		return workspaceSetupState{}, err
 	}
 
-	return workspaceInstallState{
+	return workspaceSetupState{
 		homeDir:           homeDir,
 		configPath:        configPath,
 		normalizedPath:    normalizedPath,
@@ -298,29 +329,29 @@ func prepareWorkspaceInstall(path string) (workspaceInstallState, error) {
 	}, nil
 }
 
-func prepareWorkspaceUninstall(path string) (workspaceUninstallState, error) {
+func prepareWorkspaceTeardown(path string) (workspaceTeardownState, error) {
 	normalizedPath, err := workspacecfg.NormalizePath(path)
 	if err != nil {
-		return workspaceUninstallState{}, fmt.Errorf("normalizing workspace path: %w", err)
+		return workspaceTeardownState{}, fmt.Errorf("normalizing workspace path: %w", err)
 	}
 
 	homeDir, err := resolveUserHomeDir()
 	if err != nil {
-		return workspaceUninstallState{}, err
+		return workspaceTeardownState{}, err
 	}
 
 	configPath := userConfigPathForHome(homeDir)
 	config, err := loadWorkspaceConfig(configPath)
 	if err != nil {
-		return workspaceUninstallState{}, err
+		return workspaceTeardownState{}, err
 	}
 
 	idx := slices.Index(config.Workspaces, normalizedPath)
 	if idx < 0 {
-		return workspaceUninstallState{}, fmt.Errorf("workspace %q is not registered", normalizedPath)
+		return workspaceTeardownState{}, fmt.Errorf("workspace %q is not registered", normalizedPath)
 	}
 
-	return workspaceUninstallState{
+	return workspaceTeardownState{
 		homeDir:        homeDir,
 		configPath:     configPath,
 		normalizedPath: normalizedPath,
@@ -376,24 +407,24 @@ func saveWorkspaceConfigTracked(path string, config *workspacecfg.Config, tracke
 	return nil
 }
 
-func installGlobalHooksForAgent(homeDir, agent string, tracker *mutationTracker) error {
+func setupGlobalHooksForAgent(homeDir, agent string, tracker *mutationTracker) error {
 	switch agent {
 	case agentClaudeCode:
-		return installClaudeCodeHooksAt(filepath.Join(homeDir, claudeSettingsRelativePath), true, tracker)
+		return setupClaudeCodeHooksAt(filepath.Join(homeDir, claudeSettingsRelativePath), true, tracker)
 	case agentCodex:
-		return installCodexHooksAt(filepath.Join(homeDir, codexHooksRelativePath), true, tracker)
+		return setupCodexHooksAt(filepath.Join(homeDir, codexHooksRelativePath), true, tracker)
 	case agentOpenCode:
-		return installOpenCodeHooksAt(globalOpenCodePluginPathForHome(homeDir), true, tracker)
+		return setupOpenCodeHooksAt(globalOpenCodePluginPathForHome(homeDir), true, tracker)
 	default:
 		_, err := RenderHookTemplate(agent, true)
 		return err
 	}
 }
 
-func uninstallGlobalHooksForAgent(homeDir, agent string, tracker *mutationTracker) error {
+func teardownGlobalHooksForAgent(homeDir, agent string, tracker *mutationTracker) error {
 	switch agent {
 	case agentClaudeCode:
-		return uninstallClaudeCodeHooksAt(filepath.Join(homeDir, claudeSettingsRelativePath), tracker)
+		return teardownClaudeCodeHooksAt(filepath.Join(homeDir, claudeSettingsRelativePath), tracker)
 	case agentCodex:
 		return removeIfExistsTracked(filepath.Join(homeDir, codexHooksRelativePath), tracker)
 	case agentOpenCode:
@@ -468,10 +499,10 @@ func globalOpenCodePluginPathForHome(homeDir string) string {
 	return filepath.Join(homeDir, ".config", "opencode", "plugins", "argus.ts")
 }
 
-func installGlobalArtifacts(homeDir string, tracker *mutationTracker) error {
+func setupGlobalArtifacts(homeDir string, tracker *mutationTracker) error {
 	globalRoot := filepath.Join(homeDir, ".config", "argus")
 
-	// Create global directory structure.
+	// Create the global directory structure.
 	globalDirs := []string{"invariants", "workflows", "pipelines", "logs"}
 	for _, dir := range globalDirs {
 		if err := ensureDirTracked(filepath.Join(globalRoot, dir), tracker); err != nil {
@@ -479,17 +510,21 @@ func installGlobalArtifacts(homeDir string, tracker *mutationTracker) error {
 		}
 	}
 
-	// Release only the global-specific invariant (argus-project-init).
-	// Do NOT release project-level invariants (argus-init) to global scope
+	// Release only the global-specific invariant (argus-project-setup).
+	// Do NOT release project-level invariants (argus-project-init) to global scope
 	// because their remediation workflows don't exist globally.
-	data, err := assets.ReadAsset("invariants/argus-project-init.yaml")
+	data, err := assets.ReadAsset("invariants/argus-project-setup.yaml")
 	if err != nil {
 		return fmt.Errorf("reading global invariant asset: %w", err)
 	}
-	dstPath := filepath.Join(globalRoot, "invariants", "argus-project-init.yaml")
+	dstPath := filepath.Join(globalRoot, "invariants", "argus-project-setup.yaml")
 	if err := writeFileTracked(dstPath, data, tracker); err != nil {
 		return fmt.Errorf("writing global invariant: %w", err)
 	}
 
 	return nil
+}
+
+func teardownGlobalArtifacts(homeDir string, tracker *mutationTracker) error {
+	return removeAllIfExists(filepath.Join(homeDir, ".config", "argus"), tracker)
 }

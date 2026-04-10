@@ -45,18 +45,29 @@ func TestHandleTick_Global(t *testing.T) {
 			},
 		},
 		{
-			name:  "installed project is skipped in global mode",
-			stdin: `{"session_id":"ses-installed"}`,
+			name:  "set up project uses project scope in global mode",
+			stdin: `{"session_id":"ses-set-up"}`,
 			setup: func(t *testing.T, homeDir string) string {
 				t.Helper()
-				projectDir := filepath.Join(homeDir, "installed-project")
+				projectDir := filepath.Join(homeDir, "set-up-project")
 				createTickGlobalProject(t, projectDir, true)
 				writeTickGlobalWorkspaceConfig(t, homeDir, []string{normalizeTickGlobalWorkspacePath(t, homeDir)})
+				writeTickWorkflowFixture(t, projectDir, "argus-project-init", `version: v0.1.0
+id: argus-project-init
+description: "Complete project-specific Argus initialization"
+jobs:
+  - id: generate_rules
+    prompt: "Generate project rules"
+`)
 				return projectDir
 			},
-			assert: func(t *testing.T, output string, _ string) {
+			assert: func(t *testing.T, output string, sessionBaseDir string) {
 				t.Helper()
-				assert.Empty(t, output)
+				assertHookSafeTickText(t, output)
+				assert.Contains(t, output, "No active pipeline")
+				assert.Contains(t, output, "argus-project-init")
+				assert.NotContains(t, output, "argus-project-setup")
+				assert.True(t, session.Exists(sessionBaseDir, "ses-set-up"))
 			},
 		},
 		{
@@ -66,7 +77,7 @@ func TestHandleTick_Global(t *testing.T) {
 				t.Helper()
 				workspaceDir := filepath.Join(homeDir, "work", "company")
 				writeTickGlobalWorkspaceConfig(t, homeDir, []string{normalizeTickGlobalWorkspacePath(t, workspaceDir)})
-				installTickGlobalInvariant(t, homeDir)
+				writeTickGlobalInvariant(t, homeDir)
 
 				projectDir := filepath.Join(workspaceDir, "argus")
 				createTickGlobalProject(t, projectDir, false)
@@ -76,10 +87,10 @@ func TestHandleTick_Global(t *testing.T) {
 				t.Helper()
 				assertHookSafeTickText(t, output)
 				assert.Contains(t, output, "Argus: Invariant check failed:")
-				assert.Contains(t, output, "argus-project-init")
-				assert.Contains(t, output, "Project has Argus installed")
+				assert.Contains(t, output, "argus-project-setup")
+				assert.Contains(t, output, "Project-level Argus setup exists")
 				assert.Contains(t, output, "question tool")
-				assert.Contains(t, output, "argus-install")
+				assert.Contains(t, output, "argus-setup")
 				assert.Contains(t, output, "argus-intro")
 				assert.NotContains(t, output, "No active pipeline")
 				assert.True(t, session.Exists(sessionBaseDir, "ses-workspace"))
@@ -135,10 +146,10 @@ func TestHandleTick_Global(t *testing.T) {
 	}
 }
 
-func createTickGlobalProject(t *testing.T, projectDir string, installed bool) {
+func createTickGlobalProject(t *testing.T, projectDir string, isSetUp bool) {
 	t.Helper()
 	require.NoError(t, os.MkdirAll(filepath.Join(projectDir, ".git"), 0o700))
-	if installed {
+	if isSetUp {
 		require.NoError(t, os.MkdirAll(filepath.Join(projectDir, ".argus"), 0o700))
 	}
 }
@@ -155,12 +166,12 @@ func writeTickGlobalWorkspaceConfig(t *testing.T, homeDir string, workspaces []s
 	require.NoError(t, workspace.SaveConfig(filepath.Join(homeDir, ".config", "argus", "config.yaml"), &workspace.Config{Workspaces: workspaces}))
 }
 
-func installTickGlobalInvariant(t *testing.T, homeDir string) {
+func writeTickGlobalInvariant(t *testing.T, homeDir string) {
 	t.Helper()
-	data, err := assets.ReadAsset("invariants/argus-project-init.yaml")
+	data, err := assets.ReadAsset("invariants/argus-project-setup.yaml")
 	require.NoError(t, err)
 
-	path := filepath.Join(homeDir, ".config", "argus", "invariants", "argus-project-init.yaml")
+	path := filepath.Join(homeDir, ".config", "argus", "invariants", "argus-project-setup.yaml")
 	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o700))
 	require.NoError(t, os.WriteFile(path, data, 0o600))
 }

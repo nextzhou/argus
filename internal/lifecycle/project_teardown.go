@@ -1,4 +1,4 @@
-package install
+package lifecycle
 
 import (
 	"fmt"
@@ -8,9 +8,9 @@ import (
 	"github.com/nextzhou/argus/internal/core"
 )
 
-// UninstallProject removes the project-scoped Argus installation and reports
+// TeardownProject removes the project-scoped Argus setup and reports
 // the summarized filesystem changes produced by the operation.
-func UninstallProject(projectRoot string) (Report, error) {
+func TeardownProject(projectRoot string) (Report, error) {
 	homeDir, err := resolveUserHomeDir()
 	if err != nil {
 		return Report{}, err
@@ -40,9 +40,9 @@ func UninstallProject(projectRoot string) (Report, error) {
 		}
 	}
 
-	if err := uninstallHooks(projectRoot, managedAgents(), tracker); err != nil {
-		return Report{}, fmt.Errorf("uninstalling hooks: %w", err)
+	if err := teardownHooks(projectRoot, managedAgents(), tracker); err != nil {
+		return Report{}, fmt.Errorf("tearing down hooks: %w", err)
 	}
 
-	return buildProjectUninstallReport(projectRoot, homeDir, tracker), nil
+	return buildProjectTeardownReport(projectRoot, homeDir, tracker), nil
 }

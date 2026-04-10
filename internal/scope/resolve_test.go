@@ -20,39 +20,39 @@ func TestResolveScopeForTick(t *testing.T) {
 		wantErrContains string
 	}{
 		{
-			name:   "project tick uses project scope for installed project",
+			name:   "project tick uses project scope for set-up project",
 			global: false,
 			setup: func(t *testing.T, homeDir string) *workspace.ProjectRoot {
 				t.Helper()
-				projectDir := filepath.Join(homeDir, "project-installed")
+				projectDir := filepath.Join(homeDir, "project-set-up")
 				createResolveTestProject(t, projectDir, true)
 				return &workspace.ProjectRoot{Path: projectDir, HasArgus: true, HasGit: true}
 			},
 			wantScope: "project",
 		},
 		{
-			name:   "project tick skips uninstalled project",
+			name:   "project tick skips project without setup",
 			global: false,
 			setup: func(t *testing.T, homeDir string) *workspace.ProjectRoot {
 				t.Helper()
-				projectDir := filepath.Join(homeDir, "project-uninstalled")
+				projectDir := filepath.Join(homeDir, "project-not-set-up")
 				createResolveTestProject(t, projectDir, false)
 				return &workspace.ProjectRoot{Path: projectDir, HasArgus: false, HasGit: true}
 			},
 			wantScope: "nil",
 		},
 		{
-			name:   "global tick lets installed project override global scope",
+			name:   "global tick resolves to project scope when repository is set up",
 			global: true,
 			setup: func(t *testing.T, homeDir string) *workspace.ProjectRoot {
 				t.Helper()
 				workspaceDir := filepath.Join(homeDir, "work", "company")
 				writeResolveWorkspaceConfig(t, homeDir, []string{normalizeResolveWorkspacePath(t, workspaceDir)})
-				projectDir := filepath.Join(workspaceDir, "installed-project")
+				projectDir := filepath.Join(workspaceDir, "set-up-project")
 				createResolveTestProject(t, projectDir, true)
 				return &workspace.ProjectRoot{Path: projectDir, HasArgus: true, HasGit: true}
 			},
-			wantScope: "nil",
+			wantScope: "project",
 		},
 		{
 			name:   "global tick uses global scope for workspace member",
@@ -147,7 +147,7 @@ func TestResolveScope(t *testing.T) {
 			name: "project with argus uses project scope",
 			setup: func(t *testing.T, homeDir string) resolveScopeTestInput {
 				t.Helper()
-				projectDir := filepath.Join(homeDir, "project-installed")
+				projectDir := filepath.Join(homeDir, "project-set-up")
 				createResolveTestProject(t, projectDir, true)
 				cwd := filepath.Join(projectDir, "nested", "dir")
 				require.NoError(t, os.MkdirAll(cwd, 0o700))
@@ -213,10 +213,10 @@ type resolveScopeTestInput struct {
 	projectDir string
 }
 
-func createResolveTestProject(t *testing.T, projectDir string, installed bool) {
+func createResolveTestProject(t *testing.T, projectDir string, isSetUp bool) {
 	t.Helper()
 	require.NoError(t, os.MkdirAll(filepath.Join(projectDir, ".git"), 0o700))
-	if installed {
+	if isSetUp {
 		require.NoError(t, os.MkdirAll(filepath.Join(projectDir, ".argus"), 0o700))
 	}
 }

@@ -7,13 +7,13 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/nextzhou/argus/internal/install"
+	"github.com/nextzhou/argus/internal/lifecycle"
 	"github.com/spf13/cobra"
 )
 
-// SEQUENCE-TEST: cmd_install_lifecycle_test.go
+// SEQUENCE-TEST: cmd_setup_lifecycle_test.go
 // SEQUENCE-TEST: cmd_workspace_lifecycle_test.go
-func newUninstallCmd() *cobra.Command {
+func newTeardownCmd() *cobra.Command {
 	var (
 		yesFlag       bool
 		jsonFlag      bool
@@ -21,13 +21,13 @@ func newUninstallCmd() *cobra.Command {
 	)
 
 	cmd := &cobra.Command{
-		Use:   "uninstall",
-		Short: "Uninstall Argus from the current project or remove a workspace registration",
+		Use:   "teardown",
+		Short: "Remove project-level Argus setup or unregister a workspace",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if cmd.Flags().Changed("workspace") {
-				return runWorkspaceUninstall(cmd, workspaceFlag, yesFlag, jsonFlag)
+				return runWorkspaceTeardown(cmd, workspaceFlag, yesFlag, jsonFlag)
 			}
-			return runProjectUninstall(cmd, yesFlag, jsonFlag)
+			return runProjectTeardown(cmd, yesFlag, jsonFlag)
 		},
 	}
 
@@ -37,8 +37,8 @@ func newUninstallCmd() *cobra.Command {
 	return cmd
 }
 
-func runWorkspaceUninstall(cmd *cobra.Command, workspacePath string, yesFlag bool, jsonFlag bool) error {
-	preview, err := install.PrepareWorkspaceUninstall(workspacePath)
+func runWorkspaceTeardown(cmd *cobra.Command, workspacePath string, yesFlag bool, jsonFlag bool) error {
+	preview, err := lifecycle.PrepareWorkspaceTeardown(workspacePath)
 	if err != nil {
 		writeCommandError(cmd, jsonFlag, err.Error())
 		return err
@@ -46,19 +46,19 @@ func runWorkspaceUninstall(cmd *cobra.Command, workspacePath string, yesFlag boo
 
 	if !yesFlag {
 		input := cmd.InOrStdin()
-		confirmed, confirmErr := confirmWorkspaceUninstall(cmd, preview.Path, preview.IsLast, input, inputIsTTY(input))
+		confirmed, confirmErr := confirmWorkspaceTeardown(cmd, preview.Path, preview.IsLast, input, inputIsTTY(input))
 		if confirmErr != nil {
 			writeCommandError(cmd, jsonFlag, confirmErr.Error())
 			return confirmErr
 		}
 		if !confirmed {
-			cancelErr := fmt.Errorf("workspace uninstallation cancelled")
+			cancelErr := fmt.Errorf("workspace teardown cancelled")
 			writeCommandError(cmd, jsonFlag, cancelErr.Error())
 			return cancelErr
 		}
 	}
 
-	result, err := install.UninstallWorkspaceWithReport(workspacePath)
+	result, err := lifecycle.TeardownWorkspaceWithReport(workspacePath)
 	if err != nil {
 		writeCommandError(cmd, jsonFlag, err.Error())
 		return err
@@ -78,7 +78,7 @@ func runWorkspaceUninstall(cmd *cobra.Command, workspacePath string, yesFlag boo
 	return nil
 }
 
-func runProjectUninstall(cmd *cobra.Command, yesFlag bool, jsonFlag bool) error {
+func runProjectTeardown(cmd *cobra.Command, yesFlag bool, jsonFlag bool) error {
 	cwd, err := os.Getwd()
 	if err != nil {
 		return fmt.Errorf("getting working directory: %w", err)
@@ -86,8 +86,8 @@ func runProjectUninstall(cmd *cobra.Command, yesFlag bool, jsonFlag bool) error 
 
 	argusDir := filepath.Join(cwd, ".argus")
 	if _, err := os.Stat(argusDir); os.IsNotExist(err) {
-		writeCommandError(cmd, jsonFlag, "no Argus installation found in current directory")
-		return fmt.Errorf("no Argus installation found")
+		writeCommandError(cmd, jsonFlag, "no project-level Argus setup found in current directory")
+		return fmt.Errorf("no project-level Argus setup found")
 	}
 
 	if !yesFlag {
@@ -97,23 +97,23 @@ func runProjectUninstall(cmd *cobra.Command, yesFlag bool, jsonFlag bool) error 
 			return fmt.Errorf("non-interactive mode requires --yes flag")
 		}
 
-		_, _ = cmd.ErrOrStderr().Write([]byte("This will remove .argus/ and Argus-managed skills. Continue? [y/N] "))
+		_, _ = cmd.ErrOrStderr().Write([]byte("This will remove project-level Argus setup (.argus/ and Argus-managed skills). Continue? [y/N] "))
 		var response string
 		_, _ = fmt.Fscanln(input, &response)
 		if !strings.HasPrefix(strings.ToLower(response), "y") {
-			writeCommandError(cmd, jsonFlag, "uninstall cancelled")
-			return fmt.Errorf("uninstall cancelled")
+			writeCommandError(cmd, jsonFlag, "teardown cancelled")
+			return fmt.Errorf("teardown cancelled")
 		}
 	}
 
-	report, err := install.UninstallProject(cwd)
+	report, err := lifecycle.TeardownProject(cwd)
 	if err != nil {
 		writeCommandError(cmd, jsonFlag, err.Error())
 		return err
 	}
 
 	output := lifecycleOutput{
-		Message: "Argus uninstalled successfully",
+		Message: "Project-level Argus setup removed successfully",
 		Report:  report,
 	}
 
@@ -125,7 +125,7 @@ func runProjectUninstall(cmd *cobra.Command, yesFlag bool, jsonFlag bool) error 
 	return nil
 }
 
-func confirmWorkspaceUninstall(cmd *cobra.Command, normalizedPath string, isLast bool, stdinReader io.Reader, isTTY bool) (bool, error) {
+func confirmWorkspaceTeardown(cmd *cobra.Command, normalizedPath string, isLast bool, stdinReader io.Reader, isTTY bool) (bool, error) {
 	lines := []string{
 		"This will unregister the workspace path:",
 		"  " + normalizedPath,
@@ -134,13 +134,13 @@ func confirmWorkspaceUninstall(cmd *cobra.Command, normalizedPath string, isLast
 	if isLast {
 		lines = append(lines,
 			"No registered workspaces will remain.",
-			"Argus will remove global hooks and global skills for this user account.",
+			"Argus will remove global hooks, global skills, global bootstrap artifacts, and the managed ~/.config/argus/ root for this user account.",
 		)
 	} else {
 		lines = append(lines,
-			"Argus will stop guiding projects inside this workspace via global hooks.",
+			"Argus will stop guiding repositories inside this workspace via global hooks.",
 		)
 	}
 
-	return confirmWithPrompt(cmd, lines, stdinReader, isTTY, "workspace uninstallation requires confirmation in interactive mode; use --yes to skip confirmation")
+	return confirmWithPrompt(cmd, lines, stdinReader, isTTY, "workspace teardown requires confirmation in interactive mode; use --yes to skip confirmation")
 }

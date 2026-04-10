@@ -8,13 +8,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/nextzhou/argus/internal/install"
+	"github.com/nextzhou/argus/internal/lifecycle"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestConfirmSubdirectoryInstall(t *testing.T) {
+func TestConfirmSubdirectorySetup(t *testing.T) {
 	tests := []struct {
 		name  string
 		input string
@@ -32,7 +32,7 @@ func TestConfirmSubdirectoryInstall(t *testing.T) {
 			var buf bytes.Buffer
 			cmd.SetOut(&buf)
 
-			got, err := confirmSubdirectoryInstall(cmd, "/fake/root", strings.NewReader(tt.input), true)
+			got, err := confirmSubdirectorySetup(cmd, "/fake/root", strings.NewReader(tt.input), true)
 
 			require.NoError(t, err)
 			assert.Equal(t, tt.want, got)
@@ -40,28 +40,28 @@ func TestConfirmSubdirectoryInstall(t *testing.T) {
 	}
 }
 
-func TestConfirmSubdirectoryInstall_NonTTY(t *testing.T) {
+func TestConfirmSubdirectorySetup_NonTTY(t *testing.T) {
 	cmd := &cobra.Command{}
-	got, err := confirmSubdirectoryInstall(cmd, "/fake/root", strings.NewReader("y\n"), false)
+	got, err := confirmSubdirectorySetup(cmd, "/fake/root", strings.NewReader("y\n"), false)
 
 	assert.False(t, got)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "--yes")
 }
 
-func TestConfirmWorkspaceInstall(t *testing.T) {
+func TestConfirmWorkspaceSetup(t *testing.T) {
 	t.Run("registers new workspace", func(t *testing.T) {
 		cmd := &cobra.Command{}
 		var buf bytes.Buffer
 		cmd.SetOut(&buf)
 
-		got, err := confirmWorkspaceInstall(cmd, "~/work/company", false, strings.NewReader("yes\n"), true)
+		got, err := confirmWorkspaceSetup(cmd, "~/work/company", false, strings.NewReader("yes\n"), true)
 
 		require.NoError(t, err)
 		assert.True(t, got)
 		assert.Contains(t, buf.String(), "This will register the workspace path:")
 		assert.Contains(t, buf.String(), "~/work/company")
-		assert.Contains(t, buf.String(), "global hooks and global skills")
+		assert.Contains(t, buf.String(), "global hooks, global skills, and global bootstrap artifacts")
 	})
 
 	t.Run("refreshes existing workspace", func(t *testing.T) {
@@ -69,36 +69,36 @@ func TestConfirmWorkspaceInstall(t *testing.T) {
 		var buf bytes.Buffer
 		cmd.SetOut(&buf)
 
-		got, err := confirmWorkspaceInstall(cmd, "~/work/company", true, strings.NewReader("yes\n"), true)
+		got, err := confirmWorkspaceSetup(cmd, "~/work/company", true, strings.NewReader("yes\n"), true)
 
 		require.NoError(t, err)
 		assert.True(t, got)
 		assert.Contains(t, buf.String(), "This workspace path is already registered:")
-		assert.Contains(t, buf.String(), "refresh global hooks, global skills, and global artifacts")
+		assert.Contains(t, buf.String(), "refresh global hooks, global skills, and global bootstrap artifacts")
 	})
 }
 
-func TestConfirmWorkspaceInstall_NonTTY(t *testing.T) {
+func TestConfirmWorkspaceSetup_NonTTY(t *testing.T) {
 	cmd := &cobra.Command{}
-	got, err := confirmWorkspaceInstall(cmd, "~/work/company", false, strings.NewReader("yes\n"), false)
+	got, err := confirmWorkspaceSetup(cmd, "~/work/company", false, strings.NewReader("yes\n"), false)
 
 	assert.False(t, got)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "--yes")
 }
 
-func TestConfirmWorkspaceUninstall(t *testing.T) {
+func TestConfirmWorkspaceTeardown(t *testing.T) {
 	t.Run("non-final workspace", func(t *testing.T) {
 		cmd := &cobra.Command{}
 		var buf bytes.Buffer
 		cmd.SetOut(&buf)
 
-		got, err := confirmWorkspaceUninstall(cmd, "~/work/company", false, strings.NewReader("y\n"), true)
+		got, err := confirmWorkspaceTeardown(cmd, "~/work/company", false, strings.NewReader("y\n"), true)
 
 		require.NoError(t, err)
 		assert.True(t, got)
 		assert.Contains(t, buf.String(), "This will unregister the workspace path:")
-		assert.Contains(t, buf.String(), "stop guiding projects inside this workspace")
+		assert.Contains(t, buf.String(), "stop guiding repositories inside this workspace")
 		assert.NotContains(t, buf.String(), "No registered workspaces will remain.")
 	})
 
@@ -107,48 +107,48 @@ func TestConfirmWorkspaceUninstall(t *testing.T) {
 		var buf bytes.Buffer
 		cmd.SetOut(&buf)
 
-		got, err := confirmWorkspaceUninstall(cmd, "~/work/company", true, strings.NewReader("y\n"), true)
+		got, err := confirmWorkspaceTeardown(cmd, "~/work/company", true, strings.NewReader("y\n"), true)
 
 		require.NoError(t, err)
 		assert.True(t, got)
 		assert.Contains(t, buf.String(), "No registered workspaces will remain.")
-		assert.Contains(t, buf.String(), "remove global hooks and global skills")
+		assert.Contains(t, buf.String(), "remove global hooks, global skills, global bootstrap artifacts, and the managed ~/.config/argus/ root")
 	})
 }
 
-func TestConfirmWorkspaceUninstall_NonTTY(t *testing.T) {
+func TestConfirmWorkspaceTeardown_NonTTY(t *testing.T) {
 	cmd := &cobra.Command{}
-	got, err := confirmWorkspaceUninstall(cmd, "~/work/company", true, strings.NewReader("yes\n"), false)
+	got, err := confirmWorkspaceTeardown(cmd, "~/work/company", true, strings.NewReader("yes\n"), false)
 
 	assert.False(t, got)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "--yes")
 }
 
-func TestUninstallNoArgusDirectory(t *testing.T) {
+func TestTeardownWithoutProjectSetup(t *testing.T) {
 	t.Chdir(t.TempDir())
 	t.Setenv("HOME", t.TempDir())
 	require.NoError(t, os.MkdirAll(".git", 0o700))
 
-	output, cmdErr := executeUninstallCmd(t, "--yes")
+	output, cmdErr := executeTeardownCmd(t, "--yes")
 
 	require.Error(t, cmdErr)
-	assert.Contains(t, cmdErr.Error(), "no Argus installation found")
+	assert.Contains(t, cmdErr.Error(), "no project-level Argus setup found")
 
 	var data map[string]any
 	require.NoError(t, json.Unmarshal(output, &data), "output should be valid JSON: %s", string(output))
 	assert.Equal(t, "error", data["status"])
 }
 
-func TestUninstallPreservesNonArgusSkills(t *testing.T) {
+func TestTeardownPreservesNonArgusSkills(t *testing.T) {
 	t.Chdir(t.TempDir())
 	t.Setenv("HOME", t.TempDir())
 	initGitRepo(t)
 
-	_, cmdErr := executeInstallCmd(t, "--yes")
+	_, cmdErr := executeSetupCmd(t, "--yes")
 	require.NoError(t, cmdErr)
 
-	for _, skillPath := range install.SkillPaths() {
+	for _, skillPath := range lifecycle.SkillPaths() {
 		customDir := filepath.Join(skillPath, "my-team-skill")
 		require.NoError(t, os.MkdirAll(customDir, 0o700))
 		require.NoError(t, os.WriteFile(
@@ -158,27 +158,27 @@ func TestUninstallPreservesNonArgusSkills(t *testing.T) {
 		))
 	}
 
-	_, cmdErr = executeUninstallCmd(t, "--yes")
+	_, cmdErr = executeTeardownCmd(t, "--yes")
 	require.NoError(t, cmdErr)
 
-	for _, skillPath := range install.SkillPaths() {
+	for _, skillPath := range lifecycle.SkillPaths() {
 		_, err := os.Stat(filepath.Join(skillPath, "my-team-skill", "SKILL.md"))
-		require.NoError(t, err, "%s/my-team-skill/SKILL.md should survive uninstall", skillPath)
+		require.NoError(t, err, "%s/my-team-skill/SKILL.md should survive teardown", skillPath)
 
 		_, err = os.Stat(filepath.Join(skillPath, "argus-doctor"))
 		assert.True(t, os.IsNotExist(err), "%s/argus-doctor should be removed", skillPath)
 	}
 }
 
-func TestUninstallNonInteractiveWithoutYes(t *testing.T) {
+func TestTeardownNonInteractiveWithoutYes(t *testing.T) {
 	t.Chdir(t.TempDir())
 	t.Setenv("HOME", t.TempDir())
 	initGitRepo(t)
 
-	_, cmdErr := executeInstallCmd(t, "--yes")
+	_, cmdErr := executeSetupCmd(t, "--yes")
 	require.NoError(t, cmdErr)
 
-	output, cmdErr := executeUninstallCmdWithInput(t, bytes.NewBuffer(nil))
+	output, cmdErr := executeTeardownCmdWithInput(t, bytes.NewBuffer(nil))
 
 	require.Error(t, cmdErr)
 	assert.Contains(t, cmdErr.Error(), "--yes")
@@ -189,5 +189,5 @@ func TestUninstallNonInteractiveWithoutYes(t *testing.T) {
 	assert.Contains(t, data["message"], "use --yes")
 
 	_, err := os.Stat(".argus")
-	assert.NoError(t, err, ".argus/ should still exist after refused uninstall")
+	assert.NoError(t, err, ".argus/ should still exist after refused teardown")
 }

@@ -1,6 +1,6 @@
 version: v0.1.0
-id: argus-init
-description: "Initialize Argus for the project"
+id: argus-project-init
+description: "Complete project-specific Argus initialization"
 
 jobs:
   - id: generate_rules
@@ -15,7 +15,7 @@ jobs:
 
   - id: generate_workflows
     skill: argus-configure-workflow
-    prompt: "Generate workflow files suited to this project under .argus/workflows/. When finished, run argus toolbox touch-timestamp .argus/data/init_workflows_generated."
+    prompt: "Generate workflow files suited to this project under .argus/workflows/. When finished, run argus toolbox touch-timestamp .argus/data/project_init_workflows_generated."
 
   - id: generate_invariant_examples
     skill: argus-configure-invariant

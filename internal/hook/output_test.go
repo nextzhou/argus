@@ -20,7 +20,7 @@ func assertHookSafeTickText(t *testing.T, output string) {
 func TestFormatNoPipeline(t *testing.T) {
 	workflows := []WorkflowSummary{
 		{ID: "release", Description: "Release workflow"},
-		{ID: "argus-init", Description: "Initialize Argus config"},
+		{ID: "argus-project-init", Description: "Initialize Argus config"},
 	}
 
 	output, err := FormatNoPipeline(workflows)
@@ -30,7 +30,7 @@ func TestFormatNoPipeline(t *testing.T) {
 	assert.Contains(t, output, "Argus:")
 	assert.Contains(t, output, "No active pipeline")
 	assert.Contains(t, output, "release")
-	assert.Contains(t, output, "argus-init")
+	assert.Contains(t, output, "argus-project-init")
 	assert.Contains(t, output, "argus workflow start")
 }
 
@@ -129,17 +129,17 @@ func TestFormatSnoozed(t *testing.T) {
 
 func TestFormatInvariantFailure(t *testing.T) {
 	output, err := FormatInvariantFailure(InvariantFailure{
-		ID:          "argus-init",
+		ID:          "argus-project-init",
 		Description: "Project not initialized",
-		Suggestion:  "Run argus-init workflow",
+		Suggestion:  "Run argus workflow start argus-project-init",
 	})
 
 	require.NoError(t, err)
 	assertHookSafeTickText(t, output)
 	assert.Contains(t, output, "Argus: Invariant check failed:")
-	assert.Contains(t, output, "argus-init")
+	assert.Contains(t, output, "argus-project-init")
 	assert.Contains(t, output, "Project not initialized")
-	assert.Contains(t, output, "Suggestion: Run argus-init workflow")
+	assert.Contains(t, output, "Suggestion: Run argus workflow start argus-project-init")
 	assert.NotContains(t, output, "No active pipeline")
 	assert.NotContains(t, output, "---")
 }

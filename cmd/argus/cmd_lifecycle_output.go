@@ -4,14 +4,14 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/nextzhou/argus/internal/install"
+	"github.com/nextzhou/argus/internal/lifecycle"
 )
 
 type lifecycleOutput struct {
 	Message string `json:"message"`
 	Root    string `json:"root,omitempty"`
 	Path    string `json:"path,omitempty"`
-	install.Report
+	lifecycle.Report
 }
 
 func renderLifecycleText(w io.Writer, out lifecycleOutput, nextSteps []string) {
@@ -61,6 +61,6 @@ func renderLifecycleChangeSection(w io.Writer, title string, paths []string) {
 	_, _ = fmt.Fprintln(w)
 }
 
-func hasLifecycleChanges(changes install.ChangeSet) bool {
+func hasLifecycleChanges(changes lifecycle.ChangeSet) bool {
 	return len(changes.Created) > 0 || len(changes.Updated) > 0 || len(changes.Removed) > 0
 }

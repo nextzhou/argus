@@ -15,9 +15,9 @@ import (
 )
 
 func TestReadAsset(t *testing.T) {
-	data, err := ReadAsset("skills/argus-install/SKILL.md")
+	data, err := ReadAsset("skills/argus-setup/SKILL.md")
 	require.NoError(t, err)
-	assert.Contains(t, string(data), "argus-install")
+	assert.Contains(t, string(data), "argus-setup")
 }
 
 func TestReadAssetNotFound(t *testing.T) {
@@ -36,11 +36,11 @@ func TestListSkills(t *testing.T) {
 		"argus-configure-workflow",
 		"argus-doctor",
 		"argus-generate-rules",
-		"argus-install",
 		"argus-intro",
 		"argus-invariant-check",
+		"argus-setup",
 		"argus-status",
-		"argus-uninstall",
+		"argus-teardown",
 		"argus-workflow",
 	}
 	assert.Equal(t, expected, names)
@@ -71,7 +71,7 @@ func TestListAssets(t *testing.T) {
 	names, err := ListAssets("workflows")
 	require.NoError(t, err)
 	assert.GreaterOrEqual(t, len(names), 1)
-	assert.Contains(t, names, "argus-init.yaml")
+	assert.Contains(t, names, "argus-project-init.yaml")
 }
 
 func TestWalkAssets(t *testing.T) {
@@ -88,13 +88,13 @@ func TestWalkAssets(t *testing.T) {
 }
 
 func TestBuiltinWorkflow(t *testing.T) {
-	data, err := ReadAsset("workflows/argus-init.yaml")
+	data, err := ReadAsset("workflows/argus-project-init.yaml")
 	require.NoError(t, err)
 
 	w, err := workflow.ParseWorkflow(bytes.NewReader(data))
 	require.NoError(t, err)
 
-	assert.Equal(t, "argus-init", w.ID)
+	assert.Equal(t, "argus-project-init", w.ID)
 	assert.Equal(t, "v0.1.0", w.Version)
 	assert.Len(t, w.Jobs, 5)
 	assert.Equal(t, "generate_rules", w.Jobs[0].ID)
@@ -104,20 +104,6 @@ func TestBuiltinWorkflow(t *testing.T) {
 }
 
 func TestBuiltinInvariant(t *testing.T) {
-	data, err := ReadAsset("invariants/argus-init.yaml")
-	require.NoError(t, err)
-
-	inv, err := invariant.ParseInvariant(bytes.NewReader(data))
-	require.NoError(t, err)
-
-	assert.Equal(t, "argus-init", inv.ID)
-	assert.Equal(t, "v0.1.0", inv.Version)
-	assert.Equal(t, "session_start", inv.Auto)
-	assert.Equal(t, "argus-init", inv.Workflow)
-	assert.Len(t, inv.Check, 7)
-}
-
-func TestBuiltinInvariantProjectInit(t *testing.T) {
 	data, err := ReadAsset("invariants/argus-project-init.yaml")
 	require.NoError(t, err)
 
@@ -125,20 +111,34 @@ func TestBuiltinInvariantProjectInit(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, "argus-project-init", inv.ID)
+	assert.Equal(t, "v0.1.0", inv.Version)
+	assert.Equal(t, "session_start", inv.Auto)
+	assert.Equal(t, "argus-project-init", inv.Workflow)
+	assert.Len(t, inv.Check, 7)
+}
+
+func TestBuiltinInvariantProjectInit(t *testing.T) {
+	data, err := ReadAsset("invariants/argus-project-setup.yaml")
+	require.NoError(t, err)
+
+	inv, err := invariant.ParseInvariant(bytes.NewReader(data))
+	require.NoError(t, err)
+
+	assert.Equal(t, "argus-project-setup", inv.ID)
 	assert.Equal(t, "session_start", inv.Auto)
 }
 
 func TestBuiltinWorkflowIDs(t *testing.T) {
 	ids, err := BuiltinWorkflowIDs()
 	require.NoError(t, err)
-	assert.Contains(t, ids, "argus-init")
+	assert.Contains(t, ids, "argus-project-init")
 }
 
 func TestBuiltinInvariantIDs(t *testing.T) {
 	ids, err := BuiltinInvariantIDs()
 	require.NoError(t, err)
-	assert.Contains(t, ids, "argus-init")
 	assert.Contains(t, ids, "argus-project-init")
+	assert.Contains(t, ids, "argus-project-setup")
 }
 
 func TestPromptTemplates(t *testing.T) {
