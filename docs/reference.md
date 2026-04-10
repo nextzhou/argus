@@ -329,12 +329,13 @@ Released during `argus install` to `.agents/skills/` and `.claude/skills/`:
 
 | Skill | Description |
 |-------|-------------|
-| `argus-intro` | Bootstrap explanation of what Argus is and what installation changes |
-| `argus-install` | Installation and upgrade guidance |
-| `argus-uninstall` | Uninstallation guidance |
+| `argus-configure-invariant` | YAML authoring reference for writing invariants with validation and safe-write flow |
+| `argus-configure-workflow` | YAML authoring reference for writing workflows with validation and safe-write flow |
 | `argus-doctor` | Diagnostic troubleshooting |
-| `argus-workflow` | Workflow lifecycle management |
-| `argus-workflow-syntax` | YAML syntax reference for writing workflows |
+| `argus-generate-rules` | Guide for generating project rules into `.argus/rules/` |
+| `argus-install` | Installation and upgrade guidance |
+| `argus-intro` | Bootstrap explanation of what Argus is and what installation changes |
 | `argus-invariant-check` | Invariant check operations |
 | `argus-status` | Pipeline and job status queries |
-| `argus-generate-rules` | Guide for generating project rules into `.argus/rules/` |
+| `argus-uninstall` | Uninstallation guidance |
+| `argus-workflow` | Workflow lifecycle management |

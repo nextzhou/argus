@@ -170,7 +170,8 @@ Argus provides built-in skills in several categories.
 
 #### Knowledge/reference skills
 
-- `argus-workflow-syntax`: detailed reference for workflow YAML
+- `argus-configure-invariant`: detailed reference for invariant YAML authoring with validation and safe-write flow
+- `argus-configure-workflow`: detailed reference for workflow YAML authoring with validation and safe-write flow
 
 ### 11.3 Skill Naming Rules
 
