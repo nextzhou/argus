@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/nextzhou/argus/internal/core"
 	"github.com/stretchr/testify/require"
 )
 
@@ -227,4 +228,22 @@ func fileExists(t *testing.T, path string) bool {
 	}
 	require.NoError(t, err)
 	return true
+}
+
+func cleanupDefaultSessionFile(t *testing.T, sessionID string) {
+	t.Helper()
+
+	path := filepath.Join("/tmp/argus", core.SessionIDToSafeID(sessionID)+".yaml")
+	_ = os.Remove(path)
+	t.Cleanup(func() {
+		_ = os.Remove(path)
+	})
+}
+
+func cleanupDefaultSessionFiles(t *testing.T, sessionIDs ...string) {
+	t.Helper()
+
+	for _, sessionID := range sessionIDs {
+		cleanupDefaultSessionFile(t, sessionID)
+	}
 }

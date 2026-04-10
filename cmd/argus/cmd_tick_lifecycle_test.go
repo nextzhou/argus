@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/nextzhou/argus/internal/sessiontest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -46,9 +47,9 @@ prompt: "Fix the always issue"
 func TestTickLifecycle_Complete(t *testing.T) {
 	t.Chdir(t.TempDir())
 	writeWorkflowFixture(t, "tick-lifecycle", tickLifecycleWorkflow)
+	store := sessiontest.NewMemoryStore()
 
 	sessionID := "a0a0a0a0-0001-0001-0001-000000000001"
-	cleanupSessionFile(t, sessionID)
 	stdinJSON := fmt.Sprintf(`{"session_id":"%s"}`, sessionID)
 
 	// Step 1: Start pipeline
@@ -60,7 +61,7 @@ func TestTickLifecycle_Complete(t *testing.T) {
 	assert.Equal(t, "running", data["pipeline_status"])
 
 	// Step 2: First tick — full context with step-one
-	out, err = executeTickCmd(t, stdinJSON, "--agent", "claude-code")
+	out, err = executeTickCmd(t, store, stdinJSON, "--agent", "claude-code")
 	require.NoError(t, err)
 	output := string(out)
 	assertHookSafeTickText(t, output)
@@ -77,7 +78,7 @@ func TestTickLifecycle_Complete(t *testing.T) {
 	assert.Equal(t, "running", data["pipeline_status"])
 
 	// Step 4: Tick — full context with NEW job step-two (state changed)
-	out, err = executeTickCmd(t, stdinJSON, "--agent", "claude-code")
+	out, err = executeTickCmd(t, store, stdinJSON, "--agent", "claude-code")
 	require.NoError(t, err)
 	output = string(out)
 	assert.Contains(t, output, "step_two")
@@ -98,7 +99,7 @@ func TestTickLifecycle_Complete(t *testing.T) {
 	assert.Equal(t, "completed", data["pipeline_status"])
 
 	// Step 7: Tick after completion — no active pipeline
-	out, err = executeTickCmd(t, stdinJSON, "--agent", "claude-code")
+	out, err = executeTickCmd(t, store, stdinJSON, "--agent", "claude-code")
 	require.NoError(t, err)
 	output = string(out)
 	assertHookSafeTickText(t, output)
@@ -112,9 +113,9 @@ func TestTickLifecycle_Complete(t *testing.T) {
 func TestTickLifecycle_MinimalSummary(t *testing.T) {
 	t.Chdir(t.TempDir())
 	writeWorkflowFixture(t, "tick-lifecycle", tickLifecycleWorkflow)
+	store := sessiontest.NewMemoryStore()
 
 	sessionID := "a0a0a0a0-0002-0002-0002-000000000002"
-	cleanupSessionFile(t, sessionID)
 	stdinJSON := fmt.Sprintf(`{"session_id":"%s"}`, sessionID)
 
 	// Start pipeline
@@ -122,14 +123,14 @@ func TestTickLifecycle_MinimalSummary(t *testing.T) {
 	require.NoError(t, err)
 
 	// First tick — full context (state changed: new session)
-	out, err := executeTickCmd(t, stdinJSON, "--agent", "claude-code")
+	out, err := executeTickCmd(t, store, stdinJSON, "--agent", "claude-code")
 	require.NoError(t, err)
 	fullOutput := string(out)
 	assert.Contains(t, fullOutput, "Current Job:")
 	assert.Contains(t, fullOutput, "Do step one")
 
 	// Second tick — minimal summary (state unchanged)
-	out, err = executeTickCmd(t, stdinJSON, "--agent", "claude-code")
+	out, err = executeTickCmd(t, store, stdinJSON, "--agent", "claude-code")
 	require.NoError(t, err)
 	minimalOutput := string(out)
 	assert.Contains(t, minimalOutput, "step_one")
@@ -148,9 +149,9 @@ func TestTickLifecycle_MinimalSummary(t *testing.T) {
 func TestTickLifecycle_Snooze(t *testing.T) {
 	t.Chdir(t.TempDir())
 	writeWorkflowFixture(t, "tick-lifecycle", tickLifecycleWorkflow)
+	store := sessiontest.NewMemoryStore()
 
 	sessionID := "a0a0a0a0-0003-0003-0003-000000000003"
-	cleanupSessionFile(t, sessionID)
 	stdinJSON := fmt.Sprintf(`{"session_id":"%s"}`, sessionID)
 
 	// Start pipeline
@@ -158,12 +159,12 @@ func TestTickLifecycle_Snooze(t *testing.T) {
 	require.NoError(t, err)
 
 	// First tick — full context
-	out, err := executeTickCmd(t, stdinJSON, "--agent", "claude-code")
+	out, err := executeTickCmd(t, store, stdinJSON, "--agent", "claude-code")
 	require.NoError(t, err)
 	assert.Contains(t, string(out), "step_one")
 
 	// Snooze the pipeline
-	out, err = executeWorkflowSnoozeCmd(t, "--session", sessionID)
+	out, err = executeWorkflowSnoozeCmd(t, store, "--session", sessionID)
 	require.NoError(t, err)
 	var data map[string]any
 	require.NoError(t, json.Unmarshal(out, &data))
@@ -173,7 +174,7 @@ func TestTickLifecycle_Snooze(t *testing.T) {
 	require.Len(t, snoozed, 1)
 
 	// Tick after snooze — shows available workflows, no pipeline context
-	out, err = executeTickCmd(t, stdinJSON, "--agent", "claude-code")
+	out, err = executeTickCmd(t, store, stdinJSON, "--agent", "claude-code")
 	require.NoError(t, err)
 	output := string(out)
 	assertHookSafeTickText(t, output)
@@ -191,13 +192,13 @@ func TestTickLifecycle_FirstTickInvariant(t *testing.T) {
 	writeWorkflowFixture(t, "tick-lifecycle", tickLifecycleWorkflow)
 	writeInvariantFixture(t, "tick-session-start-inv", tickSessionStartInvariant)
 	writeInvariantFixture(t, "tick-always-inv", tickAlwaysInvariant)
+	store := sessiontest.NewMemoryStore()
 
 	sessionID := "a0a0a0a0-0004-0004-0004-000000000004"
-	cleanupSessionFile(t, sessionID)
 	stdinJSON := fmt.Sprintf(`{"session_id":"%s"}`, sessionID)
 
 	// First tick — stop at the first failing invariant.
-	out, err := executeTickCmd(t, stdinJSON, "--agent", "claude-code")
+	out, err := executeTickCmd(t, store, stdinJSON, "--agent", "claude-code")
 	require.NoError(t, err)
 	output := string(out)
 	assert.Contains(t, output, "tick-always-inv")
@@ -206,7 +207,7 @@ func TestTickLifecycle_FirstTickInvariant(t *testing.T) {
 	assert.NotContains(t, output, "No active pipeline")
 
 	// Second tick — session_start remains skipped and always invariant still fails first.
-	out, err = executeTickCmd(t, stdinJSON, "--agent", "claude-code")
+	out, err = executeTickCmd(t, store, stdinJSON, "--agent", "claude-code")
 	require.NoError(t, err)
 	output = string(out)
 	assert.Contains(t, output, "tick-always-inv")
@@ -225,12 +226,12 @@ check:
     description: "always fails"
 prompt: "<<<ARGUS_INIT_REQUIRED>>> initialize argus first"
 `)
+	store := sessiontest.NewMemoryStore()
 
 	sessionID := "a0a0a0a0-0006-0006-0006-000000000006"
-	cleanupSessionFile(t, sessionID)
 	stdinJSON := fmt.Sprintf(`{"session_id":"%s"}`, sessionID)
 
-	out, err := executeTickCmd(t, stdinJSON, "--agent", "claude-code")
+	out, err := executeTickCmd(t, store, stdinJSON, "--agent", "claude-code")
 	require.NoError(t, err)
 
 	output := string(out)
@@ -252,12 +253,12 @@ check:
     description: "always fails"
 workflow: remediation-flow
 `)
+	store := sessiontest.NewMemoryStore()
 
 	sessionID := "a0a0a0a0-0008-0008-0008-000000000008"
-	cleanupSessionFile(t, sessionID)
 	stdinJSON := fmt.Sprintf(`{"session_id":"%s"}`, sessionID)
 
-	out, err := executeTickCmd(t, stdinJSON, "--agent", "claude-code")
+	out, err := executeTickCmd(t, store, stdinJSON, "--agent", "claude-code")
 	require.NoError(t, err)
 
 	output := string(out)
@@ -280,12 +281,12 @@ check:
 workflow: preferred-remediation
 prompt: "<<<ARGUS_INIT_REQUIRED>>> initialize argus first"
 `)
+	store := sessiontest.NewMemoryStore()
 
 	sessionID := "a0a0a0a0-0009-0009-0009-000000000009"
-	cleanupSessionFile(t, sessionID)
 	stdinJSON := fmt.Sprintf(`{"session_id":"%s"}`, sessionID)
 
-	out, err := executeTickCmd(t, stdinJSON, "--agent", "claude-code")
+	out, err := executeTickCmd(t, store, stdinJSON, "--agent", "claude-code")
 	require.NoError(t, err)
 
 	output := string(out)
@@ -307,12 +308,12 @@ check:
     description: "always passes"
 prompt: "this prompt should never be injected"
 `)
+	store := sessiontest.NewMemoryStore()
 
 	sessionID := "a0a0a0a0-0007-0007-0007-000000000007"
-	cleanupSessionFile(t, sessionID)
 	stdinJSON := fmt.Sprintf(`{"session_id":"%s"}`, sessionID)
 
-	out, err := executeTickCmd(t, stdinJSON, "--agent", "claude-code")
+	out, err := executeTickCmd(t, store, stdinJSON, "--agent", "claude-code")
 	require.NoError(t, err)
 
 	output := string(out)
@@ -334,15 +335,15 @@ check:
     description: "always fails"
 prompt: "do not show this while a pipeline is active"
 `)
+	store := sessiontest.NewMemoryStore()
 
 	sessionID := "a0a0a0a0-0010-0010-0010-000000000010"
-	cleanupSessionFile(t, sessionID)
 	stdinJSON := fmt.Sprintf(`{"session_id":"%s"}`, sessionID)
 
 	_, err := executeStartCmd(t, "tick-lifecycle")
 	require.NoError(t, err)
 
-	out, err := executeTickCmd(t, stdinJSON, "--agent", "claude-code")
+	out, err := executeTickCmd(t, store, stdinJSON, "--agent", "claude-code")
 	require.NoError(t, err)
 
 	output := string(out)
@@ -364,12 +365,12 @@ check:
     description: "always passes"
 prompt: "this prompt should never be injected"
 `)
+	store := sessiontest.NewMemoryStore()
 
 	sessionID := "a0a0a0a0-0011-0011-0011-000000000011"
-	cleanupSessionFile(t, sessionID)
 	stdinJSON := fmt.Sprintf(`{"session_id":"%s"}`, sessionID)
 
-	out, err := executeTickCmd(t, stdinJSON, "--agent", "claude-code")
+	out, err := executeTickCmd(t, store, stdinJSON, "--agent", "claude-code")
 	require.NoError(t, err)
 	assert.Empty(t, string(out))
 }
@@ -379,17 +380,17 @@ prompt: "this prompt should never be injected"
 func TestTickLifecycle_SubAgentSkip(t *testing.T) {
 	t.Chdir(t.TempDir())
 	writeWorkflowFixture(t, "tick-lifecycle", tickLifecycleWorkflow)
+	store := sessiontest.NewMemoryStore()
 
 	// Start pipeline so there is active work
 	_, err := executeStartCmd(t, "tick-lifecycle")
 	require.NoError(t, err)
 
 	sessionID := "a0a0a0a0-0005-0005-0005-000000000005"
-	cleanupSessionFile(t, sessionID)
 	// Sub-agent: include agent_id in stdin JSON
 	stdinJSON := fmt.Sprintf(`{"session_id":"%s","agent_id":"worker-1"}`, sessionID)
 
-	out, err := executeTickCmd(t, stdinJSON, "--agent", "claude-code")
+	out, err := executeTickCmd(t, store, stdinJSON, "--agent", "claude-code")
 	require.NoError(t, err)
 	assert.Empty(t, string(out))
 }

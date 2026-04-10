@@ -6,19 +6,12 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/nextzhou/argus/internal/core"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func cleanupSessionFile(t *testing.T, sessionID string) {
-	t.Helper()
-	safeID := core.SessionIDToSafeID(sessionID)
-	_ = os.Remove(filepath.Join("/tmp/argus", safeID+".yaml"))
-}
-
 func TestWorkspace_CompleteLifecycle(t *testing.T) {
-	cleanupSessionFile(t, "ws-lifecycle-session")
+	cleanupDefaultSessionFile(t, "ws-lifecycle-session")
 	homeDir := resolveSymlinks(t, t.TempDir())
 	t.Setenv("HOME", homeDir)
 
@@ -210,7 +203,7 @@ func TestWorkspace_PathNormalization(t *testing.T) {
 }
 
 func TestWorkspace_GlobalTickGuidesMention(t *testing.T) {
-	cleanupSessionFile(t, "guide-test")
+	cleanupDefaultSessionFile(t, "guide-test")
 	homeDir := resolveSymlinks(t, t.TempDir())
 	t.Setenv("HOME", homeDir)
 

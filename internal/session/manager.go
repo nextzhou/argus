@@ -23,7 +23,15 @@ import (
 // This is part of the timing contract: a true return means invariant
 // checks should run before the session file is created via SaveSession.
 func IsFirstTick(baseDir, sessionID string) bool {
-	return !Exists(baseDir, sessionID)
+	return IsFirstTickWithStore(NewFileStore(baseDir), sessionID)
+}
+
+// IsFirstTickWithStore reports whether the session does not exist yet in store.
+func IsFirstTickWithStore(store Store, sessionID string) bool {
+	if store == nil {
+		return true
+	}
+	return !store.Exists(sessionID)
 }
 
 // AddSnooze appends a pipeline ID unless it is already snoozed.

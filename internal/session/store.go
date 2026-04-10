@@ -9,12 +9,34 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// Store persists per-session state for hook and command flows.
+type Store interface {
+	Load(sessionID string) (*Session, error)
+	Save(sessionID string, s *Session) error
+	Exists(sessionID string) bool
+}
+
+// FileStore persists session state under a filesystem directory.
+type FileStore struct {
+	baseDir string
+}
+
+// NewFileStore returns a Store backed by session YAML files under baseDir.
+func NewFileStore(baseDir string) *FileStore {
+	return &FileStore{baseDir: baseDir}
+}
+
 // LoadSession reads and parses a session data file from disk.
 func LoadSession(baseDir, sessionID string) (*Session, error) {
-	safeID := core.SessionIDToSafeID(sessionID)
-	path := filepath.Join(baseDir, safeID+".yaml")
+	return NewFileStore(baseDir).Load(sessionID)
+}
 
-	if err := core.ValidatePath(baseDir, path); err != nil {
+// Load reads and parses a session data file from disk.
+func (store *FileStore) Load(sessionID string) (*Session, error) {
+	safeID := core.SessionIDToSafeID(sessionID)
+	path := filepath.Join(store.baseDir, safeID+".yaml")
+
+	if err := core.ValidatePath(store.baseDir, path); err != nil {
 		return nil, fmt.Errorf("validating session path: %w", err)
 	}
 
@@ -27,28 +49,33 @@ func LoadSession(baseDir, sessionID string) (*Session, error) {
 	dec := yaml.NewDecoder(f)
 	dec.KnownFields(true)
 
-	var s Session
-	if err := dec.Decode(&s); err != nil {
+	var loaded Session
+	if err := dec.Decode(&loaded); err != nil {
 		return nil, fmt.Errorf("parsing session YAML %q: %w", sessionID, err)
 	}
 
-	return &s, nil
+	return &loaded, nil
 }
 
 // SaveSession writes a session data file to disk, creating the directory if needed.
 func SaveSession(baseDir, sessionID string, s *Session) error {
-	if err := os.MkdirAll(baseDir, 0o755); err != nil {
+	return NewFileStore(baseDir).Save(sessionID, s)
+}
+
+// Save writes a session data file to disk, creating the directory if needed.
+func (store *FileStore) Save(sessionID string, sessionData *Session) error {
+	if err := os.MkdirAll(store.baseDir, 0o755); err != nil {
 		return fmt.Errorf("creating session directory: %w", err)
 	}
 
 	safeID := core.SessionIDToSafeID(sessionID)
-	path := filepath.Join(baseDir, safeID+".yaml")
+	path := filepath.Join(store.baseDir, safeID+".yaml")
 
-	if err := core.ValidatePath(baseDir, path); err != nil {
+	if err := core.ValidatePath(store.baseDir, path); err != nil {
 		return fmt.Errorf("validating session path: %w", err)
 	}
 
-	data, err := yaml.Marshal(s)
+	data, err := yaml.Marshal(sessionData)
 	if err != nil {
 		return fmt.Errorf("marshaling session %q: %w", sessionID, err)
 	}
@@ -62,10 +89,15 @@ func SaveSession(baseDir, sessionID string, s *Session) error {
 
 // Exists checks whether a session data file exists on disk.
 func Exists(baseDir, sessionID string) bool {
-	safeID := core.SessionIDToSafeID(sessionID)
-	path := filepath.Join(baseDir, safeID+".yaml")
+	return NewFileStore(baseDir).Exists(sessionID)
+}
 
-	if err := core.ValidatePath(baseDir, path); err != nil {
+// Exists reports whether a session data file exists on disk.
+func (store *FileStore) Exists(sessionID string) bool {
+	safeID := core.SessionIDToSafeID(sessionID)
+	path := filepath.Join(store.baseDir, safeID+".yaml")
+
+	if err := core.ValidatePath(store.baseDir, path); err != nil {
 		return false
 	}
 

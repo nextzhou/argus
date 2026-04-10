@@ -8,8 +8,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/nextzhou/argus/internal/core"
 	"github.com/nextzhou/argus/internal/install"
+	"github.com/nextzhou/argus/internal/session"
+	"github.com/nextzhou/argus/internal/sessiontest"
 	workspacecfg "github.com/nextzhou/argus/internal/workspace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -35,7 +36,7 @@ func executeWorkspaceUninstallCmdWithArgs(t *testing.T, workspacePath string, ar
 	return executeJSONCommand(t, newUninstallCmd(), append(args, "--workspace", workspacePath)...)
 }
 
-func executeGlobalTickCmd(t *testing.T, stdinJSON string) ([]byte, error) {
+func executeGlobalTickCmd(t *testing.T, store session.Store, stdinJSON string) ([]byte, error) {
 	t.Helper()
 
 	old := os.Stdout
@@ -43,7 +44,7 @@ func executeGlobalTickCmd(t *testing.T, stdinJSON string) ([]byte, error) {
 	require.NoError(t, err)
 	os.Stdout = w
 
-	cmd := newTickCmd()
+	cmd := newTickCmdWithSessionStore(store)
 	cmd.SilenceErrors = true
 	cmd.SilenceUsage = true
 	cmd.SetArgs([]string{"--agent", "claude-code", "--global"})
@@ -119,11 +120,9 @@ func assertGlobalSkillState(t *testing.T, wantPresent bool) {
 }
 
 func TestWorkspaceLifecycle_Complete(t *testing.T) {
-	// Remove stale session file from previous test runs so IsFirstTick returns true
-	// and session_start invariants fire correctly.
-	_ = os.Remove(filepath.Join("/tmp/argus", core.SessionIDToSafeID("test-session")+".yaml"))
 	homeDir := t.TempDir()
 	t.Setenv("HOME", homeDir)
+	store := sessiontest.NewMemoryStore()
 
 	workspaceDir := filepath.Join(homeDir, "work")
 	projectDir := filepath.Join(workspaceDir, "myproject")
@@ -153,7 +152,7 @@ func TestWorkspaceLifecycle_Complete(t *testing.T) {
 	assertGlobalSkillState(t, true)
 
 	t.Chdir(projectDir)
-	output, cmdErr = executeGlobalTickCmd(t, `{"session_id":"test-session"}`)
+	output, cmdErr = executeGlobalTickCmd(t, store, `{"session_id":"test-session"}`)
 	require.NoError(t, cmdErr)
 	assertHookSafeTickText(t, string(output))
 	assert.Contains(t, string(output), "argus install")
@@ -166,7 +165,7 @@ func TestWorkspaceLifecycle_Complete(t *testing.T) {
 	_, err := os.Stat(filepath.Join(projectDir, ".argus"))
 	assert.NoError(t, err, "%s should exist after project install", filepath.Join(projectDir, ".argus"))
 
-	output, cmdErr = executeGlobalTickCmd(t, `{"session_id":"test-session"}`)
+	output, cmdErr = executeGlobalTickCmd(t, store, `{"session_id":"test-session"}`)
 	require.NoError(t, cmdErr)
 	assert.Empty(t, string(output))
 
@@ -188,7 +187,7 @@ func TestWorkspaceLifecycle_Complete(t *testing.T) {
 	assertGlobalSkillState(t, false)
 
 	t.Chdir(postUninstallProjectDir)
-	output, cmdErr = executeGlobalTickCmd(t, `{"session_id":"test-session"}`)
+	output, cmdErr = executeGlobalTickCmd(t, store, `{"session_id":"test-session"}`)
 	require.NoError(t, cmdErr)
 	assert.Empty(t, string(output))
 }

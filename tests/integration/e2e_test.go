@@ -47,6 +47,7 @@ func TestE2E_CompleteWorkflowLifecycle(t *testing.T) {
 	t.Setenv("HOME", homeDir)
 
 	projectDir := setupGitRepo(t)
+	cleanupDefaultSessionFile(t, "e2e-test-session-0001")
 
 	result := runArgus(t, projectDir, "install", "--yes")
 	requireOK(t, result)
@@ -196,6 +197,7 @@ func TestE2E_TickMultiAgentFormats(t *testing.T) {
 	t.Setenv("HOME", homeDir)
 
 	projectDir := setupGitRepo(t)
+	cleanupDefaultSessionFiles(t, "agent-test-claude", "agent-test-codex", "agent-test-opencode")
 
 	result := runArgus(t, projectDir, "install", "--yes")
 	requireOK(t, result)
@@ -376,6 +378,7 @@ func TestE2E_Snooze(t *testing.T) {
 	t.Setenv("HOME", homeDir)
 
 	projectDir := setupGitRepo(t)
+	cleanupDefaultSessionFile(t, "e2e-snooze-session-0001")
 
 	result := runArgus(t, projectDir, "install", "--yes")
 	requireOK(t, result)

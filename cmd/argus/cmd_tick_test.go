@@ -7,18 +7,20 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/nextzhou/argus/internal/session"
+	"github.com/nextzhou/argus/internal/sessiontest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func executeTickCmd(t *testing.T, stdinJSON string, args ...string) ([]byte, error) {
+func executeTickCmd(t *testing.T, store session.Store, stdinJSON string, args ...string) ([]byte, error) {
 	t.Helper()
 	old := os.Stdout
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
 	os.Stdout = w
 
-	cmd := newTickCmd()
+	cmd := newTickCmdWithSessionStore(store)
 	cmd.SilenceErrors = true
 	cmd.SilenceUsage = true
 	cmd.SetArgs(args)
@@ -60,7 +62,7 @@ jobs:
 	defer func() { require.NoError(t, os.Chdir(oldCwd)) }()
 	require.NoError(t, os.Chdir(projectRoot))
 
-	output, cmdErr := executeTickCmd(t, `{"session_id":"tick-cli-no-pipeline","cwd":"`+projectRoot+`"}`, "--agent", "claude-code")
+	output, cmdErr := executeTickCmd(t, sessiontest.NewMemoryStore(), `{"session_id":"tick-cli-no-pipeline","cwd":"`+projectRoot+`"}`, "--agent", "claude-code")
 	require.NoError(t, cmdErr)
 	assertHookSafeTickText(t, string(output))
 	assert.Contains(t, string(output), "Argus:")
@@ -76,7 +78,7 @@ func TestTickSubAgentSkip(t *testing.T) {
 	defer func() { require.NoError(t, os.Chdir(oldCwd)) }()
 	require.NoError(t, os.Chdir(projectRoot))
 
-	output, cmdErr := executeTickCmd(t, `{"session_id":"tick-cli-sub-agent","agent_id":"worker-1"}`, "--agent", "claude-code")
+	output, cmdErr := executeTickCmd(t, sessiontest.NewMemoryStore(), `{"session_id":"tick-cli-sub-agent","agent_id":"worker-1"}`, "--agent", "claude-code")
 	require.NoError(t, cmdErr)
 	assert.Empty(t, string(output))
 }
@@ -90,7 +92,7 @@ func TestTickFailOpen(t *testing.T) {
 	defer func() { require.NoError(t, os.Chdir(oldCwd)) }()
 	require.NoError(t, os.Chdir(projectRoot))
 
-	output, cmdErr := executeTickCmd(t, `{invalid json}`, "--agent", "claude-code")
+	output, cmdErr := executeTickCmd(t, sessiontest.NewMemoryStore(), `{invalid json}`, "--agent", "claude-code")
 	require.NoError(t, cmdErr)
 	assertHookSafeTickText(t, string(output))
 	assert.Contains(t, string(output), "Argus warning")
@@ -98,7 +100,7 @@ func TestTickFailOpen(t *testing.T) {
 }
 
 func TestTickWithoutAgent(t *testing.T) {
-	output, cmdErr := executeTickCmd(t, `{"session_id":"tick-cli-missing-agent"}`)
+	output, cmdErr := executeTickCmd(t, sessiontest.NewMemoryStore(), `{"session_id":"tick-cli-missing-agent"}`)
 	require.Error(t, cmdErr)
 	assert.Empty(t, string(output))
 	assert.Contains(t, cmdErr.Error(), "required flag(s) \"agent\" not set")

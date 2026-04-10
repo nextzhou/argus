@@ -5,12 +5,17 @@ import (
 	"os"
 
 	"github.com/nextzhou/argus/internal/hook"
+	"github.com/nextzhou/argus/internal/session"
 	"github.com/spf13/cobra"
 )
 
 // SEQUENCE-TEST: cmd_tick_lifecycle_test.go
 // SEQUENCE-TEST: cmd_workspace_lifecycle_test.go
 func newTickCmd() *cobra.Command {
+	return newTickCmdWithSessionStore(session.NewFileStore("/tmp/argus"))
+}
+
+func newTickCmdWithSessionStore(store session.Store) *cobra.Command {
 	var agentFlag string
 
 	cmd := &cobra.Command{
@@ -25,7 +30,7 @@ func newTickCmd() *cobra.Command {
 			}
 
 			global, _ := cmd.Flags().GetBool("global")
-			if err := hook.HandleTick(agentFlag, global, cmd.InOrStdin(), os.Stdout, cwd, "/tmp/argus"); err != nil {
+			if err := hook.HandleTickWithSessionStore(agentFlag, global, cmd.InOrStdin(), os.Stdout, cwd, store); err != nil {
 				_, _ = fmt.Fprintf(os.Stdout, "Argus warning: internal error: %v\n", err)
 			}
 			return nil

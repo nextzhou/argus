@@ -7,25 +7,16 @@ import (
 	"testing"
 
 	"github.com/nextzhou/argus/internal/session"
+	"github.com/nextzhou/argus/internal/sessiontest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 // executeWorkflowSnoozeCmd runs the workflow snooze command and captures stdout output.
-func executeWorkflowSnoozeCmd(t *testing.T, args ...string) ([]byte, error) {
+func executeWorkflowSnoozeCmd(t *testing.T, store session.Store, args ...string) ([]byte, error) {
 	t.Helper()
 
-	return executeJSONCommand(t, newWorkflowSnoozeCmd(), args...)
-}
-
-const sessionBaseDir = "/tmp/argus"
-
-func cleanupSessionFile(t *testing.T, sessionID string) {
-	t.Helper()
-	t.Cleanup(func() {
-		path := sessionBaseDir + "/" + sessionID + ".yaml"
-		_ = os.Remove(path)
-	})
+	return executeJSONCommand(t, newWorkflowSnoozeCmdWithSessionStore(store), args...)
 }
 
 const snoozePipelineRunning = `version: v0.1.0
@@ -46,7 +37,7 @@ func TestWorkflowSnooze(t *testing.T) {
 		sessionID string
 		wantErr   bool
 		checkJSON func(t *testing.T, data map[string]any)
-		checkSess func(t *testing.T, sessionID string)
+		checkSess func(t *testing.T, store session.Store, sessionID string)
 	}{
 		{
 			name:      "snooze active pipeline",
@@ -63,8 +54,8 @@ func TestWorkflowSnooze(t *testing.T) {
 				require.Len(t, snoozed, 1)
 				assert.Equal(t, "release-20240101T000000Z", snoozed[0])
 			},
-			checkSess: func(t *testing.T, sessionID string) {
-				s, err := session.LoadSession(sessionBaseDir, sessionID)
+			checkSess: func(t *testing.T, store session.Store, sessionID string) {
+				s, err := store.Load(sessionID)
 				require.NoError(t, err)
 				assert.Contains(t, s.SnoozedPipelines, "release-20240101T000000Z")
 			},
@@ -91,8 +82,8 @@ func TestWorkflowSnooze(t *testing.T) {
 			checkJSON: func(t *testing.T, data map[string]any) {
 				assert.Equal(t, "ok", data["status"])
 			},
-			checkSess: func(t *testing.T, sessionID string) {
-				s, err := session.LoadSession(sessionBaseDir, sessionID)
+			checkSess: func(t *testing.T, store session.Store, sessionID string) {
+				s, err := store.Load(sessionID)
 				require.NoError(t, err)
 				count := 0
 				for _, id := range s.SnoozedPipelines {
@@ -138,8 +129,8 @@ jobs:
 				assert.Contains(t, ids, "release-20240101T000000Z")
 				assert.Contains(t, ids, "deploy-20240102T000000Z")
 			},
-			checkSess: func(t *testing.T, sessionID string) {
-				s, err := session.LoadSession(sessionBaseDir, sessionID)
+			checkSess: func(t *testing.T, store session.Store, sessionID string) {
+				s, err := store.Load(sessionID)
 				require.NoError(t, err)
 				assert.Contains(t, s.SnoozedPipelines, "release-20240101T000000Z")
 				assert.Contains(t, s.SnoozedPipelines, "deploy-20240102T000000Z")
@@ -152,10 +143,7 @@ jobs:
 			t.Chdir(t.TempDir())
 			// Ensure .argus/ exists for scope resolution even when no pipelines are written.
 			require.NoError(t, os.MkdirAll(filepath.Join(".argus", "pipelines"), 0o755))
-
-			if tt.sessionID != "" {
-				cleanupSessionFile(t, tt.sessionID)
-			}
+			store := sessiontest.NewMemoryStore()
 
 			if tt.pipelines != nil {
 				for instanceID, content := range tt.pipelines {
@@ -163,7 +151,7 @@ jobs:
 				}
 			}
 
-			output, cmdErr := executeWorkflowSnoozeCmd(t, tt.args...)
+			output, cmdErr := executeWorkflowSnoozeCmd(t, store, tt.args...)
 
 			if tt.wantErr {
 				assert.Error(t, cmdErr)
@@ -182,7 +170,7 @@ jobs:
 				tt.checkJSON(t, data)
 			}
 			if tt.checkSess != nil {
-				tt.checkSess(t, tt.sessionID)
+				tt.checkSess(t, store, tt.sessionID)
 			}
 		})
 	}
@@ -190,27 +178,27 @@ jobs:
 
 func TestWorkflowSnoozeIdempotent(t *testing.T) {
 	t.Chdir(t.TempDir())
+	store := sessiontest.NewMemoryStore()
 
 	sessionID := "55555555-6666-7777-8888-999999999999"
-	cleanupSessionFile(t, sessionID)
 
 	writePipelineFixture(t, "release-20240101T000000Z", snoozePipelineRunning)
 
-	output1, err := executeWorkflowSnoozeCmd(t, "--session", sessionID)
+	output1, err := executeWorkflowSnoozeCmd(t, store, "--session", sessionID)
 	require.NoError(t, err)
 
 	var data1 map[string]any
 	require.NoError(t, json.Unmarshal(output1, &data1))
 	assert.Equal(t, "ok", data1["status"])
 
-	output2, err := executeWorkflowSnoozeCmd(t, "--session", sessionID)
+	output2, err := executeWorkflowSnoozeCmd(t, store, "--session", sessionID)
 	require.NoError(t, err)
 
 	var data2 map[string]any
 	require.NoError(t, json.Unmarshal(output2, &data2))
 	assert.Equal(t, "ok", data2["status"])
 
-	s, err := session.LoadSession(sessionBaseDir, sessionID)
+	s, err := store.Load(sessionID)
 	require.NoError(t, err)
 
 	count := 0

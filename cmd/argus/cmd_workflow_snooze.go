@@ -18,6 +18,10 @@ type workflowSnoozeOutput struct {
 }
 
 func newWorkflowSnoozeCmd() *cobra.Command {
+	return newWorkflowSnoozeCmdWithSessionStore(session.NewFileStore("/tmp/argus"))
+}
+
+func newWorkflowSnoozeCmdWithSessionStore(store session.Store) *cobra.Command {
 	var sessionID string
 	var jsonFlag bool
 
@@ -38,8 +42,6 @@ func newWorkflowSnoozeCmd() *cobra.Command {
 				return fmt.Errorf("not inside an Argus project or registered workspace")
 			}
 
-			sessionBaseDir := "/tmp/argus"
-
 			actives, _, err := sc.ScanActivePipelines()
 			if err != nil {
 				writeCommandError(cmd, jsonFlag, err.Error())
@@ -52,7 +54,7 @@ func newWorkflowSnoozeCmd() *cobra.Command {
 				return fmt.Errorf("workflow snooze failed: %w", core.ErrNoActivePipeline)
 			}
 
-			s, loadErr := session.LoadSession(sessionBaseDir, sessionID)
+			s, loadErr := store.Load(sessionID)
 			if loadErr != nil {
 				if !errors.Is(loadErr, fs.ErrNotExist) {
 					return fmt.Errorf("loading session: %w", loadErr)
@@ -66,7 +68,7 @@ func newWorkflowSnoozeCmd() *cobra.Command {
 				snoozed = append(snoozed, active.InstanceID)
 			}
 
-			if saveErr := session.SaveSession(sessionBaseDir, sessionID, s); saveErr != nil {
+			if saveErr := store.Save(sessionID, s); saveErr != nil {
 				return fmt.Errorf("saving session: %w", saveErr)
 			}
 

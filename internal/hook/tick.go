@@ -22,6 +22,11 @@ import (
 // It reads stdin, determines project state, and writes context output.
 // It always succeeds (errors become warning text) to maintain fail-open behavior.
 func HandleTick(agent string, global bool, stdin io.Reader, stdout io.Writer, projectRoot string, sessionBaseDir string) error {
+	return HandleTickWithSessionStore(agent, global, stdin, stdout, projectRoot, session.NewFileStore(sessionBaseDir))
+}
+
+// HandleTickWithSessionStore orchestrates the tick command logic using store.
+func HandleTickWithSessionStore(agent string, global bool, stdin io.Reader, stdout io.Writer, projectRoot string, store session.Store) error {
 	input, err := ParseInput(stdin, agent)
 	if err != nil {
 		writeTickWarning(stdout, "could not parse hook input: %v", err)
@@ -74,7 +79,7 @@ func HandleTick(agent string, global bool, stdin io.Reader, stdout io.Writer, pr
 		return nil
 	}
 
-	sess, err := session.LoadSession(sessionBaseDir, input.SessionID)
+	sess, err := store.Load(input.SessionID)
 	if err != nil {
 		if !errors.Is(err, fs.ErrNotExist) {
 			writeTickWarning(stdout, "could not load session state: %v", err)
@@ -83,7 +88,7 @@ func HandleTick(agent string, global bool, stdin io.Reader, stdout io.Writer, pr
 		sess = &session.Session{}
 	}
 
-	firstTick := session.IsFirstTick(sessionBaseDir, input.SessionID)
+	firstTick := session.IsFirstTickWithStore(store, input.SessionID)
 
 	var (
 		output             string
@@ -104,7 +109,7 @@ func HandleTick(agent string, global bool, stdin io.Reader, stdout io.Writer, pr
 	}
 
 	session.UpdateLastTick(sess, snapshotPipelineID, snapshotJobID, time.Now())
-	if err := session.SaveSession(sessionBaseDir, input.SessionID, sess); err != nil {
+	if err := store.Save(input.SessionID, sess); err != nil {
 		writeTickWarning(stdout, "could not save session state: %v", err)
 		return nil
 	}
