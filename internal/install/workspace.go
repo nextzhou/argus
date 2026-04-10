@@ -245,7 +245,7 @@ func uninstallGlobalSkills(homeDir string, tracker *mutationTracker) error {
 
 // GlobalSkillNames returns the built-in skills that are safe for global distribution.
 func GlobalSkillNames() []string {
-	return []string{"argus-intro", "argus-install", "argus-uninstall", "argus-doctor"}
+	return []string{"argus-configure-invariant", "argus-configure-workflow", "argus-doctor", "argus-install", "argus-intro", "argus-uninstall"}
 }
 
 // GlobalSkillPaths returns the global Agent skill directories Argus manages.
