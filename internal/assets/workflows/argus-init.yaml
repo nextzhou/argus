@@ -14,7 +14,9 @@ jobs:
     prompt: "Ensure .gitignore includes the Argus temporary paths .argus/pipelines/, .argus/logs/, and .argus/tmp/."
 
   - id: generate_workflows
+    skill: argus-configure-workflow
     prompt: "Generate workflow files suited to this project under .argus/workflows/. When finished, run argus toolbox touch-timestamp .argus/data/init_workflows_generated."
 
   - id: generate_invariant_examples
+    skill: argus-configure-invariant
     prompt: "Create 1-2 custom invariant examples for this project under .argus/invariants/."
