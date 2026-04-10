@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/nextzhou/argus/internal/core"
 	"github.com/nextzhou/argus/internal/install"
 	workspacecfg "github.com/nextzhou/argus/internal/workspace"
 	"github.com/stretchr/testify/assert"
@@ -118,6 +119,9 @@ func assertGlobalSkillState(t *testing.T, wantPresent bool) {
 }
 
 func TestWorkspaceLifecycle_Complete(t *testing.T) {
+	// Remove stale session file from previous test runs so IsFirstTick returns true
+	// and session_start invariants fire correctly.
+	_ = os.Remove(filepath.Join("/tmp/argus", core.SessionIDToSafeID("test-session")+".yaml"))
 	homeDir := t.TempDir()
 	t.Setenv("HOME", homeDir)
 

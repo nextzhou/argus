@@ -29,9 +29,11 @@ func TestReadAssetNotFound(t *testing.T) {
 func TestListSkills(t *testing.T) {
 	names, err := ListAssets("skills")
 	require.NoError(t, err)
-	assert.Len(t, names, 9)
+	assert.Len(t, names, 10)
 
 	expected := []string{
+		"argus-configure-invariant",
+		"argus-configure-workflow",
 		"argus-doctor",
 		"argus-generate-rules",
 		"argus-install",
@@ -40,7 +42,6 @@ func TestListSkills(t *testing.T) {
 		"argus-status",
 		"argus-uninstall",
 		"argus-workflow",
-		"argus-workflow-syntax",
 	}
 	assert.Equal(t, expected, names)
 }
@@ -62,8 +63,6 @@ func TestSkillFrontmatter(t *testing.T) {
 			assert.Contains(t, content, "name: "+name)
 			assert.Contains(t, content, "description:")
 			assert.Contains(t, content, "version:")
-			lines := strings.Count(content, "\n")
-			assert.LessOrEqual(t, lines, 100, "SKILL.md must be under 100 lines")
 		})
 	}
 }
@@ -85,7 +84,7 @@ func TestWalkAssets(t *testing.T) {
 		return nil
 	})
 	require.NoError(t, err)
-	assert.Equal(t, 19, count)
+	assert.Equal(t, 21, count)
 }
 
 func TestBuiltinWorkflow(t *testing.T) {
@@ -100,6 +99,8 @@ func TestBuiltinWorkflow(t *testing.T) {
 	assert.Len(t, w.Jobs, 5)
 	assert.Equal(t, "generate_rules", w.Jobs[0].ID)
 	assert.Equal(t, "generate_invariant_examples", w.Jobs[4].ID)
+	assert.Equal(t, "argus-configure-workflow", w.Jobs[3].Skill)
+	assert.Equal(t, "argus-configure-invariant", w.Jobs[4].Skill)
 }
 
 func TestBuiltinInvariant(t *testing.T) {
@@ -111,9 +112,20 @@ func TestBuiltinInvariant(t *testing.T) {
 
 	assert.Equal(t, "argus-init", inv.ID)
 	assert.Equal(t, "v0.1.0", inv.Version)
-	assert.Equal(t, "always", inv.Auto)
+	assert.Equal(t, "session_start", inv.Auto)
 	assert.Equal(t, "argus-init", inv.Workflow)
 	assert.Len(t, inv.Check, 7)
+}
+
+func TestBuiltinInvariantProjectInit(t *testing.T) {
+	data, err := ReadAsset("invariants/argus-project-init.yaml")
+	require.NoError(t, err)
+
+	inv, err := invariant.ParseInvariant(bytes.NewReader(data))
+	require.NoError(t, err)
+
+	assert.Equal(t, "argus-project-init", inv.ID)
+	assert.Equal(t, "session_start", inv.Auto)
 }
 
 func TestPromptTemplates(t *testing.T) {

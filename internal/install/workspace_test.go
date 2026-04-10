@@ -223,12 +223,12 @@ func TestInstallGlobalSkills(t *testing.T) {
 		assert.True(t, os.IsNotExist(err))
 	}
 
-	assert.Equal(t, 12, countSkillMarkdownFiles(t, GlobalSkillPaths()))
+	assert.Equal(t, 18, countSkillMarkdownFiles(t, GlobalSkillPaths()))
 }
 
 func TestGlobalSkillNames(t *testing.T) {
 	assert.True(t, slices.Equal(
-		[]string{"argus-intro", "argus-install", "argus-uninstall", "argus-doctor"},
+		[]string{"argus-configure-invariant", "argus-configure-workflow", "argus-doctor", "argus-install", "argus-intro", "argus-uninstall"},
 		GlobalSkillNames(),
 	))
 }

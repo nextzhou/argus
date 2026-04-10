@@ -123,7 +123,7 @@ func TestInstallLifecycle(t *testing.T) {
 
 	skillEntries, err := os.ReadDir(filepath.Join(".agents", "skills"))
 	require.NoError(t, err)
-	assert.Len(t, skillEntries, 9, "should have 9 argus-* skill directories")
+	assert.Len(t, skillEntries, 10, "should have 10 argus-* skill directories")
 
 	for _, skillPath := range install.SkillPaths() {
 		_, err = os.Stat(filepath.Join(skillPath, "argus-doctor", "SKILL.md"))
