@@ -1,7 +1,7 @@
 version: v0.1.0
 id: argus-init
 description: "The project has completed Argus initialization"
-auto: always
+auto: session_start
 
 check:
   - shell: 'test -d .argus/rules && test "$(ls .argus/rules/)"'

@@ -1,7 +1,7 @@
 version: v0.1.0
 id: argus-project-init
 description: "Project has Argus installed"
-auto: always
+auto: session_start
 
 check:
   - shell: "test -d .argus"
