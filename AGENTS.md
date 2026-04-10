@@ -282,6 +282,7 @@ The following patterns emerged from the test coverage backfill effort and should
 - **Untestable patterns to avoid**: Functions reading from `os.Stdin` directly are difficult to test; use an `io.Reader` parameter or `cmd.InOrStdin()` instead. Similarly, cobra commands using `Run` with `os.Exit` cannot be tested for error paths; use `RunE` for all new commands to allow returning errors to the test runner.
 - **Test directory context**: Tests in `internal/hook/` typically use an explicit `projectRoot := t.TempDir()` and pass it to fixtures and functions. CLI tests in `cmd/argus/` prefer `t.Chdir(t.TempDir())` to establish an implicit directory context for the duration of the test.
 - **t.Parallel() prohibition**: In addition to sequence tests, any test using the `os.Pipe` pattern to capture `os.Stdout` MUST NOT call `t.Parallel()`, as `os.Stdout` is a process-global resource.
+- **Session test hygiene**: In `cmd/argus`, same-process session tests should use `sessiontest.NewSessionID(...)` with `sessiontest.NewMemoryStore()`. In `tests/integration`, tests that hit the default session files should use the shared session ID and cleanup helpers. Keep explicit session literals only when the literal itself is the assertion target.
 
 ### Commit Convention
 

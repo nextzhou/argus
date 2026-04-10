@@ -1,6 +1,7 @@
 package integration
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -149,7 +150,8 @@ jobs:
 	result = runArgus(t, projectDir, "workflow", "start", "skip-test")
 	requireOK(t, result)
 
-	stdinJSON := `{"session_id":"sub-agent-test","agent_id":"worker-1"}`
+	sessionID := newDefaultSessionID(t, "error-sub-agent")
+	stdinJSON := fmt.Sprintf(`{"session_id":"%s","agent_id":"worker-1"}`, sessionID)
 	result = runArgusWithStdin(t, projectDir, stdinJSON, "tick", "--agent", "claude-code")
 	require.Equal(t, 0, result.ExitCode)
 	assert.Empty(t, result.Stdout, "sub-agent tick should produce no output")
@@ -218,7 +220,8 @@ func TestError_SnoozeNoActivePipeline(t *testing.T) {
 	result := runArgus(t, projectDir, "install", "--yes")
 	requireOK(t, result)
 
-	result = runArgus(t, projectDir, "workflow", "snooze", "--session", "test-session")
+	sessionID := newDefaultSessionID(t, "error-snooze-no-active")
+	result = runArgus(t, projectDir, "workflow", "snooze", "--session", sessionID)
 	requireError(t, result)
 }
 
