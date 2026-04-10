@@ -2,8 +2,6 @@ package workflow
 
 import (
 	"maps"
-	"os"
-	"os/exec"
 	"slices"
 	"strings"
 	"testing"
@@ -12,9 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestTemplateBuildContext(t *testing.T) {
-	t.Setenv("ARGUS_TEMPLATE_ENV", "from-env")
-
+func TestBuildContextWithRuntime(t *testing.T) {
 	workflowDef := &Workflow{
 		ID:          "release",
 		Description: "Release workflow",
@@ -25,10 +21,17 @@ func TestTemplateBuildContext(t *testing.T) {
 		},
 	}
 
-	wantRoot, err := os.Getwd()
-	require.NoError(t, err)
-
-	wantBranch := currentGitBranch(t)
+	runtime := templateRuntime{
+		env: func() map[string]string {
+			return map[string]string{"ARGUS_TEMPLATE_ENV": "from-env"}
+		},
+		gitBranch: func() string {
+			return "feat/test-branch"
+		},
+		projectRoot: func() string {
+			return "/tmp/project"
+		},
+	}
 
 	tests := []struct {
 		name              string
@@ -81,11 +84,21 @@ func TestTemplateBuildContext(t *testing.T) {
 			wantPreJobMessage: "tests passed",
 			wantCompletedJobs: []string{"prepare", "run_tests"},
 		},
+		{
+			name:              "invalid job index still returns runtime context",
+			jobIdx:            99,
+			jobs:              map[string]*PipelineJobData{},
+			wantJobID:         "",
+			wantJobIndex:      0,
+			wantPreJobID:      "",
+			wantPreJobMessage: "",
+			wantCompletedJobs: []string{},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := BuildContext(tt.jobs, workflowDef, tt.jobIdx)
+			ctx := buildContextWithRuntime(tt.jobs, workflowDef, tt.jobIdx, runtime)
 			require.NotNil(t, ctx)
 
 			assert.Equal(t, workflowDef.ID, ctx.Workflow.ID)
@@ -94,8 +107,8 @@ func TestTemplateBuildContext(t *testing.T) {
 			assert.Equal(t, tt.wantJobIndex, ctx.Job.Index)
 			assert.Equal(t, tt.wantPreJobID, ctx.PreJob.ID)
 			assert.Equal(t, tt.wantPreJobMessage, ctx.PreJob.Message)
-			assert.Equal(t, wantBranch, ctx.Git.Branch)
-			assert.Equal(t, wantRoot, ctx.Project.Root)
+			assert.Equal(t, "feat/test-branch", ctx.Git.Branch)
+			assert.Equal(t, "/tmp/project", ctx.Project.Root)
 			assert.Equal(t, "from-env", ctx.Env["ARGUS_TEMPLATE_ENV"])
 
 			completedJobs := slices.Sorted(maps.Keys(ctx.Jobs))
@@ -200,15 +213,6 @@ func TestTemplateRenderPrompt(t *testing.T) {
 			}
 		})
 	}
-}
-
-func currentGitBranch(t *testing.T) string {
-	t.Helper()
-
-	output, err := exec.Command("git", "rev-parse", "--abbrev-ref", "HEAD").Output()
-	require.NoError(t, err)
-
-	return strings.TrimSpace(string(output))
 }
 
 func strPtr(s string) *string {

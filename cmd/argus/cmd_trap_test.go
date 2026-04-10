@@ -1,9 +1,8 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
-	"io"
-	"os"
 	"strings"
 	"testing"
 
@@ -12,32 +11,22 @@ import (
 )
 
 // executeTrapCmd runs the trap command and captures stdout output.
-// Tests using this helper must NOT call t.Parallel since os.Stdout is redirected.
 func executeTrapCmd(t *testing.T, stdinJSON string, args ...string) ([]byte, error) {
 	t.Helper()
 
-	old := os.Stdout
-	r, w, err := os.Pipe()
-	require.NoError(t, err)
-	os.Stdout = w
+	var out bytes.Buffer
 
 	cmd := newTrapCmd()
 	cmd.SilenceErrors = true
 	cmd.SilenceUsage = true
+	cmd.SetOut(&out)
 	cmd.SetArgs(args)
 	if stdinJSON != "" {
 		cmd.SetIn(strings.NewReader(stdinJSON))
 	}
 	cmdErr := cmd.Execute()
 
-	require.NoError(t, w.Close())
-	os.Stdout = old
-
-	out, err := io.ReadAll(r)
-	require.NoError(t, err)
-	require.NoError(t, r.Close())
-
-	return out, cmdErr
+	return out.Bytes(), cmdErr
 }
 
 func TestTrapWithAgentAndStdin(t *testing.T) {

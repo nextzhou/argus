@@ -36,6 +36,23 @@ func executeJSONCommand(t *testing.T, cmd *cobra.Command, args ...string) ([]byt
 	return out.Bytes(), err
 }
 
+func executeJSONCommandWithInput(t *testing.T, cmd *cobra.Command, input io.Reader, args ...string) ([]byte, error) {
+	t.Helper()
+
+	var out bytes.Buffer
+	cmd.SilenceErrors = true
+	cmd.SilenceUsage = true
+	cmd.SetOut(&out)
+	cmd.SetErr(io.Discard)
+	if input != nil {
+		cmd.SetIn(input)
+	}
+	cmd.SetArgs(withJSONFlag(args...))
+
+	err := cmd.Execute()
+	return out.Bytes(), err
+}
+
 func executeTextCommand(t *testing.T, cmd *cobra.Command, args ...string) (string, string, error) {
 	t.Helper()
 
@@ -51,7 +68,7 @@ func executeTextCommand(t *testing.T, cmd *cobra.Command, args ...string) (strin
 	return out.String(), errOut.String(), err
 }
 
-func executeTextCommandWithInput(t *testing.T, cmd *cobra.Command, input *bytes.Buffer, args ...string) (string, string, error) {
+func executeTextCommandWithInput(t *testing.T, cmd *cobra.Command, input io.Reader, args ...string) (string, string, error) {
 	t.Helper()
 
 	var out bytes.Buffer
@@ -75,4 +92,12 @@ func requireJSONOutput(t *testing.T, output []byte) map[string]any {
 	var data map[string]any
 	require.NoError(t, json.Unmarshal(output, &data), "output should be valid JSON: %s", string(output))
 	return data
+}
+
+func mustJSONInput(t *testing.T, payload map[string]string) string {
+	t.Helper()
+
+	data, err := json.Marshal(payload)
+	require.NoError(t, err)
+	return string(data)
 }

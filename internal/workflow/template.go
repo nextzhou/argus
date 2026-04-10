@@ -12,6 +12,18 @@ import (
 
 var simplePlaceholderPattern = regexp.MustCompile(`{{-?\s*\.[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)*\s*-?}}`)
 
+type templateRuntime struct {
+	env         func() map[string]string
+	gitBranch   func() string
+	projectRoot func() string
+}
+
+var defaultTemplateRuntime = templateRuntime{
+	env:         buildEnvContext,
+	gitBranch:   gitBranch,
+	projectRoot: projectRoot,
+}
+
 // TemplateContext stores all prompt values available to template rendering.
 type TemplateContext struct {
 	Workflow TemplateWorkflowContext
@@ -66,14 +78,28 @@ type PipelineJobData struct {
 
 // BuildContext assembles the template context for the selected workflow job.
 func BuildContext(jobs map[string]*PipelineJobData, w *Workflow, jobIdx int) *TemplateContext {
+	return buildContextWithRuntime(jobs, w, jobIdx, defaultTemplateRuntime)
+}
+
+func buildContextWithRuntime(jobs map[string]*PipelineJobData, w *Workflow, jobIdx int, runtime templateRuntime) *TemplateContext {
+	if runtime.env == nil {
+		runtime.env = buildEnvContext
+	}
+	if runtime.gitBranch == nil {
+		runtime.gitBranch = gitBranch
+	}
+	if runtime.projectRoot == nil {
+		runtime.projectRoot = projectRoot
+	}
+
 	ctx := &TemplateContext{
-		Env:  buildEnvContext(),
+		Env:  runtime.env(),
 		Jobs: buildJobsContext(jobs),
 		Git: TemplateGitContext{
-			Branch: gitBranch(),
+			Branch: runtime.gitBranch(),
 		},
 		Project: TemplateProjectContext{
-			Root: projectRoot(),
+			Root: runtime.projectRoot(),
 		},
 	}
 

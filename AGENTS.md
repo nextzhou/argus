@@ -148,6 +148,7 @@ No `confirm` / `auto` fields. Write confirmation requirements directly in job pr
 - Record tradeoff analysis for important design decisions to guide future design and prevent drift.
 - To restore context quickly, read `AGENTS.md` first, then `docs/technical-overview.md`; read other `docs/technical-*.md` on demand.
 - When a function's correct usage depends on a specific call sequence (timing contract), document the sequence in the function's godoc comment. Callers should be able to understand usage constraints without reading architecture documents.
+- When behavior depends on time, environment variables, current directory, git state, or external command execution, prefer package-private runtime seams while keeping the public API stable. Tests should inject those seams instead of depending on wall-clock time or the caller's ambient environment.
 - When updating agent hook or plugin wrappers, verify behavior against the host agent's current runtime contract using the installed SDK or type definitions, runtime logs, and the actual installed hook artifact. Official docs and older templates may lag behind the host's real integration API.
 - If a reviewer (including automated review) misreads code and files a false positive, treat it as a signal that the code's intent is not clear enough. Add comments, rename symbols, or restructure to eliminate the ambiguity — even though the behavior is already correct.
 - When a local simplification conflicts with architectural consistency, prefer the design that preserves one reusable mechanism and artifact-driven policy. In this early stage, do not preserve bespoke behavior only because it already exists.
@@ -186,6 +187,10 @@ For every implementation task:
 - Test file naming: `foo_test.go` alongside `foo.go`
 - Use `testing` standard library for M0; `testify/assert` and `testify/require` from M1+
 - Test both happy path and error paths
+- For CLI commands, prefer `cmd.InOrStdin()` / `cmd.OutOrStdout()` over direct `os.Stdin` / `os.Stdout` access. If interactivity depends on TTY detection, detect TTY from the injected input stream rather than from process-global stdin.
+- For structured persisted state such as YAML or JSON, tests should assert by parsing the artifact into typed data rather than by substring matching on serialized text. String matching is acceptable only as a secondary check for human-facing output.
+- Integration test helpers must make output mode explicit. Do not hide command contracts behind helpers that infer flags such as `--json` from the command shape.
+- The default `go test ./...` baseline must not depend on optional third-party binaries being installed. Extra validation that shells out to external tools should be explicitly gated and must not be required for the default test suite.
 
 **Interface Design**:
 - Prefer small, single-method interfaces (Go interface segregation)

@@ -2,7 +2,6 @@ package main
 
 import (
 	"io"
-	"os"
 
 	"github.com/nextzhou/argus/internal/core"
 	"github.com/spf13/cobra"
@@ -36,7 +35,7 @@ func newTrapCmd() *cobra.Command {
 				},
 			}
 
-			core.WriteJSON(os.Stdout, output)
+			core.WriteJSON(cmd.OutOrStdout(), output)
 			return nil
 		},
 	}

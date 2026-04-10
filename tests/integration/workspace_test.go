@@ -21,7 +21,7 @@ func TestWorkspace_CompleteLifecycle(t *testing.T) {
 	require.NoError(t, os.MkdirAll(projectDir, 0o755))
 	require.NoError(t, os.MkdirAll(filepath.Join(projectDir, ".git"), 0o755))
 
-	result := runArgus(t, projectDir, "install", "--workspace", workspaceDir, "--yes")
+	result := runArgusJSON(t, projectDir, "install", "--workspace", workspaceDir, "--yes")
 	data := requireOK(t, result)
 	assert.Equal(t, "~/work", data["path"])
 
@@ -46,7 +46,7 @@ func TestWorkspace_CompleteLifecycle(t *testing.T) {
 	require.Equal(t, 0, result.ExitCode)
 	assert.Contains(t, result.Stdout, "argus install")
 
-	result = runArgus(t, projectDir, "install", "--yes")
+	result = runArgusJSON(t, projectDir, "install", "--yes")
 	requireOK(t, result)
 	require.True(t, fileExists(t, filepath.Join(projectDir, ".argus")))
 
@@ -60,7 +60,7 @@ jobs:
   - id: step_one
     prompt: "Do step one"
 `)
-	result = runArgus(t, projectDir, "workflow", "start", "ws-test")
+	result = runArgusJSON(t, projectDir, "workflow", "start", "ws-test")
 	requireOK(t, result)
 
 	stdinJSON = fmt.Sprintf(`{"session_id":"%s","cwd":"%s"}`, sessionID, projectDir)
@@ -68,7 +68,7 @@ jobs:
 	require.Equal(t, 0, result.ExitCode)
 	assert.Contains(t, result.Stdout, "step_one")
 
-	result = runArgus(t, projectDir, "uninstall", "--workspace", workspaceDir, "--yes")
+	result = runArgusJSON(t, projectDir, "uninstall", "--workspace", workspaceDir, "--yes")
 	requireOK(t, result)
 
 	uninitProjectDir := filepath.Join(workspaceDir, "otherproject")
@@ -87,7 +87,7 @@ func TestWorkspace_NonGitDirSkip(t *testing.T) {
 	nonGitDir := filepath.Join(workspaceDir, "not-a-repo")
 	require.NoError(t, os.MkdirAll(nonGitDir, 0o755))
 
-	result := runArgus(t, nonGitDir, "install", "--workspace", workspaceDir, "--yes")
+	result := runArgusJSON(t, nonGitDir, "install", "--workspace", workspaceDir, "--yes")
 	requireOK(t, result)
 
 	sessionID := newDefaultSessionID(t, "non-git")
@@ -106,7 +106,7 @@ func TestWorkspace_OutsideWorkspace(t *testing.T) {
 	require.NoError(t, os.MkdirAll(workspaceDir, 0o755))
 	require.NoError(t, os.MkdirAll(filepath.Join(outsideDir, ".git"), 0o755))
 
-	result := runArgus(t, outsideDir, "install", "--workspace", workspaceDir, "--yes")
+	result := runArgusJSON(t, outsideDir, "install", "--workspace", workspaceDir, "--yes")
 	requireOK(t, result)
 
 	sessionID := newDefaultSessionID(t, "outside-workspace")
@@ -125,10 +125,10 @@ func TestWorkspace_MultiWorkspace(t *testing.T) {
 	require.NoError(t, os.MkdirAll(wsAlpha, 0o755))
 	require.NoError(t, os.MkdirAll(wsBeta, 0o755))
 
-	result := runArgus(t, homeDir, "install", "--workspace", wsAlpha, "--yes")
+	result := runArgusJSON(t, homeDir, "install", "--workspace", wsAlpha, "--yes")
 	requireOK(t, result)
 
-	result = runArgus(t, homeDir, "install", "--workspace", wsBeta, "--yes")
+	result = runArgusJSON(t, homeDir, "install", "--workspace", wsBeta, "--yes")
 	requireOK(t, result)
 
 	globalSettingsPath := filepath.Join(homeDir, ".claude", "settings.json")
@@ -137,7 +137,7 @@ func TestWorkspace_MultiWorkspace(t *testing.T) {
 		assert.True(t, fileExists(t, skillPath), "%s should exist after two workspace registrations", skillPath)
 	}
 
-	result = runArgus(t, homeDir, "uninstall", "--workspace", wsAlpha, "--yes")
+	result = runArgusJSON(t, homeDir, "uninstall", "--workspace", wsAlpha, "--yes")
 	requireOK(t, result)
 
 	if fileExists(t, globalSettingsPath) {
@@ -152,7 +152,7 @@ func TestWorkspace_MultiWorkspace(t *testing.T) {
 			"%s should still exist with remaining workspace", skillPath)
 	}
 
-	result = runArgus(t, homeDir, "uninstall", "--workspace", wsBeta, "--yes")
+	result = runArgusJSON(t, homeDir, "uninstall", "--workspace", wsBeta, "--yes")
 	requireOK(t, result)
 
 	for _, skillName := range []string{"argus-intro", "argus-install", "argus-uninstall", "argus-doctor"} {
@@ -166,8 +166,9 @@ func TestWorkspace_UninstallNotRegistered(t *testing.T) {
 	homeDir := resolveSymlinks(t, t.TempDir())
 	t.Setenv("HOME", homeDir)
 
-	result := runArgus(t, homeDir, "uninstall", "--workspace", "/nonexistent/path")
-	assert.NotEqual(t, 0, result.ExitCode)
+	result := runArgusJSON(t, homeDir, "uninstall", "--workspace", "/nonexistent/path")
+	data := requireError(t, result)
+	assert.Contains(t, data["message"].(string), "not registered")
 }
 
 func TestWorkspace_DuplicateRegistration(t *testing.T) {
@@ -177,10 +178,10 @@ func TestWorkspace_DuplicateRegistration(t *testing.T) {
 	workspaceDir := filepath.Join(homeDir, "work")
 	require.NoError(t, os.MkdirAll(workspaceDir, 0o755))
 
-	result := runArgus(t, homeDir, "install", "--workspace", workspaceDir, "--yes")
+	result := runArgusJSON(t, homeDir, "install", "--workspace", workspaceDir, "--yes")
 	requireOK(t, result)
 
-	result = runArgus(t, homeDir, "install", "--workspace", workspaceDir, "--yes")
+	result = runArgusJSON(t, homeDir, "install", "--workspace", workspaceDir, "--yes")
 	requireOK(t, result)
 
 	configPath := filepath.Join(homeDir, ".config", "argus", "config.yaml")
@@ -196,11 +197,11 @@ func TestWorkspace_PathNormalization(t *testing.T) {
 	workspaceDir := filepath.Join(homeDir, "work")
 	require.NoError(t, os.MkdirAll(workspaceDir, 0o755))
 
-	result := runArgus(t, homeDir, "install", "--workspace", workspaceDir, "--yes")
+	result := runArgusJSON(t, homeDir, "install", "--workspace", workspaceDir, "--yes")
 	data := requireOK(t, result)
 	assert.Equal(t, "~/work", data["path"])
 
-	result = runArgus(t, homeDir, "uninstall", "--workspace", workspaceDir, "--yes")
+	result = runArgusJSON(t, homeDir, "uninstall", "--workspace", workspaceDir, "--yes")
 	requireOK(t, result)
 }
 
@@ -213,7 +214,7 @@ func TestWorkspace_GlobalTickGuidesMention(t *testing.T) {
 	projectDir := filepath.Join(workspaceDir, "guide-project")
 	require.NoError(t, os.MkdirAll(filepath.Join(projectDir, ".git"), 0o755))
 
-	result := runArgus(t, homeDir, "install", "--workspace", workspaceDir, "--yes")
+	result := runArgusJSON(t, homeDir, "install", "--workspace", workspaceDir, "--yes")
 	requireOK(t, result)
 
 	stdinJSON := fmt.Sprintf(`{"session_id":"%s","cwd":"%s"}`, sessionID, projectDir)
@@ -235,7 +236,7 @@ func TestWorkspace_SubAgentSkipGlobalTick(t *testing.T) {
 	projectDir := filepath.Join(workspaceDir, "sub-agent-project")
 	require.NoError(t, os.MkdirAll(filepath.Join(projectDir, ".git"), 0o755))
 
-	result := runArgus(t, homeDir, "install", "--workspace", workspaceDir, "--yes")
+	result := runArgusJSON(t, homeDir, "install", "--workspace", workspaceDir, "--yes")
 	requireOK(t, result)
 
 	sessionID := newDefaultSessionID(t, "sub-agent-global")
@@ -249,6 +250,7 @@ func TestWorkspace_InstallBadPath(t *testing.T) {
 	homeDir := resolveSymlinks(t, t.TempDir())
 	t.Setenv("HOME", homeDir)
 
-	result := runArgus(t, homeDir, "install", "--workspace", "/nonexistent/workspace/path")
-	assert.NotEqual(t, 0, result.ExitCode)
+	result := runArgusJSON(t, homeDir, "install", "--workspace", "/nonexistent/workspace/path")
+	data := requireError(t, result)
+	assert.Contains(t, data["message"].(string), "does not exist")
 }

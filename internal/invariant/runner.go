@@ -22,6 +22,22 @@ const (
 	outputCap   = 8 * 1024
 )
 
+type checkRuntime struct {
+	now         func() time.Time
+	stepTimeout time.Duration
+	slowCheckAt time.Duration
+	runStep     func(ctx context.Context, script string, projectRoot string) (string, string)
+}
+
+var defaultCheckRuntime = checkRuntime{
+	now:         time.Now,
+	stepTimeout: stepTimeout,
+	slowCheckAt: slowCheckAt,
+	runStep: func(ctx context.Context, script string, projectRoot string) (string, string) {
+		return runStep(ctx, script, projectRoot, stepTimeout)
+	},
+}
+
 // StepResult records the outcome of a single invariant shell check step.
 type StepResult struct {
 	Description string
@@ -41,6 +57,25 @@ type CheckResult struct {
 
 // RunCheck executes invariant check steps sequentially using bash.
 func RunCheck(ctx context.Context, inv *Invariant, projectRoot string) *CheckResult {
+	return runCheckWithRuntime(ctx, inv, projectRoot, defaultCheckRuntime)
+}
+
+func runCheckWithRuntime(ctx context.Context, inv *Invariant, projectRoot string, runtime checkRuntime) *CheckResult {
+	if runtime.now == nil {
+		runtime.now = time.Now
+	}
+	if runtime.stepTimeout == 0 {
+		runtime.stepTimeout = stepTimeout
+	}
+	if runtime.slowCheckAt == 0 {
+		runtime.slowCheckAt = slowCheckAt
+	}
+	if runtime.runStep == nil {
+		runtime.runStep = func(ctx context.Context, script string, projectRoot string) (string, string) {
+			return runStep(ctx, script, projectRoot, runtime.stepTimeout)
+		}
+	}
+
 	result := &CheckResult{Passed: true}
 	if inv == nil {
 		return result
@@ -54,7 +89,7 @@ func RunCheck(ctx context.Context, inv *Invariant, projectRoot string) *CheckRes
 		absProjectRoot = projectRoot
 	}
 
-	startedAt := time.Now()
+	startedAt := runtime.now()
 	skipRemaining := false
 
 	for _, step := range inv.Check {
@@ -66,10 +101,10 @@ func RunCheck(ctx context.Context, inv *Invariant, projectRoot string) *CheckRes
 			continue
 		}
 
-		stepCtx, cancel := context.WithTimeout(ctx, stepTimeout)
-		stepStartedAt := time.Now()
-		output, status := runStep(stepCtx, step.Shell, absProjectRoot)
-		stepResult.Duration = time.Since(stepStartedAt)
+		stepCtx, cancel := context.WithTimeout(ctx, runtime.stepTimeout)
+		stepStartedAt := runtime.now()
+		output, status := runtime.runStep(stepCtx, step.Shell, absProjectRoot)
+		stepResult.Duration = runtime.now().Sub(stepStartedAt)
 		cancel()
 
 		stepResult.Status = status
@@ -82,12 +117,12 @@ func RunCheck(ctx context.Context, inv *Invariant, projectRoot string) *CheckRes
 		}
 	}
 
-	result.TotalTime = time.Since(startedAt)
-	result.SlowCheck = result.TotalTime > slowCheckAt
+	result.TotalTime = runtime.now().Sub(startedAt)
+	result.SlowCheck = result.TotalTime > runtime.slowCheckAt
 	return result
 }
 
-func runStep(ctx context.Context, script string, projectRoot string) (string, string) {
+func runStep(ctx context.Context, script string, projectRoot string, timeout time.Duration) (string, string) {
 	cmd := exec.CommandContext(ctx, "/usr/bin/env", "bash", "-c", script)
 	cmd.Dir = projectRoot
 	cmd.Env = append(os.Environ(), "ARGUS_PROJECT_ROOT="+projectRoot)
@@ -101,15 +136,15 @@ func runStep(ctx context.Context, script string, projectRoot string) (string, st
 		return "", stepStatusPass
 	}
 
-	return buildFailureOutput(ctx, output.String(), err), stepStatusFail
+	return buildFailureOutput(ctx, output.String(), err, timeout), stepStatusFail
 }
 
-func buildFailureOutput(ctx context.Context, output string, err error) string {
+func buildFailureOutput(ctx context.Context, output string, err error, timeout time.Duration) string {
 	trimmedOutput := strings.TrimSpace(output)
 
 	switch {
 	case errors.Is(ctx.Err(), context.DeadlineExceeded):
-		return appendDiagnostic(trimmedOutput, fmt.Sprintf("command timeout after %s", stepTimeout))
+		return appendDiagnostic(trimmedOutput, fmt.Sprintf("command timeout after %s", timeout))
 	case errors.Is(ctx.Err(), context.Canceled):
 		return appendDiagnostic(trimmedOutput, fmt.Sprintf("command canceled: %v", ctx.Err()))
 	default:

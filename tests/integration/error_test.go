@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -16,10 +17,10 @@ func TestError_WorkflowNotFound(t *testing.T) {
 
 	projectDir := setupGitRepo(t)
 
-	result := runArgus(t, projectDir, "install", "--yes")
+	result := runArgusJSON(t, projectDir, "install", "--yes")
 	requireOK(t, result)
 
-	result = runArgus(t, projectDir, "workflow", "start", "nonexistent")
+	result = runArgusJSON(t, projectDir, "workflow", "start", "nonexistent")
 	data := requireError(t, result)
 	assert.Contains(t, data["message"].(string), "nonexistent")
 }
@@ -30,7 +31,7 @@ func TestError_DuplicateWorkflowStart(t *testing.T) {
 
 	projectDir := setupGitRepo(t)
 
-	result := runArgus(t, projectDir, "install", "--yes")
+	result := runArgusJSON(t, projectDir, "install", "--yes")
 	requireOK(t, result)
 
 	writeFile(t, projectDir, ".argus/workflows/dup-test.yaml", `version: v0.1.0
@@ -40,10 +41,10 @@ jobs:
     prompt: "Do step one"
 `)
 
-	result = runArgus(t, projectDir, "workflow", "start", "dup-test")
+	result = runArgusJSON(t, projectDir, "workflow", "start", "dup-test")
 	requireOK(t, result)
 
-	result = runArgus(t, projectDir, "workflow", "start", "dup-test")
+	result = runArgusJSON(t, projectDir, "workflow", "start", "dup-test")
 	requireError(t, result)
 }
 
@@ -53,10 +54,10 @@ func TestError_JobDoneNoActivePipeline(t *testing.T) {
 
 	projectDir := setupGitRepo(t)
 
-	result := runArgus(t, projectDir, "install", "--yes")
+	result := runArgusJSON(t, projectDir, "install", "--yes")
 	requireOK(t, result)
 
-	result = runArgus(t, projectDir, "job-done")
+	result = runArgusJSON(t, projectDir, "job-done")
 	requireError(t, result)
 }
 
@@ -66,10 +67,10 @@ func TestError_CancelNoActivePipeline(t *testing.T) {
 
 	projectDir := setupGitRepo(t)
 
-	result := runArgus(t, projectDir, "install", "--yes")
+	result := runArgusJSON(t, projectDir, "install", "--yes")
 	requireOK(t, result)
 
-	result = runArgus(t, projectDir, "workflow", "cancel")
+	result = runArgusJSON(t, projectDir, "workflow", "cancel")
 	requireError(t, result)
 }
 
@@ -79,11 +80,12 @@ func TestError_InvalidWorkflowID(t *testing.T) {
 
 	projectDir := setupGitRepo(t)
 
-	result := runArgus(t, projectDir, "install", "--yes")
+	result := runArgusJSON(t, projectDir, "install", "--yes")
 	requireOK(t, result)
 
-	result = runArgus(t, projectDir, "workflow", "start", "../etc/passwd")
-	assert.NotEqual(t, 0, result.ExitCode)
+	result = runArgusJSON(t, projectDir, "workflow", "start", "../etc/passwd")
+	data := requireError(t, result)
+	assert.Contains(t, data["message"].(string), "workflow ID")
 }
 
 func TestError_CorruptYAMLWorkflowInspect(t *testing.T) {
@@ -92,12 +94,12 @@ func TestError_CorruptYAMLWorkflowInspect(t *testing.T) {
 
 	projectDir := setupGitRepo(t)
 
-	result := runArgus(t, projectDir, "install", "--yes")
+	result := runArgusJSON(t, projectDir, "install", "--yes")
 	requireOK(t, result)
 
 	writeFile(t, projectDir, ".argus/workflows/corrupt.yaml", `{{{invalid yaml`)
 
-	result = runArgus(t, projectDir, "workflow", "inspect")
+	result = runArgusJSON(t, projectDir, "workflow", "inspect")
 	require.Equal(t, 0, result.ExitCode, "inspect should not crash on corrupt YAML")
 	data := parseJSON(t, result.Stdout)
 	assert.Equal(t, false, data["valid"])
@@ -109,12 +111,12 @@ func TestError_CorruptYAMLInvariantInspect(t *testing.T) {
 
 	projectDir := setupGitRepo(t)
 
-	result := runArgus(t, projectDir, "install", "--yes")
+	result := runArgusJSON(t, projectDir, "install", "--yes")
 	requireOK(t, result)
 
 	writeFile(t, projectDir, ".argus/invariants/corrupt.yaml", `not: [valid: yaml: {{`)
 
-	result = runArgus(t, projectDir, "invariant", "inspect")
+	result = runArgusJSON(t, projectDir, "invariant", "inspect")
 	require.Equal(t, 0, result.ExitCode, "inspect should not crash on corrupt YAML")
 	data := parseJSON(t, result.Stdout)
 	assert.Equal(t, false, data["valid"])
@@ -137,7 +139,7 @@ func TestError_TickSubAgentSkip(t *testing.T) {
 
 	projectDir := setupGitRepo(t)
 
-	result := runArgus(t, projectDir, "install", "--yes")
+	result := runArgusJSON(t, projectDir, "install", "--yes")
 	requireOK(t, result)
 
 	writeFile(t, projectDir, ".argus/workflows/skip-test.yaml", `version: v0.1.0
@@ -147,7 +149,7 @@ jobs:
     prompt: "Do it"
 `)
 
-	result = runArgus(t, projectDir, "workflow", "start", "skip-test")
+	result = runArgusJSON(t, projectDir, "workflow", "start", "skip-test")
 	requireOK(t, result)
 
 	sessionID := newDefaultSessionID(t, "error-sub-agent")
@@ -197,8 +199,9 @@ func TestError_UninstallNotInstalled(t *testing.T) {
 
 	projectDir := setupGitRepo(t)
 
-	result := runArgus(t, projectDir, "uninstall", "--yes")
-	assert.NotEqual(t, 0, result.ExitCode)
+	result := runArgusJSON(t, projectDir, "uninstall", "--yes")
+	data := requireError(t, result)
+	assert.Contains(t, data["message"].(string), "no Argus installation found")
 }
 
 func TestError_InstallNonGitDirectory(t *testing.T) {
@@ -207,8 +210,9 @@ func TestError_InstallNonGitDirectory(t *testing.T) {
 
 	nonGitDir := t.TempDir()
 
-	result := runArgus(t, nonGitDir, "install", "--yes")
-	assert.NotEqual(t, 0, result.ExitCode)
+	result := runArgusJSON(t, nonGitDir, "install", "--yes")
+	data := requireError(t, result)
+	assert.Contains(t, strings.ToLower(data["message"].(string)), "git")
 }
 
 func TestError_SnoozeNoActivePipeline(t *testing.T) {
@@ -217,11 +221,11 @@ func TestError_SnoozeNoActivePipeline(t *testing.T) {
 
 	projectDir := setupGitRepo(t)
 
-	result := runArgus(t, projectDir, "install", "--yes")
+	result := runArgusJSON(t, projectDir, "install", "--yes")
 	requireOK(t, result)
 
 	sessionID := newDefaultSessionID(t, "error-snooze-no-active")
-	result = runArgus(t, projectDir, "workflow", "snooze", "--session", sessionID)
+	result = runArgusJSON(t, projectDir, "workflow", "snooze", "--session", sessionID)
 	requireError(t, result)
 }
 
@@ -231,7 +235,7 @@ func TestError_RecoverAfterError(t *testing.T) {
 
 	projectDir := setupGitRepo(t)
 
-	result := runArgus(t, projectDir, "install", "--yes")
+	result := runArgusJSON(t, projectDir, "install", "--yes")
 	requireOK(t, result)
 
 	writeFile(t, projectDir, ".argus/workflows/recover-test.yaml", `version: v0.1.0
@@ -241,14 +245,14 @@ jobs:
     prompt: "Do it"
 `)
 
-	result = runArgus(t, projectDir, "workflow", "start", "recover-test")
+	result = runArgusJSON(t, projectDir, "workflow", "start", "recover-test")
 	requireOK(t, result)
 
-	result = runArgus(t, projectDir, "job-done", "--fail", "--message", "oops")
+	result = runArgusJSON(t, projectDir, "job-done", "--fail", "--message", "oops")
 	data := requireOK(t, result)
 	assert.Equal(t, "failed", data["pipeline_status"])
 
-	result = runArgus(t, projectDir, "workflow", "start", "recover-test")
+	result = runArgusJSON(t, projectDir, "workflow", "start", "recover-test")
 	data = requireOK(t, result)
 	assert.Equal(t, "running", data["pipeline_status"])
 	assert.Equal(t, "1/1", data["progress"])
@@ -260,16 +264,12 @@ func TestError_ErrorEnvelopeFormat(t *testing.T) {
 
 	projectDir := setupGitRepo(t)
 
-	result := runArgus(t, projectDir, "install", "--yes")
+	result := runArgusJSON(t, projectDir, "install", "--yes")
 	requireOK(t, result)
 
-	result = runArgus(t, projectDir, "workflow", "start", "does-not-exist")
-	assert.NotEqual(t, 0, result.ExitCode)
-
-	data := parseJSON(t, result.Stdout)
-	assert.Equal(t, "error", data["status"])
-	_, hasMessage := data["message"]
-	assert.True(t, hasMessage, "error envelope must contain 'message' field")
+	result = runArgusJSON(t, projectDir, "workflow", "start", "does-not-exist")
+	data := requireError(t, result)
+	assert.Contains(t, data["message"].(string), "does-not-exist")
 }
 
 func TestError_InvariantCheckNotFound(t *testing.T) {
@@ -278,11 +278,12 @@ func TestError_InvariantCheckNotFound(t *testing.T) {
 
 	projectDir := setupGitRepo(t)
 
-	result := runArgus(t, projectDir, "install", "--yes")
+	result := runArgusJSON(t, projectDir, "install", "--yes")
 	requireOK(t, result)
 
-	result = runArgus(t, projectDir, "invariant", "check", "nonexistent-inv")
-	assert.NotEqual(t, 0, result.ExitCode)
+	result = runArgusJSON(t, projectDir, "invariant", "check", "nonexistent-inv")
+	data := requireError(t, result)
+	assert.Contains(t, data["message"].(string), "invariant not found")
 }
 
 func TestError_WorkflowMissingFile(t *testing.T) {
@@ -291,7 +292,7 @@ func TestError_WorkflowMissingFile(t *testing.T) {
 
 	projectDir := setupGitRepo(t)
 
-	result := runArgus(t, projectDir, "install", "--yes")
+	result := runArgusJSON(t, projectDir, "install", "--yes")
 	requireOK(t, result)
 
 	writeFile(t, projectDir, ".argus/workflows/missing-ref.yaml", `version: v0.1.0
@@ -300,8 +301,9 @@ jobs:
   - ref: nonexistent_shared_job
 `)
 
-	result = runArgus(t, projectDir, "workflow", "start", "missing-ref")
-	assert.NotEqual(t, 0, result.ExitCode)
+	result = runArgusJSON(t, projectDir, "workflow", "start", "missing-ref")
+	data := requireError(t, result)
+	assert.Contains(t, data["message"].(string), "loading shared definitions")
 }
 
 func TestError_JobDoneAfterPipelineCompleted(t *testing.T) {
@@ -310,7 +312,7 @@ func TestError_JobDoneAfterPipelineCompleted(t *testing.T) {
 
 	projectDir := setupGitRepo(t)
 
-	result := runArgus(t, projectDir, "install", "--yes")
+	result := runArgusJSON(t, projectDir, "install", "--yes")
 	requireOK(t, result)
 
 	writeFile(t, projectDir, ".argus/workflows/done-test.yaml", `version: v0.1.0
@@ -320,14 +322,14 @@ jobs:
     prompt: "Do the thing"
 `)
 
-	result = runArgus(t, projectDir, "workflow", "start", "done-test")
+	result = runArgusJSON(t, projectDir, "workflow", "start", "done-test")
 	requireOK(t, result)
 
-	result = runArgus(t, projectDir, "job-done", "--message", "completed")
+	result = runArgusJSON(t, projectDir, "job-done", "--message", "completed")
 	data := requireOK(t, result)
 	assert.Equal(t, "completed", data["pipeline_status"])
 
-	result = runArgus(t, projectDir, "job-done")
+	result = runArgusJSON(t, projectDir, "job-done")
 	requireError(t, result)
 }
 
@@ -356,7 +358,7 @@ func TestError_FailEndPipelineCombination(t *testing.T) {
 
 	projectDir := setupGitRepo(t)
 
-	result := runArgus(t, projectDir, "install", "--yes")
+	result := runArgusJSON(t, projectDir, "install", "--yes")
 	requireOK(t, result)
 
 	writeFile(t, projectDir, ".argus/workflows/combo-test.yaml", `version: v0.1.0
@@ -368,14 +370,14 @@ jobs:
     prompt: "Do more"
 `)
 
-	result = runArgus(t, projectDir, "workflow", "start", "combo-test")
+	result = runArgusJSON(t, projectDir, "workflow", "start", "combo-test")
 	requireOK(t, result)
 
-	result = runArgus(t, projectDir, "job-done", "--fail", "--end-pipeline", "--message", "bad ending")
+	result = runArgusJSON(t, projectDir, "job-done", "--fail", "--end-pipeline", "--message", "bad ending")
 	data := requireOK(t, result)
 	assert.Equal(t, "failed", data["pipeline_status"])
 
-	result = runArgus(t, projectDir, "status")
+	result = runArgusJSON(t, projectDir, "status")
 	data = requireOK(t, result)
 	assert.Nil(t, data["pipeline"])
 }

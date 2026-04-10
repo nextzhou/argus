@@ -23,15 +23,16 @@ func newTickCmdWithSessionStore(store session.Store) *cobra.Command {
 		Short:  "Inject workflow context into AI agent sessions",
 		Hidden: true,
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			w := cmd.OutOrStdout()
 			cwd, err := os.Getwd()
 			if err != nil {
-				_, _ = os.Stdout.WriteString("Argus warning: could not determine working directory\n")
+				_, _ = w.Write([]byte("Argus warning: could not determine working directory\n"))
 				return nil
 			}
 
 			global, _ := cmd.Flags().GetBool("global")
-			if err := hook.HandleTickWithSessionStore(agentFlag, global, cmd.InOrStdin(), os.Stdout, cwd, store); err != nil {
-				_, _ = fmt.Fprintf(os.Stdout, "Argus warning: internal error: %v\n", err)
+			if err := hook.HandleTickWithSessionStore(agentFlag, global, cmd.InOrStdin(), w, cwd, store); err != nil {
+				_, _ = fmt.Fprintf(w, "Argus warning: internal error: %v\n", err)
 			}
 			return nil
 		},

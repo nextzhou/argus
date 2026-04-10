@@ -22,6 +22,7 @@ func newInstallCmd() *cobra.Command {
 		Use:   "install",
 		Short: "Install Argus in the current project",
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			input := cmd.InOrStdin()
 			if cmd.Flags().Changed("workspace") {
 				preview, err := install.PrepareWorkspaceInstall(workspacePath)
 				if err != nil {
@@ -30,7 +31,7 @@ func newInstallCmd() *cobra.Command {
 				}
 
 				if !yesFlag {
-					confirmed, confirmErr := confirmWorkspaceInstall(cmd, preview.Path, preview.AlreadyRegistered, os.Stdin, stdinIsTTY())
+					confirmed, confirmErr := confirmWorkspaceInstall(cmd, preview.Path, preview.AlreadyRegistered, input, inputIsTTY(input))
 					if confirmErr != nil {
 						writeCommandError(cmd, jsonFlag, confirmErr.Error())
 						return confirmErr
@@ -81,7 +82,7 @@ func newInstallCmd() *cobra.Command {
 			}
 
 			if isSubdir && !yesFlag {
-				confirmed, confirmErr := confirmSubdirectoryInstall(cmd, projectRoot, os.Stdin, stdinIsTTY())
+				confirmed, confirmErr := confirmSubdirectoryInstall(cmd, projectRoot, input, inputIsTTY(input))
 				if confirmErr != nil {
 					writeCommandError(cmd, jsonFlag, confirmErr.Error())
 					return confirmErr
@@ -178,8 +179,13 @@ func confirmWithPrompt(cmd *cobra.Command, lines []string, stdinReader io.Reader
 	return strings.EqualFold(response, "y") || strings.EqualFold(response, "yes"), nil
 }
 
-func stdinIsTTY() bool {
-	info, err := os.Stdin.Stat()
+func inputIsTTY(reader io.Reader) bool {
+	file, ok := reader.(*os.File)
+	if !ok {
+		return false
+	}
+
+	info, err := file.Stat()
 	if err != nil {
 		return false
 	}

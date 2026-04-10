@@ -49,7 +49,7 @@ func TestE2E_CompleteWorkflowLifecycle(t *testing.T) {
 	projectDir := setupGitRepo(t)
 	sessionID := newDefaultSessionID(t, "e2e-complete")
 
-	result := runArgus(t, projectDir, "install", "--yes")
+	result := runArgusJSON(t, projectDir, "install", "--yes")
 	requireOK(t, result)
 	require.True(t, fileExists(t, filepath.Join(projectDir, ".argus", "workflows")))
 	require.True(t, fileExists(t, filepath.Join(projectDir, ".argus", "invariants")))
@@ -57,7 +57,7 @@ func TestE2E_CompleteWorkflowLifecycle(t *testing.T) {
 
 	writeFile(t, projectDir, ".argus/workflows/e2e-test.yaml", testWorkflow)
 
-	result = runArgus(t, projectDir, "workflow", "list")
+	result = runArgusJSON(t, projectDir, "workflow", "list")
 	data := requireOK(t, result)
 	workflows, ok := data["workflows"].([]any)
 	require.True(t, ok, "workflows should be an array")
@@ -71,7 +71,7 @@ func TestE2E_CompleteWorkflowLifecycle(t *testing.T) {
 	}
 	assert.True(t, found, "e2e-test workflow should appear in list")
 
-	result = runArgus(t, projectDir, "workflow", "start", "e2e-test")
+	result = runArgusJSON(t, projectDir, "workflow", "start", "e2e-test")
 	data = requireOK(t, result)
 	assert.Equal(t, "running", data["pipeline_status"])
 	assert.Equal(t, "1/3", data["progress"])
@@ -87,20 +87,20 @@ func TestE2E_CompleteWorkflowLifecycle(t *testing.T) {
 	assert.Contains(t, result.Stdout, "step_one")
 	assert.Contains(t, result.Stdout, "argus job-done")
 
-	result = runArgus(t, projectDir, "job-done", "--message", "step one completed")
+	result = runArgusJSON(t, projectDir, "job-done", "--message", "step one completed")
 	data = requireOK(t, result)
 	assert.Equal(t, "running", data["pipeline_status"])
 	nextJob = data["next_job"].(map[string]any)
 	assert.Equal(t, "step_two", nextJob["id"])
 	assert.Contains(t, nextJob["prompt"].(string), "step one completed")
 
-	result = runArgus(t, projectDir, "job-done", "--message", "step two completed")
+	result = runArgusJSON(t, projectDir, "job-done", "--message", "step two completed")
 	data = requireOK(t, result)
 	assert.Equal(t, "running", data["pipeline_status"])
 	nextJob = data["next_job"].(map[string]any)
 	assert.Equal(t, "step_three", nextJob["id"])
 
-	result = runArgus(t, projectDir, "status")
+	result = runArgusJSON(t, projectDir, "status")
 	data = requireOK(t, result)
 	pipeline := data["pipeline"].(map[string]any)
 	assert.Equal(t, "running", pipeline["status"])
@@ -109,17 +109,17 @@ func TestE2E_CompleteWorkflowLifecycle(t *testing.T) {
 	assert.Equal(t, float64(3), progress["current"])
 	assert.Equal(t, float64(3), progress["total"])
 
-	result = runArgus(t, projectDir, "job-done", "--message", "all done")
+	result = runArgusJSON(t, projectDir, "job-done", "--message", "all done")
 	data = requireOK(t, result)
 	assert.Equal(t, "completed", data["pipeline_status"])
 	assert.Equal(t, "3/3", data["progress"])
 	assert.Nil(t, data["next_job"])
 
-	result = runArgus(t, projectDir, "status")
+	result = runArgusJSON(t, projectDir, "status")
 	data = requireOK(t, result)
 	assert.Nil(t, data["pipeline"])
 
-	result = runArgus(t, projectDir, "uninstall", "--yes")
+	result = runArgusJSON(t, projectDir, "uninstall", "--yes")
 	requireOK(t, result)
 	require.False(t, fileExists(t, filepath.Join(projectDir, ".argus")))
 }
@@ -130,12 +130,12 @@ func TestE2E_InvariantCheckIntegration(t *testing.T) {
 
 	projectDir := setupGitRepo(t)
 
-	result := runArgus(t, projectDir, "install", "--yes")
+	result := runArgusJSON(t, projectDir, "install", "--yes")
 	requireOK(t, result)
 
 	writeFile(t, projectDir, ".argus/invariants/e2e-test-inv.yaml", testInvariant)
 
-	result = runArgus(t, projectDir, "invariant", "list")
+	result = runArgusJSON(t, projectDir, "invariant", "list")
 	data := requireOK(t, result)
 	invariants := data["invariants"].([]any)
 	found := false
@@ -148,7 +148,7 @@ func TestE2E_InvariantCheckIntegration(t *testing.T) {
 	}
 	assert.True(t, found, "e2e-test-inv should appear in list")
 
-	result = runArgus(t, projectDir, "invariant", "check", "e2e-test-inv")
+	result = runArgusJSON(t, projectDir, "invariant", "check", "e2e-test-inv")
 	data = requireOK(t, result)
 	assert.Equal(t, float64(0), data["passed"])
 	assert.Equal(t, float64(1), data["failed"])
@@ -160,7 +160,7 @@ func TestE2E_InvariantCheckIntegration(t *testing.T) {
 
 	writeFile(t, projectDir, ".argus/data/marker.txt", "present")
 
-	result = runArgus(t, projectDir, "invariant", "check", "e2e-test-inv")
+	result = runArgusJSON(t, projectDir, "invariant", "check", "e2e-test-inv")
 	data = requireOK(t, result)
 	assert.Equal(t, float64(1), data["passed"])
 	assert.Equal(t, float64(0), data["failed"])
@@ -176,18 +176,18 @@ func TestE2E_WorkflowInspect(t *testing.T) {
 
 	projectDir := setupGitRepo(t)
 
-	result := runArgus(t, projectDir, "install", "--yes")
+	result := runArgusJSON(t, projectDir, "install", "--yes")
 	requireOK(t, result)
 
 	writeFile(t, projectDir, ".argus/workflows/e2e-test.yaml", testWorkflow)
 
-	result = runArgus(t, projectDir, "workflow", "inspect")
+	result = runArgusJSON(t, projectDir, "workflow", "inspect")
 	data := requireOK(t, result)
 	files := data["files"].(map[string]any)
 	e2eFile := files["e2e-test.yaml"].(map[string]any)
 	assert.Equal(t, true, e2eFile["valid"], "user workflow should be valid")
 
-	result = runArgus(t, projectDir, "invariant", "inspect")
+	result = runArgusJSON(t, projectDir, "invariant", "inspect")
 	requireOK(t, result)
 }
 
@@ -200,12 +200,12 @@ func TestE2E_TickMultiAgentFormats(t *testing.T) {
 	codexSessionID := newDefaultSessionID(t, "agent-codex")
 	opencodeSessionID := newDefaultSessionID(t, "agent-opencode")
 
-	result := runArgus(t, projectDir, "install", "--yes")
+	result := runArgusJSON(t, projectDir, "install", "--yes")
 	requireOK(t, result)
 
 	writeFile(t, projectDir, ".argus/workflows/e2e-test.yaml", testWorkflow)
 
-	result = runArgus(t, projectDir, "workflow", "start", "e2e-test")
+	result = runArgusJSON(t, projectDir, "workflow", "start", "e2e-test")
 	requireOK(t, result)
 
 	claudeStdin := fmt.Sprintf(`{"session_id":"%s","cwd":"%s"}`, claudeSessionID, projectDir)
@@ -230,24 +230,24 @@ func TestE2E_CancelAndRestart(t *testing.T) {
 
 	projectDir := setupGitRepo(t)
 
-	result := runArgus(t, projectDir, "install", "--yes")
+	result := runArgusJSON(t, projectDir, "install", "--yes")
 	requireOK(t, result)
 
 	writeFile(t, projectDir, ".argus/workflows/e2e-test.yaml", testWorkflow)
 
-	result = runArgus(t, projectDir, "workflow", "start", "e2e-test")
+	result = runArgusJSON(t, projectDir, "workflow", "start", "e2e-test")
 	requireOK(t, result)
 
-	result = runArgus(t, projectDir, "workflow", "cancel")
+	result = runArgusJSON(t, projectDir, "workflow", "cancel")
 	data := requireOK(t, result)
 	cancelled := data["cancelled"].([]any)
 	require.Len(t, cancelled, 1)
 
-	result = runArgus(t, projectDir, "status")
+	result = runArgusJSON(t, projectDir, "status")
 	data = requireOK(t, result)
 	assert.Nil(t, data["pipeline"])
 
-	result = runArgus(t, projectDir, "workflow", "start", "e2e-test")
+	result = runArgusJSON(t, projectDir, "workflow", "start", "e2e-test")
 	data = requireOK(t, result)
 	assert.Equal(t, "running", data["pipeline_status"])
 	assert.Equal(t, "1/3", data["progress"])
@@ -259,21 +259,21 @@ func TestE2E_FailedJob(t *testing.T) {
 
 	projectDir := setupGitRepo(t)
 
-	result := runArgus(t, projectDir, "install", "--yes")
+	result := runArgusJSON(t, projectDir, "install", "--yes")
 	requireOK(t, result)
 
 	writeFile(t, projectDir, ".argus/workflows/e2e-test.yaml", testWorkflow)
 
-	result = runArgus(t, projectDir, "workflow", "start", "e2e-test")
+	result = runArgusJSON(t, projectDir, "workflow", "start", "e2e-test")
 	requireOK(t, result)
 
-	result = runArgus(t, projectDir, "job-done", "--fail", "--message", "compilation error")
+	result = runArgusJSON(t, projectDir, "job-done", "--fail", "--message", "compilation error")
 	data := requireOK(t, result)
 	assert.Equal(t, "failed", data["pipeline_status"])
 	assert.Equal(t, "step_one", data["failed_job"])
 	assert.Nil(t, data["next_job"])
 
-	result = runArgus(t, projectDir, "status")
+	result = runArgusJSON(t, projectDir, "status")
 	data = requireOK(t, result)
 	assert.Nil(t, data["pipeline"])
 }
@@ -284,15 +284,15 @@ func TestE2E_EarlyExit(t *testing.T) {
 
 	projectDir := setupGitRepo(t)
 
-	result := runArgus(t, projectDir, "install", "--yes")
+	result := runArgusJSON(t, projectDir, "install", "--yes")
 	requireOK(t, result)
 
 	writeFile(t, projectDir, ".argus/workflows/e2e-test.yaml", testWorkflow)
 
-	result = runArgus(t, projectDir, "workflow", "start", "e2e-test")
+	result = runArgusJSON(t, projectDir, "workflow", "start", "e2e-test")
 	requireOK(t, result)
 
-	result = runArgus(t, projectDir, "job-done", "--end-pipeline", "--message", "done early")
+	result = runArgusJSON(t, projectDir, "job-done", "--end-pipeline", "--message", "done early")
 	data := requireOK(t, result)
 	assert.Equal(t, "completed", data["pipeline_status"])
 	assert.Equal(t, true, data["early_exit"])
@@ -305,7 +305,7 @@ func TestE2E_StatusWithInvariants(t *testing.T) {
 
 	projectDir := setupGitRepo(t)
 
-	result := runArgus(t, projectDir, "install", "--yes")
+	result := runArgusJSON(t, projectDir, "install", "--yes")
 	requireOK(t, result)
 
 	writeFile(t, projectDir, ".argus/workflows/e2e-test.yaml", testWorkflow)
@@ -320,13 +320,13 @@ prompt: "fix it"
 `
 	writeFile(t, projectDir, ".argus/invariants/e2e-pass-inv.yaml", passingInv)
 
-	result = runArgus(t, projectDir, "workflow", "start", "e2e-test")
+	result = runArgusJSON(t, projectDir, "workflow", "start", "e2e-test")
 	requireOK(t, result)
 
-	result = runArgus(t, projectDir, "job-done", "--message", "done")
+	result = runArgusJSON(t, projectDir, "job-done", "--message", "done")
 	requireOK(t, result)
 
-	result = runArgus(t, projectDir, "status")
+	result = runArgusJSON(t, projectDir, "status")
 	data := requireOK(t, result)
 
 	pipeline := data["pipeline"].(map[string]any)
@@ -353,7 +353,7 @@ func TestE2E_DoctorInInstalledProject(t *testing.T) {
 
 	projectDir := setupGitRepo(t)
 
-	result := runArgus(t, projectDir, "install", "--yes")
+	result := runArgusJSON(t, projectDir, "install", "--yes")
 	requireOK(t, result)
 
 	result = runArgusText(t, projectDir, "doctor")
@@ -381,15 +381,15 @@ func TestE2E_Snooze(t *testing.T) {
 	projectDir := setupGitRepo(t)
 	sessionID := newDefaultSessionID(t, "e2e-snooze")
 
-	result := runArgus(t, projectDir, "install", "--yes")
+	result := runArgusJSON(t, projectDir, "install", "--yes")
 	requireOK(t, result)
 
 	writeFile(t, projectDir, ".argus/workflows/e2e-test.yaml", testWorkflow)
 
-	result = runArgus(t, projectDir, "workflow", "start", "e2e-test")
+	result = runArgusJSON(t, projectDir, "workflow", "start", "e2e-test")
 	requireOK(t, result)
 
-	result = runArgus(t, projectDir, "workflow", "snooze", "--session", sessionID)
+	result = runArgusJSON(t, projectDir, "workflow", "snooze", "--session", sessionID)
 	data := requireOK(t, result)
 	snoozed := data["snoozed"].([]any)
 	require.Len(t, snoozed, 1)
@@ -407,7 +407,7 @@ func TestE2E_DefaultTextOutput(t *testing.T) {
 
 	projectDir := setupGitRepo(t)
 
-	result := runArgus(t, projectDir, "install", "--yes")
+	result := runArgusJSON(t, projectDir, "install", "--yes")
 	requireOK(t, result)
 
 	writeFile(t, projectDir, ".argus/workflows/e2e-test.yaml", testWorkflow)
@@ -430,7 +430,7 @@ func TestE2E_ToolboxCommands(t *testing.T) {
 	projectDir := t.TempDir()
 
 	tsFile := filepath.Join(projectDir, "test-ts.txt")
-	result := runArgus(t, projectDir, "toolbox", "touch-timestamp", tsFile)
+	result := runArgusText(t, projectDir, "toolbox", "touch-timestamp", tsFile)
 	require.Equal(t, 0, result.ExitCode)
 	content, err := os.ReadFile(tsFile)
 	require.NoError(t, err)

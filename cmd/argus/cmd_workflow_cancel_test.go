@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/nextzhou/argus/internal/pipeline"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -163,8 +164,8 @@ jobs:
 	require.NoError(t, json.Unmarshal(output, &data))
 	assert.Equal(t, "ok", data["status"])
 
-	saved, readErr := os.ReadFile(filepath.Join(".argus", "pipelines", "release-20240101T000000Z.yaml"))
-	require.NoError(t, readErr)
-	assert.Contains(t, string(saved), "status: cancelled")
-	assert.Contains(t, string(saved), "ended_at:")
+	saved, err := pipeline.LoadPipeline(filepath.Join(".argus", "pipelines"), "release-20240101T000000Z")
+	require.NoError(t, err)
+	assert.Equal(t, pipeline.StatusCancelled, saved.Status)
+	require.NotNil(t, saved.EndedAt)
 }

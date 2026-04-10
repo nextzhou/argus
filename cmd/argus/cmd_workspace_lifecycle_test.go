@@ -1,8 +1,8 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -39,28 +39,19 @@ func executeWorkspaceUninstallCmdWithArgs(t *testing.T, workspacePath string, ar
 func executeGlobalTickCmd(t *testing.T, store session.Store, stdinJSON string) ([]byte, error) {
 	t.Helper()
 
-	old := os.Stdout
-	r, w, err := os.Pipe()
-	require.NoError(t, err)
-	os.Stdout = w
+	var out bytes.Buffer
 
 	cmd := newTickCmdWithSessionStore(store)
 	cmd.SilenceErrors = true
 	cmd.SilenceUsage = true
+	cmd.SetOut(&out)
 	cmd.SetArgs([]string{"--agent", "claude-code", "--global"})
 	if stdinJSON != "" {
 		cmd.SetIn(strings.NewReader(stdinJSON))
 	}
 	cmdErr := cmd.Execute()
 
-	require.NoError(t, w.Close())
-	os.Stdout = old
-
-	out, err := io.ReadAll(r)
-	require.NoError(t, err)
-	require.NoError(t, r.Close())
-
-	return out, cmdErr
+	return out.Bytes(), cmdErr
 }
 
 func initGitRepoAt(t *testing.T, path string) {
@@ -153,7 +144,9 @@ func TestWorkspaceLifecycle_Complete(t *testing.T) {
 	assertGlobalSkillState(t, true)
 
 	t.Chdir(projectDir)
-	output, cmdErr = executeGlobalTickCmd(t, store, `{"session_id":"`+sessionID+`"}`)
+	output, cmdErr = executeGlobalTickCmd(t, store, mustJSONInput(t, map[string]string{
+		"session_id": sessionID,
+	}))
 	require.NoError(t, cmdErr)
 	assertHookSafeTickText(t, string(output))
 	assert.Contains(t, string(output), "argus install")
@@ -166,7 +159,9 @@ func TestWorkspaceLifecycle_Complete(t *testing.T) {
 	_, err := os.Stat(filepath.Join(projectDir, ".argus"))
 	assert.NoError(t, err, "%s should exist after project install", filepath.Join(projectDir, ".argus"))
 
-	output, cmdErr = executeGlobalTickCmd(t, store, `{"session_id":"`+sessionID+`"}`)
+	output, cmdErr = executeGlobalTickCmd(t, store, mustJSONInput(t, map[string]string{
+		"session_id": sessionID,
+	}))
 	require.NoError(t, cmdErr)
 	assert.Empty(t, string(output))
 
@@ -188,7 +183,9 @@ func TestWorkspaceLifecycle_Complete(t *testing.T) {
 	assertGlobalSkillState(t, false)
 
 	t.Chdir(postUninstallProjectDir)
-	output, cmdErr = executeGlobalTickCmd(t, store, `{"session_id":"`+sessionID+`"}`)
+	output, cmdErr = executeGlobalTickCmd(t, store, mustJSONInput(t, map[string]string{
+		"session_id": sessionID,
+	}))
 	require.NoError(t, cmdErr)
 	assert.Empty(t, string(output))
 }
@@ -324,15 +321,13 @@ func TestWorkspaceInstallNonInteractiveWithoutYes(t *testing.T) {
 	workspaceDir := filepath.Join(homeDir, "work")
 	require.NoError(t, os.MkdirAll(workspaceDir, 0o755))
 
-	withPipeStdin(t, "", func() {
-		output, cmdErr := executeWorkspaceInstallCmdWithArgs(t, workspaceDir)
-		require.Error(t, cmdErr)
-		assert.Contains(t, cmdErr.Error(), "--yes")
+	output, cmdErr := executeJSONCommandWithInput(t, newInstallCmd(), bytes.NewBuffer(nil), "--workspace", workspaceDir)
+	require.Error(t, cmdErr)
+	assert.Contains(t, cmdErr.Error(), "--yes")
 
-		data := parseWorkspaceLifecycleOutput(t, output)
-		assert.Equal(t, "error", data["status"])
-		assert.Contains(t, data["message"], "use --yes")
-	})
+	data := parseWorkspaceLifecycleOutput(t, output)
+	assert.Equal(t, "error", data["status"])
+	assert.Contains(t, data["message"], "use --yes")
 }
 
 func TestWorkspaceInstallDuplicateNonInteractiveWithoutYes(t *testing.T) {
@@ -344,15 +339,13 @@ func TestWorkspaceInstallDuplicateNonInteractiveWithoutYes(t *testing.T) {
 	_, cmdErr := executeWorkspaceInstallCmd(t, workspaceDir)
 	require.NoError(t, cmdErr)
 
-	withPipeStdin(t, "", func() {
-		output, cmdErr := executeWorkspaceInstallCmdWithArgs(t, workspaceDir)
-		require.Error(t, cmdErr)
-		assert.Contains(t, cmdErr.Error(), "--yes")
+	output, cmdErr := executeJSONCommandWithInput(t, newInstallCmd(), bytes.NewBuffer(nil), "--workspace", workspaceDir)
+	require.Error(t, cmdErr)
+	assert.Contains(t, cmdErr.Error(), "--yes")
 
-		data := parseWorkspaceLifecycleOutput(t, output)
-		assert.Equal(t, "error", data["status"])
-		assert.Contains(t, data["message"], "use --yes")
-	})
+	data := parseWorkspaceLifecycleOutput(t, output)
+	assert.Equal(t, "error", data["status"])
+	assert.Contains(t, data["message"], "use --yes")
 }
 
 func TestWorkspaceUninstallNonInteractiveWithoutYes(t *testing.T) {
@@ -364,13 +357,11 @@ func TestWorkspaceUninstallNonInteractiveWithoutYes(t *testing.T) {
 	_, cmdErr := executeWorkspaceInstallCmd(t, workspaceDir)
 	require.NoError(t, cmdErr)
 
-	withPipeStdin(t, "", func() {
-		output, cmdErr := executeWorkspaceUninstallCmdWithArgs(t, workspaceDir)
-		require.Error(t, cmdErr)
-		assert.Contains(t, cmdErr.Error(), "--yes")
+	output, cmdErr := executeJSONCommandWithInput(t, newUninstallCmd(), bytes.NewBuffer(nil), "--workspace", workspaceDir)
+	require.Error(t, cmdErr)
+	assert.Contains(t, cmdErr.Error(), "--yes")
 
-		data := parseWorkspaceLifecycleOutput(t, output)
-		assert.Equal(t, "error", data["status"])
-		assert.Contains(t, data["message"], "use --yes")
-	})
+	data := parseWorkspaceLifecycleOutput(t, output)
+	assert.Equal(t, "error", data["status"])
+	assert.Contains(t, data["message"], "use --yes")
 }

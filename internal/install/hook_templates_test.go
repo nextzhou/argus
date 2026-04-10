@@ -84,6 +84,10 @@ func TestHookTemplateUnsupportedAgent(t *testing.T) {
 }
 
 func TestOpenCodePluginBiome(t *testing.T) {
+	if os.Getenv("ARGUS_EXTERNAL_TOOLS") == "" {
+		t.Skip("set ARGUS_EXTERNAL_TOOLS=1 to enable external tool validation")
+	}
+
 	// Skip if biome is not installed
 	if _, err := exec.LookPath("biome"); err != nil {
 		t.Skip("biome not installed, skipping TypeScript validation")

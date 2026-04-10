@@ -2,11 +2,11 @@ package main
 
 import (
 	"encoding/json"
-	"io"
 	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/nextzhou/argus/internal/pipeline"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -31,21 +31,17 @@ func TestPipelineLifecycle(t *testing.T) {
 		return data
 	}
 
-	readOnlyPipelineFile := func(t *testing.T) string {
+	loadOnlyPipeline := func(t *testing.T) *pipeline.Pipeline {
 		t.Helper()
 
 		entries, err := os.ReadDir(filepath.Join(".argus", "pipelines"))
 		require.NoError(t, err)
 		require.Len(t, entries, 1)
 
-		file, err := os.Open(filepath.Join(".argus", "pipelines", entries[0].Name()))
+		instanceID := entries[0].Name()[:len(entries[0].Name())-len(".yaml")]
+		loaded, err := pipeline.LoadPipeline(filepath.Join(".argus", "pipelines"), instanceID)
 		require.NoError(t, err)
-
-		content, err := io.ReadAll(file)
-		require.NoError(t, err)
-		require.NoError(t, file.Close())
-
-		return string(content)
+		return loaded
 	}
 
 	t.Run("complete lifecycle", func(t *testing.T) {
@@ -89,7 +85,10 @@ func TestPipelineLifecycle(t *testing.T) {
 		assert.Equal(t, "completed", data["pipeline_status"])
 		assert.Equal(t, "3/3", data["progress"])
 		assert.Nil(t, data["next_job"])
-		assert.Contains(t, readOnlyPipelineFile(t), "status: completed")
+		loaded := loadOnlyPipeline(t)
+		assert.Equal(t, pipeline.StatusCompleted, loaded.Status)
+		assert.Nil(t, loaded.CurrentJob)
+		require.NotNil(t, loaded.EndedAt)
 
 		output, cmdErr = executeStatusCmd(t)
 		require.NoError(t, cmdErr)
@@ -115,7 +114,9 @@ func TestPipelineLifecycle(t *testing.T) {
 		cancelled, ok := data["cancelled"].([]any)
 		require.True(t, ok, "cancelled should be an array")
 		require.Len(t, cancelled, 1)
-		assert.Contains(t, readOnlyPipelineFile(t), "status: cancelled")
+		loaded := loadOnlyPipeline(t)
+		assert.Equal(t, pipeline.StatusCancelled, loaded.Status)
+		require.NotNil(t, loaded.EndedAt)
 
 		output, cmdErr = executeStatusCmd(t)
 		require.NoError(t, cmdErr)
@@ -141,7 +142,9 @@ func TestPipelineLifecycle(t *testing.T) {
 		assert.Equal(t, "failed", data["pipeline_status"])
 		assert.Equal(t, "step_1", data["failed_job"])
 		assert.Nil(t, data["next_job"])
-		assert.Contains(t, readOnlyPipelineFile(t), "status: failed")
+		loaded := loadOnlyPipeline(t)
+		assert.Equal(t, pipeline.StatusFailed, loaded.Status)
+		require.NotNil(t, loaded.EndedAt)
 	})
 
 	t.Run("early exit completes pipeline", func(t *testing.T) {
@@ -161,7 +164,9 @@ func TestPipelineLifecycle(t *testing.T) {
 		assert.Equal(t, "completed", data["pipeline_status"])
 		assert.Equal(t, true, data["early_exit"])
 		assert.Nil(t, data["next_job"])
-		assert.Contains(t, readOnlyPipelineFile(t), "status: completed")
+		loaded := loadOnlyPipeline(t)
+		assert.Equal(t, pipeline.StatusCompleted, loaded.Status)
+		require.NotNil(t, loaded.EndedAt)
 	})
 
 	t.Run("duplicate start rejected", func(t *testing.T) {

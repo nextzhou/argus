@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -19,11 +20,23 @@ func executeInstallCmd(t *testing.T, args ...string) ([]byte, error) {
 	return executeJSONCommand(t, newInstallCmd(), args...)
 }
 
+func executeInstallCmdWithInput(t *testing.T, input *bytes.Buffer, args ...string) ([]byte, error) {
+	t.Helper()
+
+	return executeJSONCommandWithInput(t, newInstallCmd(), input, args...)
+}
+
 // executeUninstallCmd runs the uninstall command and captures stdout output.
 func executeUninstallCmd(t *testing.T, args ...string) ([]byte, error) {
 	t.Helper()
 
 	return executeJSONCommand(t, newUninstallCmd(), args...)
+}
+
+func executeUninstallCmdWithInput(t *testing.T, input *bytes.Buffer, args ...string) ([]byte, error) {
+	t.Helper()
+
+	return executeJSONCommandWithInput(t, newUninstallCmd(), input, args...)
 }
 
 func initGitRepo(t *testing.T) {
@@ -73,28 +86,6 @@ func assertEmptyLifecycleChanges(t *testing.T, data map[string]any) {
 		require.True(t, ok, "%s should be an array", key)
 		assert.Empty(t, entries, "%s should be empty", key)
 	}
-}
-
-func withPipeStdin(t *testing.T, content string, fn func()) {
-	t.Helper()
-
-	oldStdin := os.Stdin
-	r, w, err := os.Pipe()
-	require.NoError(t, err)
-	os.Stdin = r
-
-	if content != "" {
-		_, err = w.WriteString(content)
-		require.NoError(t, err)
-	}
-	require.NoError(t, w.Close())
-
-	defer func() {
-		os.Stdin = oldStdin
-		require.NoError(t, r.Close())
-	}()
-
-	fn()
 }
 
 func TestInstallLifecycle(t *testing.T) {

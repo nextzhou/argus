@@ -178,15 +178,15 @@ func TestUninstallNonInteractiveWithoutYes(t *testing.T) {
 	_, cmdErr := executeInstallCmd(t, "--yes")
 	require.NoError(t, cmdErr)
 
-	_, cmdErr = executeUninstallCmd(t)
+	output, cmdErr := executeUninstallCmdWithInput(t, bytes.NewBuffer(nil))
 
 	require.Error(t, cmdErr)
-	// Error is either "--yes" (non-TTY env) or "cancelled" (TTY env with no input).
-	// Both are correct refusals; the exact path depends on the test runner's stdin.
-	errMsg := cmdErr.Error()
-	assert.True(t,
-		strings.Contains(errMsg, "--yes") || strings.Contains(errMsg, "cancelled"),
-		"expected --yes or cancelled error, got: %s", errMsg)
+	assert.Contains(t, cmdErr.Error(), "--yes")
+
+	var data map[string]any
+	require.NoError(t, json.Unmarshal(output, &data), "output should be valid JSON: %s", string(output))
+	assert.Equal(t, "error", data["status"])
+	assert.Contains(t, data["message"], "use --yes")
 
 	_, err := os.Stat(".argus")
 	assert.NoError(t, err, ".argus/ should still exist after refused uninstall")

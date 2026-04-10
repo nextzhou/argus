@@ -45,7 +45,8 @@ func runWorkspaceUninstall(cmd *cobra.Command, workspacePath string, yesFlag boo
 	}
 
 	if !yesFlag {
-		confirmed, confirmErr := confirmWorkspaceUninstall(cmd, preview.Path, preview.IsLast, os.Stdin, stdinIsTTY())
+		input := cmd.InOrStdin()
+		confirmed, confirmErr := confirmWorkspaceUninstall(cmd, preview.Path, preview.IsLast, input, inputIsTTY(input))
 		if confirmErr != nil {
 			writeCommandError(cmd, jsonFlag, confirmErr.Error())
 			return confirmErr
@@ -90,14 +91,15 @@ func runProjectUninstall(cmd *cobra.Command, yesFlag bool, jsonFlag bool) error 
 	}
 
 	if !yesFlag {
-		if !stdinIsTTY() {
+		input := cmd.InOrStdin()
+		if !inputIsTTY(input) {
 			writeCommandError(cmd, jsonFlag, "non-interactive mode requires --yes flag; use --yes to skip confirmation")
 			return fmt.Errorf("non-interactive mode requires --yes flag")
 		}
 
 		_, _ = cmd.ErrOrStderr().Write([]byte("This will remove .argus/ and Argus-managed skills. Continue? [y/N] "))
 		var response string
-		_, _ = fmt.Fscanln(os.Stdin, &response)
+		_, _ = fmt.Fscanln(input, &response)
 		if !strings.HasPrefix(strings.ToLower(response), "y") {
 			writeCommandError(cmd, jsonFlag, "uninstall cancelled")
 			return fmt.Errorf("uninstall cancelled")

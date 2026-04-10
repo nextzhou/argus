@@ -1,7 +1,7 @@
 package main
 
 import (
-	"io"
+	"bytes"
 	"os"
 	"path/filepath"
 	"strings"
@@ -15,27 +15,20 @@ import (
 
 func executeTickCmd(t *testing.T, store session.Store, stdinJSON string, args ...string) ([]byte, error) {
 	t.Helper()
-	old := os.Stdout
-	r, w, err := os.Pipe()
-	require.NoError(t, err)
-	os.Stdout = w
+
+	var out bytes.Buffer
 
 	cmd := newTickCmdWithSessionStore(store)
 	cmd.SilenceErrors = true
 	cmd.SilenceUsage = true
+	cmd.SetOut(&out)
 	cmd.SetArgs(args)
 	if stdinJSON != "" {
 		cmd.SetIn(strings.NewReader(stdinJSON))
 	}
 	cmdErr := cmd.Execute()
 
-	require.NoError(t, w.Close())
-	os.Stdout = old
-
-	out, err := io.ReadAll(r)
-	require.NoError(t, err)
-	require.NoError(t, r.Close())
-	return out, cmdErr
+	return out.Bytes(), cmdErr
 }
 
 func assertHookSafeTickText(t *testing.T, output string) {
@@ -63,7 +56,10 @@ jobs:
 	defer func() { require.NoError(t, os.Chdir(oldCwd)) }()
 	require.NoError(t, os.Chdir(projectRoot))
 
-	output, cmdErr := executeTickCmd(t, sessiontest.NewMemoryStore(), `{"session_id":"`+sessionID+`","cwd":"`+projectRoot+`"}`, "--agent", "claude-code")
+	output, cmdErr := executeTickCmd(t, sessiontest.NewMemoryStore(), mustJSONInput(t, map[string]string{
+		"session_id": sessionID,
+		"cwd":        projectRoot,
+	}), "--agent", "claude-code")
 	require.NoError(t, cmdErr)
 	assertHookSafeTickText(t, string(output))
 	assert.Contains(t, string(output), "Argus:")
@@ -80,7 +76,10 @@ func TestTickSubAgentSkip(t *testing.T) {
 	defer func() { require.NoError(t, os.Chdir(oldCwd)) }()
 	require.NoError(t, os.Chdir(projectRoot))
 
-	output, cmdErr := executeTickCmd(t, sessiontest.NewMemoryStore(), `{"session_id":"`+sessionID+`","agent_id":"worker-1"}`, "--agent", "claude-code")
+	output, cmdErr := executeTickCmd(t, sessiontest.NewMemoryStore(), mustJSONInput(t, map[string]string{
+		"session_id": sessionID,
+		"agent_id":   "worker-1",
+	}), "--agent", "claude-code")
 	require.NoError(t, cmdErr)
 	assert.Empty(t, string(output))
 }
@@ -104,7 +103,9 @@ func TestTickFailOpen(t *testing.T) {
 func TestTickWithoutAgent(t *testing.T) {
 	sessionID := sessiontest.NewSessionID(t, "tick-cli-missing-agent")
 
-	output, cmdErr := executeTickCmd(t, sessiontest.NewMemoryStore(), `{"session_id":"`+sessionID+`"}`)
+	output, cmdErr := executeTickCmd(t, sessiontest.NewMemoryStore(), mustJSONInput(t, map[string]string{
+		"session_id": sessionID,
+	}))
 	require.Error(t, cmdErr)
 	assert.Empty(t, string(output))
 	assert.Contains(t, cmdErr.Error(), "required flag(s) \"agent\" not set")
