@@ -108,7 +108,9 @@ To prevent path traversal, any external input used to build a file path must be 
 
 ### 13.2 Namespace Reservation
 
-The `argus-` prefix is reserved for built-in workflows, invariants, and skills. `install` and `inspect` must reject user-defined items using that prefix.
+The `argus-` prefix is reserved for built-in workflows, invariants, and skills. `install` and `inspect` must reject user-defined items using that prefix, while allowing built-in IDs embedded in the current Argus binary.
+
+Workflow and invariant definition files also use a canonical path contract: except for `.argus/workflows/_shared.yaml`, the file name must be `<id>.yaml`.
 
 ### 13.3 Template Variable Rules
 

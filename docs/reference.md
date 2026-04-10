@@ -24,7 +24,7 @@ All user-defined identifiers follow the same base pattern: lowercase letters, di
 
 ## Writing Workflows
 
-Workflow files live in `.argus/workflows/` as YAML files.
+Workflow files live in `.argus/workflows/` as YAML files. Except for `_shared.yaml`, each file must be named `<workflow-id>.yaml`.
 
 ### Schema
 
@@ -113,9 +113,11 @@ argus workflow inspect                    # validate .argus/workflows/
 argus workflow inspect /path/to/dir       # validate a specific directory
 ```
 
+`workflow inspect` also verifies the `<id>.yaml` file-name contract and allows reserved `argus-*` IDs only when they belong to built-in workflows embedded in the current Argus binary.
+
 ## Writing Invariants
 
-Invariant files live in `.argus/invariants/` as YAML files.
+Invariant files live in `.argus/invariants/` as YAML files. Each file must be named `<invariant-id>.yaml`.
 
 ### Schema
 
@@ -187,6 +189,8 @@ This keeps invariant checks fast, deterministic, and shell-only. Use `argus tool
 argus invariant inspect                   # validate .argus/invariants/
 argus invariant inspect /path/to/dir      # validate a specific directory
 ```
+
+`invariant inspect` also verifies the `<id>.yaml` file-name contract and allows reserved `argus-*` IDs only when they belong to built-in invariants embedded in the current Argus binary.
 
 ## Writing Skills
 

@@ -78,6 +78,19 @@ func TestCheckWorkflowFiles_Valid(t *testing.T) {
 	assert.Equal(t, "pass", result.Status)
 }
 
+func TestCheckWorkflowFiles_FileNameMustMatchID(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	projectRoot := t.TempDir()
+
+	writeWorkflowFile(t, projectRoot, "wrong-name.yaml", "release")
+
+	result := CheckWorkflowFiles(projectRoot)
+
+	assert.Equal(t, "workflow-files", result.Name)
+	assert.Equal(t, "fail", result.Status)
+	assert.Contains(t, result.Message, `expected "release.yaml"`)
+}
+
 func TestCheckInvariantFiles_Valid(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	projectRoot := t.TempDir()
@@ -91,10 +104,38 @@ func TestCheckInvariantFiles_Valid(t *testing.T) {
 	assert.Equal(t, "pass", result.Status)
 }
 
+func TestCheckInvariantFiles_MisnamedWorkflowTarget(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	projectRoot := t.TempDir()
+
+	writeWorkflowFile(t, projectRoot, "wrong-name.yaml", "release")
+	writeInvariantFile(t, projectRoot, "release-check.yaml", "release-check", "release")
+
+	result := CheckInvariantFiles(projectRoot)
+
+	assert.Equal(t, "invariant-files", result.Name)
+	assert.Equal(t, "fail", result.Status)
+	assert.Contains(t, result.Message, `referenced workflow "release" not found`)
+}
+
 func TestCheckBuiltinInvariants_NoInvariants(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	projectRoot := t.TempDir()
 	createArgusDir(t, projectRoot, "invariants")
+
+	result := CheckBuiltinInvariants(projectRoot)
+
+	assert.Equal(t, "builtin-invariants", result.Name)
+	assert.Equal(t, "pass", result.Status)
+	assert.Contains(t, result.Message, "no built-in invariants")
+}
+
+func TestCheckBuiltinInvariants_SkipsMisnamedBuiltinFile(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	projectRoot := t.TempDir()
+	createArgusDir(t, projectRoot, "invariants")
+
+	writeInvariantFile(t, projectRoot, "wrong-name.yaml", "argus-init", "argus-init")
 
 	result := CheckBuiltinInvariants(projectRoot)
 

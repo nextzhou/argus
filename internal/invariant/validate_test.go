@@ -24,18 +24,18 @@ func writeFile(t *testing.T, dir, name, content string) {
 func TestInspectDirectory(t *testing.T) {
 	t.Run("valid dir with one invariant", func(t *testing.T) {
 		dir := t.TempDir()
-		writeFile(t, dir, "check.yaml", `
+		writeFile(t, dir, "my-check.yaml", `
 version: v0.1.0
 id: my-check
 check:
   - shell: "test -f README.md"
 prompt: "Create a README"
 `)
-		report, err := InspectDirectory(dir, alwaysFound)
+		report, err := InspectDirectory(dir, alwaysFound, nil)
 		require.NoError(t, err)
 		assert.True(t, report.Valid)
 		assert.Len(t, report.Files, 1)
-		fr := report.Files["check.yaml"]
+		fr := report.Files["my-check.yaml"]
 		require.NotNil(t, fr)
 		assert.True(t, fr.Valid)
 		assert.Equal(t, "my-check", fr.ID)
@@ -47,7 +47,7 @@ prompt: "Create a README"
 		writeFile(t, dir, "bad.yaml", `
 this is: [not valid yaml
 `)
-		report, err := InspectDirectory(dir, alwaysFound)
+		report, err := InspectDirectory(dir, alwaysFound, nil)
 		require.NoError(t, err)
 		assert.False(t, report.Valid)
 		fr := report.Files["bad.yaml"]
@@ -72,7 +72,7 @@ check:
   - shell: "test -f LICENSE"
 prompt: "Fix it"
 `)
-		report, err := InspectDirectory(dir, alwaysFound)
+		report, err := InspectDirectory(dir, alwaysFound, nil)
 		require.NoError(t, err)
 		assert.False(t, report.Valid)
 		assert.False(t, report.Files["a.yaml"].Valid)
@@ -99,7 +99,7 @@ check:
   - shell: "test -f README.md"
 prompt: "Fix it"
 `)
-		report, err := InspectDirectory(dir, alwaysFound)
+		report, err := InspectDirectory(dir, alwaysFound, nil)
 		require.NoError(t, err)
 		assert.False(t, report.Valid)
 		fr := report.Files["reserved.yaml"]
@@ -114,6 +114,45 @@ prompt: "Fix it"
 		assert.True(t, foundNs, "expected namespace violation error")
 	})
 
+	t.Run("built-in argus prefix allowed by allowlist", func(t *testing.T) {
+		dir := t.TempDir()
+		writeFile(t, dir, "argus-init.yaml", `
+version: v0.1.0
+id: argus-init
+check:
+  - shell: "true"
+workflow: argus-init
+`)
+		report, err := InspectDirectory(dir, alwaysFound, func(id string) bool { return id == "argus-init" })
+		require.NoError(t, err)
+		assert.True(t, report.Valid)
+		assert.True(t, report.Files["argus-init.yaml"].Valid)
+	})
+
+	t.Run("invariant filename must match id", func(t *testing.T) {
+		dir := t.TempDir()
+		writeFile(t, dir, "wrong-name.yaml", `
+version: v0.1.0
+id: lint-clean
+check:
+  - shell: "true"
+prompt: "Fix it"
+`)
+		report, err := InspectDirectory(dir, alwaysFound, nil)
+		require.NoError(t, err)
+		assert.False(t, report.Valid)
+		fr := report.Files["wrong-name.yaml"]
+		require.NotNil(t, fr)
+		assert.False(t, fr.Valid)
+		found := false
+		for _, fe := range fr.Errors {
+			if contains(fe.Message, `expected "lint-clean.yaml"`) {
+				found = true
+			}
+		}
+		assert.True(t, found, "expected filename mismatch error")
+	})
+
 	t.Run("missing workflow reference", func(t *testing.T) {
 		dir := t.TempDir()
 		writeFile(t, dir, "check.yaml", `
@@ -123,7 +162,7 @@ check:
   - shell: "test -f README.md"
 workflow: nonexistent-workflow
 `)
-		report, err := InspectDirectory(dir, neverFound)
+		report, err := InspectDirectory(dir, neverFound, nil)
 		require.NoError(t, err)
 		assert.False(t, report.Valid)
 		fr := report.Files["check.yaml"]
@@ -140,28 +179,28 @@ workflow: nonexistent-workflow
 
 	t.Run("empty dir", func(t *testing.T) {
 		dir := t.TempDir()
-		report, err := InspectDirectory(dir, alwaysFound)
+		report, err := InspectDirectory(dir, alwaysFound, nil)
 		require.NoError(t, err)
 		assert.True(t, report.Valid)
 		assert.Empty(t, report.Files)
 	})
 
 	t.Run("non-existent dir", func(t *testing.T) {
-		_, err := InspectDirectory("/nonexistent/path/to/dir", alwaysFound)
+		_, err := InspectDirectory("/nonexistent/path/to/dir", alwaysFound, nil)
 		require.Error(t, err)
 	})
 
 	t.Run("non-yaml files ignored", func(t *testing.T) {
 		dir := t.TempDir()
 		writeFile(t, dir, "readme.txt", "not a yaml file")
-		writeFile(t, dir, "check.yaml", `
+		writeFile(t, dir, "my-check.yaml", `
 version: v0.1.0
 id: my-check
 check:
   - shell: "test -f README.md"
 prompt: "Fix it"
 `)
-		report, err := InspectDirectory(dir, alwaysFound)
+		report, err := InspectDirectory(dir, alwaysFound, nil)
 		require.NoError(t, err)
 		assert.True(t, report.Valid)
 		assert.Len(t, report.Files, 1)
@@ -171,7 +210,7 @@ prompt: "Fix it"
 
 	t.Run("workflow checker only called when workflow set", func(t *testing.T) {
 		dir := t.TempDir()
-		writeFile(t, dir, "check.yaml", `
+		writeFile(t, dir, "my-check.yaml", `
 version: v0.1.0
 id: my-check
 check:
@@ -179,7 +218,7 @@ check:
 prompt: "Fix it"
 `)
 		// neverFound should not cause error since workflow is empty
-		report, err := InspectDirectory(dir, neverFound)
+		report, err := InspectDirectory(dir, neverFound, nil)
 		require.NoError(t, err)
 		assert.True(t, report.Valid)
 	})

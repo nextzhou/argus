@@ -20,7 +20,13 @@ func newWorkflowInspectCmd() *cobra.Command {
 				dir = args[0]
 			}
 
-			report, err := workflow.InspectDirectory(dir)
+			allowReservedID, err := builtinWorkflowAllowReservedID()
+			if err != nil {
+				writeCommandError(cmd, jsonFlag, err.Error())
+				return fmt.Errorf("workflow inspect failed: %w", err)
+			}
+
+			report, err := workflow.InspectDirectory(dir, allowReservedID)
 			if err != nil {
 				writeCommandError(cmd, jsonFlag, err.Error())
 				return fmt.Errorf("workflow inspect failed: %w", err)

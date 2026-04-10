@@ -93,6 +93,18 @@ func (s *fsScope) LoadInvariants() ([]*invariant.Invariant, error) {
 			slog.Warn("skipping unparseable invariant file", "file", name, "error", err)
 			continue
 		}
+		if !core.DefinitionFileNameMatchesID(name, inv.ID) {
+			slog.Warn(
+				"skipping invariant file with mismatched file name",
+				"file",
+				name,
+				"id",
+				inv.ID,
+				"expected",
+				core.ExpectedYAMLFileName(inv.ID),
+			)
+			continue
+		}
 
 		invariants = append(invariants, inv)
 	}
@@ -142,6 +154,18 @@ func (s *fsScope) LoadWorkflowSummaries() ([]WorkflowSummary, error) {
 		wf, err := workflow.ParseWorkflowFile(filepath.Join(s.workflowsDir, name))
 		if err != nil {
 			slog.Warn("skipping unparseable workflow file", "file", name, "error", err)
+			continue
+		}
+		if !core.DefinitionFileNameMatchesID(name, wf.ID) {
+			slog.Warn(
+				"skipping workflow file with mismatched file name",
+				"file",
+				name,
+				"id",
+				wf.ID,
+				"expected",
+				core.ExpectedYAMLFileName(wf.ID),
+			)
 			continue
 		}
 

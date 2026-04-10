@@ -10,7 +10,7 @@ YAML authoring reference for Argus workflow definitions.
 
 ## File Location
 
-Workflow files go in `.argus/workflows/` with `.yaml` extension.
+Workflow files go in `.argus/workflows/` with `.yaml` extension. Except for `_shared.yaml`, each file must be named `<workflow-id>.yaml`.
 
 ## Schema
 
@@ -42,6 +42,7 @@ Unique workflow identifier.
 - Regex: `^[a-z0-9]+(-[a-z0-9]+)*$`
 - Lowercase letters, digits, and hyphens only
 - Must not start or end with a hyphen
+- The file name must match the ID exactly: `<id>.yaml`
 - **The `argus-` prefix is reserved for built-in workflows.** User-defined workflows must not use this prefix.
 
 ### `description` (optional)
@@ -134,6 +135,8 @@ argus workflow inspect [dir] [--json]
 ```
 
 When `[dir]` is omitted, it validates `.argus/workflows/` by default.
+
+Validation also enforces the `<id>.yaml` file-name contract. The only exception is `_shared.yaml`.
 
 ## Safe-Write Flow
 

@@ -10,7 +10,7 @@ YAML authoring reference for Argus invariant definitions.
 
 ## File Location
 
-Invariant files go in `.argus/invariants/` with `.yaml` extension.
+Invariant files go in `.argus/invariants/` with `.yaml` extension. Each file must be named `<invariant-id>.yaml`.
 
 ## Schema
 
@@ -43,6 +43,7 @@ Unique invariant identifier.
 - Regex: `^[a-z0-9]+(-[a-z0-9]+)*$`
 - Lowercase letters, digits, and hyphens only
 - Must not start or end with a hyphen
+- The file name must match the ID exactly: `<id>.yaml`
 - **The `argus-` prefix is reserved for built-in invariants.** User-defined invariants must not use this prefix.
 
 ### `description` (optional)
@@ -102,6 +103,8 @@ argus invariant inspect [dir] [--json]
 ```
 
 When `[dir]` is omitted, it validates `.argus/invariants/` by default.
+
+Validation also enforces the `<id>.yaml` file-name contract.
 
 ## Safe-Write Flow
 

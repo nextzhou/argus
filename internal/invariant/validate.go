@@ -30,7 +30,7 @@ type InspectReport struct {
 
 // InspectDirectory validates all *.yaml files in dir and returns an InspectReport.
 // workflowChecker is called for each invariant that references a workflow to verify it exists.
-func InspectDirectory(dir string, workflowChecker func(id string) bool) (*InspectReport, error) {
+func InspectDirectory(dir string, workflowChecker func(id string) bool, allowReservedID func(id string) bool) (*InspectReport, error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return nil, fmt.Errorf("reading invariant directory %q: %w", dir, err)
@@ -95,13 +95,16 @@ func InspectDirectory(dir string, workflowChecker func(id string) bool) (*Inspec
 	for _, p := range parsed {
 		fr := report.Files[p.filename]
 
-		// FIXME: this check rejects ALL argus- prefixed IDs, including legitimate built-in invariants.
-		// The intent is to prevent users from creating custom invariants with the reserved argus- prefix.
-		// Currently, doctor works around this by filtering the error in invariantInspectIssues(),
-		// but the CLI `argus invariant inspect` command shows it as an error.
-		// Fix: InspectDirectory should distinguish built-in vs user content, so consumers
-		// (doctor, CLI inspect) all get correct results without post-filtering.
-		if core.IsArgusReserved(p.inv.ID) {
+		if !core.DefinitionFileNameMatchesID(p.filename, p.inv.ID) {
+			fr.Valid = false
+			fr.Errors = append(fr.Errors, FieldError{
+				Path:    "id",
+				Message: core.DefinitionFileNameMismatchMessage("invariant", p.filename, p.inv.ID),
+			})
+			report.Valid = false
+		}
+
+		if core.IsArgusReserved(p.inv.ID) && !reservedIDAllowed(allowReservedID, p.inv.ID) {
 			fr.Valid = false
 			fr.Errors = append(fr.Errors, FieldError{
 				Path:    p.filename,
@@ -121,4 +124,8 @@ func InspectDirectory(dir string, workflowChecker func(id string) bool) (*Inspec
 	}
 
 	return report, nil
+}
+
+func reservedIDAllowed(allowReservedID func(id string) bool, id string) bool {
+	return allowReservedID != nil && allowReservedID(id)
 }

@@ -152,6 +152,7 @@ No `confirm` / `auto` fields. Write confirmation requirements directly in job pr
 - When updating agent hook or plugin wrappers, verify behavior against the host agent's current runtime contract using the installed SDK or type definitions, runtime logs, and the actual installed hook artifact. Official docs and older templates may lag behind the host's real integration API.
 - If a reviewer (including automated review) misreads code and files a false positive, treat it as a signal that the code's intent is not clear enough. Add comments, rename symbols, or restructure to eliminate the ambiguity — even though the behavior is already correct.
 - When a local simplification conflicts with architectural consistency, prefer the design that preserves one reusable mechanism and artifact-driven policy. In this early stage, do not preserve bespoke behavior only because it already exists.
+- Argus is still in an early development stage. Do not preserve APIs, file formats, or behaviors solely for backward compatibility or to avoid breaking changes. Prefer the most correct and maintainable design, even when that means changing existing behavior and discarding historical baggage.
 
 ## Development Guidelines
 

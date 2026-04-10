@@ -2,12 +2,8 @@ package main
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
-	"strings"
 
 	"github.com/nextzhou/argus/internal/invariant"
-	"github.com/nextzhou/argus/internal/workflow"
 	"github.com/spf13/cobra"
 )
 
@@ -25,8 +21,13 @@ func newInvariantInspectCmd() *cobra.Command {
 			}
 
 			workflowChecker := buildWorkflowChecker(".argus/workflows")
+			allowReservedID, err := builtinInvariantAllowReservedID()
+			if err != nil {
+				writeCommandError(cmd, jsonFlag, err.Error())
+				return fmt.Errorf("invariant inspect failed: %w", err)
+			}
 
-			report, err := invariant.InspectDirectory(dir, workflowChecker)
+			report, err := invariant.InspectDirectory(dir, workflowChecker, allowReservedID)
 			if err != nil {
 				writeCommandError(cmd, jsonFlag, err.Error())
 				return fmt.Errorf("invariant inspect failed: %w", err)
@@ -43,34 +44,6 @@ func newInvariantInspectCmd() *cobra.Command {
 
 	bindJSONFlag(cmd, &jsonFlag)
 	return cmd
-}
-
-// buildWorkflowChecker scans workflowsDir for .yaml files and returns a
-// checker function that reports whether a workflow ID exists.
-func buildWorkflowChecker(workflowsDir string) func(id string) bool {
-	knownIDs := make(map[string]bool)
-	entries, err := os.ReadDir(workflowsDir)
-	if err != nil {
-		// If dir doesn't exist or can't read, return empty checker (all IDs unknown)
-		return func(_ string) bool { return false }
-	}
-
-	for _, entry := range entries {
-		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".yaml") {
-			continue
-		}
-		if entry.Name() == "_shared.yaml" {
-			continue
-		}
-		path := filepath.Join(workflowsDir, entry.Name())
-		wf, parseErr := workflow.ParseWorkflowFile(path)
-		if parseErr != nil {
-			continue
-		}
-		knownIDs[wf.ID] = true
-	}
-
-	return func(id string) bool { return knownIDs[id] }
 }
 
 func renderInvariantInspectText(cmd *cobra.Command, report *invariant.InspectReport) {

@@ -51,7 +51,7 @@ jobs:
   - prompt: "Build release artifacts"
   - ref: lint
 `)
-		report, err := InspectDirectory(dir)
+		report, err := InspectDirectory(dir, nil)
 		require.NoError(t, err)
 		assert.True(t, report.Valid)
 		assert.Len(t, report.Files, 2)
@@ -77,7 +77,7 @@ jobs:
 		writeTestFile(t, dir, "bad.yaml", `
 this is: [not valid yaml
 `)
-		report, err := InspectDirectory(dir)
+		report, err := InspectDirectory(dir, nil)
 		require.NoError(t, err)
 		assert.False(t, report.Valid)
 		fr := report.Files["bad.yaml"]
@@ -93,7 +93,7 @@ version: v0.1.0
 jobs:
   - prompt: "do something"
 `)
-		report, err := InspectDirectory(dir)
+		report, err := InspectDirectory(dir, nil)
 		require.NoError(t, err)
 		assert.False(t, report.Valid)
 		fr := report.Files["noid.yaml"]
@@ -111,7 +111,7 @@ unknown_field: "bad"
 jobs:
   - prompt: "do something"
 `)
-		report, err := InspectDirectory(dir)
+		report, err := InspectDirectory(dir, nil)
 		require.NoError(t, err)
 		assert.False(t, report.Valid)
 		fr := report.Files["unknown.yaml"]
@@ -128,7 +128,7 @@ id: release
 jobs:
   - prompt: "do something"
 `)
-		report, err := InspectDirectory(dir)
+		report, err := InspectDirectory(dir, nil)
 		require.NoError(t, err)
 		assert.False(t, report.Valid)
 		fr := report.Files["oldver.yaml"]
@@ -145,7 +145,7 @@ id: MY-WORKFLOW
 jobs:
   - prompt: "do something"
 `)
-		report, err := InspectDirectory(dir)
+		report, err := InspectDirectory(dir, nil)
 		require.NoError(t, err)
 		assert.False(t, report.Valid)
 		fr := report.Files["badid.yaml"]
@@ -161,7 +161,7 @@ id: argus-custom
 jobs:
   - prompt: "do something"
 `)
-		report, err := InspectDirectory(dir)
+		report, err := InspectDirectory(dir, nil)
 		require.NoError(t, err)
 		assert.False(t, report.Valid)
 		fr := report.Files["reserved.yaml"]
@@ -170,29 +170,60 @@ jobs:
 		assert.True(t, hasError(fr, "argus-"), "expected namespace violation error")
 	})
 
+	t.Run("built-in argus prefix allowed by allowlist", func(t *testing.T) {
+		dir := t.TempDir()
+		writeTestFile(t, dir, "argus-init.yaml", `
+version: v0.1.0
+id: argus-init
+jobs:
+  - prompt: "do something"
+`)
+		report, err := InspectDirectory(dir, func(id string) bool { return id == "argus-init" })
+		require.NoError(t, err)
+		assert.True(t, report.Valid)
+		assert.True(t, report.Files["argus-init.yaml"].Valid)
+	})
+
+	t.Run("workflow filename must match id", func(t *testing.T) {
+		dir := t.TempDir()
+		writeTestFile(t, dir, "wrong-name.yaml", `
+version: v0.1.0
+id: release
+jobs:
+  - prompt: "do something"
+`)
+		report, err := InspectDirectory(dir, nil)
+		require.NoError(t, err)
+		assert.False(t, report.Valid)
+		fr := report.Files["wrong-name.yaml"]
+		require.NotNil(t, fr)
+		assert.False(t, fr.Valid)
+		assert.True(t, hasError(fr, `expected "release.yaml"`))
+	})
+
 	t.Run("empty dir", func(t *testing.T) {
 		dir := t.TempDir()
-		report, err := InspectDirectory(dir)
+		report, err := InspectDirectory(dir, nil)
 		require.NoError(t, err)
 		assert.True(t, report.Valid)
 		assert.Empty(t, report.Files)
 	})
 
 	t.Run("non-existent dir", func(t *testing.T) {
-		_, err := InspectDirectory("/nonexistent/path/to/dir")
+		_, err := InspectDirectory("/nonexistent/path/to/dir", nil)
 		require.Error(t, err)
 	})
 
 	t.Run("non-yaml files ignored", func(t *testing.T) {
 		dir := t.TempDir()
 		writeTestFile(t, dir, "readme.txt", "not a yaml file")
-		writeTestFile(t, dir, "check.yaml", `
+		writeTestFile(t, dir, "my-workflow.yaml", `
 version: v0.1.0
 id: my-workflow
 jobs:
   - prompt: "do something"
 `)
-		report, err := InspectDirectory(dir)
+		report, err := InspectDirectory(dir, nil)
 		require.NoError(t, err)
 		assert.True(t, report.Valid)
 		assert.Len(t, report.Files, 1)
@@ -216,7 +247,7 @@ id: dup-workflow
 jobs:
   - prompt: "do something else"
 `)
-		report, err := InspectDirectory(dir)
+		report, err := InspectDirectory(dir, nil)
 		require.NoError(t, err)
 		assert.False(t, report.Valid)
 		assert.False(t, report.Files["a.yaml"].Valid)
@@ -227,23 +258,23 @@ jobs:
 
 	t.Run("unique IDs across files", func(t *testing.T) {
 		dir := t.TempDir()
-		writeTestFile(t, dir, "a.yaml", `
+		writeTestFile(t, dir, "workflow-a.yaml", `
 version: v0.1.0
 id: workflow-a
 jobs:
   - prompt: "do something"
 `)
-		writeTestFile(t, dir, "b.yaml", `
+		writeTestFile(t, dir, "workflow-b.yaml", `
 version: v0.1.0
 id: workflow-b
 jobs:
   - prompt: "do something else"
 `)
-		report, err := InspectDirectory(dir)
+		report, err := InspectDirectory(dir, nil)
 		require.NoError(t, err)
 		assert.True(t, report.Valid)
-		assert.True(t, report.Files["a.yaml"].Valid)
-		assert.True(t, report.Files["b.yaml"].Valid)
+		assert.True(t, report.Files["workflow-a.yaml"].Valid)
+		assert.True(t, report.Files["workflow-b.yaml"].Valid)
 	})
 }
 
@@ -257,7 +288,7 @@ jobs:
   code_review:
     prompt: "Review code"
 `)
-		report, err := InspectDirectory(dir)
+		report, err := InspectDirectory(dir, nil)
 		require.NoError(t, err)
 		assert.True(t, report.Valid)
 
@@ -271,13 +302,13 @@ jobs:
 
 	t.Run("shared absent not in files map", func(t *testing.T) {
 		dir := t.TempDir()
-		writeTestFile(t, dir, "wf.yaml", `
+		writeTestFile(t, dir, "my-workflow.yaml", `
 version: v0.1.0
 id: my-workflow
 jobs:
   - prompt: "do something"
 `)
-		report, err := InspectDirectory(dir)
+		report, err := InspectDirectory(dir, nil)
 		require.NoError(t, err)
 		_, exists := report.Files["_shared.yaml"]
 		assert.False(t, exists)
@@ -288,7 +319,7 @@ jobs:
 		writeTestFile(t, dir, "_shared.yaml", `
 this is: [bad yaml
 `)
-		report, err := InspectDirectory(dir)
+		report, err := InspectDirectory(dir, nil)
 		require.NoError(t, err)
 		assert.False(t, report.Valid)
 		fr := report.Files["_shared.yaml"]
@@ -303,16 +334,16 @@ this is: [bad yaml
 func TestTemplateCheck(t *testing.T) {
 	t.Run("valid template in prompt", func(t *testing.T) {
 		dir := t.TempDir()
-		writeTestFile(t, dir, "wf.yaml", `
+		writeTestFile(t, dir, "my-workflow.yaml", `
 version: v0.1.0
 id: my-workflow
 jobs:
   - prompt: "Hello {{ .Name }}, welcome"
 `)
-		report, err := InspectDirectory(dir)
+		report, err := InspectDirectory(dir, nil)
 		require.NoError(t, err)
 		assert.True(t, report.Valid)
-		fr := report.Files["wf.yaml"]
+		fr := report.Files["my-workflow.yaml"]
 		require.NotNil(t, fr)
 		assert.True(t, fr.Valid)
 	})
@@ -325,7 +356,7 @@ id: my-workflow
 jobs:
   - prompt: "Hello {{ .Missing"
 `)
-		report, err := InspectDirectory(dir)
+		report, err := InspectDirectory(dir, nil)
 		require.NoError(t, err)
 		assert.False(t, report.Valid)
 		fr := report.Files["wf.yaml"]
@@ -342,7 +373,7 @@ id: my-workflow
 jobs:
   - prompt: "Hello {{{{ invalid }}}}"
 `)
-		report, err := InspectDirectory(dir)
+		report, err := InspectDirectory(dir, nil)
 		require.NoError(t, err)
 		assert.False(t, report.Valid)
 		fr := report.Files["wf.yaml"]
@@ -357,13 +388,13 @@ jobs:
   lint:
     prompt: "Run linting"
 `)
-		writeTestFile(t, dir, "wf.yaml", `
+		writeTestFile(t, dir, "my-workflow.yaml", `
 version: v0.1.0
 id: my-workflow
 jobs:
   - ref: lint
 `)
-		report, err := InspectDirectory(dir)
+		report, err := InspectDirectory(dir, nil)
 		require.NoError(t, err)
 		assert.True(t, report.Valid)
 	})
@@ -377,13 +408,13 @@ jobs:
   lint:
     prompt: "Run linting"
 `)
-		writeTestFile(t, dir, "wf.yaml", `
+		writeTestFile(t, dir, "my-workflow.yaml", `
 version: v0.1.0
 id: my-workflow
 jobs:
   - ref: lint
 `)
-		report, err := InspectDirectory(dir)
+		report, err := InspectDirectory(dir, nil)
 		require.NoError(t, err)
 		assert.True(t, report.Valid)
 	})
@@ -401,7 +432,7 @@ id: my-workflow
 jobs:
   - ref: nonexistent
 `)
-		report, err := InspectDirectory(dir)
+		report, err := InspectDirectory(dir, nil)
 		require.NoError(t, err)
 		assert.False(t, report.Valid)
 		fr := report.Files["wf.yaml"]
@@ -418,7 +449,7 @@ id: my-workflow
 jobs:
   - ref: lint
 `)
-		report, err := InspectDirectory(dir)
+		report, err := InspectDirectory(dir, nil)
 		require.NoError(t, err)
 		assert.False(t, report.Valid)
 		fr := report.Files["wf.yaml"]

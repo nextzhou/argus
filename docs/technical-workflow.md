@@ -22,6 +22,8 @@ Following the architecture invariants from [technical-overview.md](technical-ove
 
 Workflow definitions live in `.argus/workflows/`.
 
+Except for `_shared.yaml`, each workflow file name is part of the contract: the file must be named `<workflow-id>.yaml`.
+
 | Field | Required | Meaning |
 |------|----------|---------|
 | `version` | Yes | Schema version, currently fixed at `v0.1.0` |
@@ -270,7 +272,8 @@ argus workflow inspect [dir] [--json]
 5. `ref` override compatibility with shared definitions
 6. detection of init workflows shipped by the Argus binary
 7. workflow ID format validation (`^[a-z0-9]+(-[a-z0-9]+)*$`)
-8. reserved-namespace validation for the `argus-` prefix
+8. file-name validation: every workflow file except `_shared.yaml` must be named `<id>.yaml`
+9. reserved-namespace validation for the `argus-` prefix, while allowing built-in IDs embedded in the current Argus binary
 
 ### 7.3 JSON Output
 

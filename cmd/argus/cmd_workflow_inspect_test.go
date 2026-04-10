@@ -165,7 +165,7 @@ jobs:
 			},
 		},
 		{
-			name:       "reserved argus- prefix rejected",
+			name:       "unknown reserved argus- prefix rejected",
 			wantErr:    false,
 			wantStatus: "ok",
 			setupFiles: map[string]string{
@@ -189,6 +189,55 @@ jobs:
 				require.True(t, ok, "errors should be an array")
 				require.NotEmpty(t, errors)
 				assert.Contains(t, errors[0].(map[string]any)["message"], "reserved")
+			},
+		},
+		{
+			name:       "built-in reserved workflow id is accepted",
+			wantStatus: "ok",
+			setupFiles: map[string]string{
+				"argus-init.yaml": `version: v0.1.0
+id: argus-init
+description: Built-in workflow
+jobs:
+  - id: step1
+    prompt: "Step 1"
+`,
+			},
+			checkJSON: func(t *testing.T, data map[string]any) {
+				assert.True(t, data["valid"].(bool))
+				files, ok := data["files"].(map[string]any)
+				require.True(t, ok, "files should be an object")
+
+				builtinFile, ok := files["argus-init.yaml"].(map[string]any)
+				require.True(t, ok, "argus-init.yaml should exist")
+				assert.True(t, builtinFile["valid"].(bool))
+			},
+		},
+		{
+			name:       "workflow filename must match id",
+			wantErr:    false,
+			wantStatus: "ok",
+			setupFiles: map[string]string{
+				"wrong-name.yaml": `version: v0.1.0
+id: release
+description: Release workflow
+jobs:
+  - id: step1
+    prompt: "Step 1"
+`,
+			},
+			checkJSON: func(t *testing.T, data map[string]any) {
+				assert.False(t, data["valid"].(bool))
+				files, ok := data["files"].(map[string]any)
+				require.True(t, ok, "files should be an object")
+
+				file, ok := files["wrong-name.yaml"].(map[string]any)
+				require.True(t, ok, "wrong-name.yaml should exist")
+				assert.False(t, file["valid"].(bool))
+				errors, ok := file["errors"].([]any)
+				require.True(t, ok, "errors should be an array")
+				require.NotEmpty(t, errors)
+				assert.Contains(t, errors[0].(map[string]any)["message"], `expected "release.yaml"`)
 			},
 		},
 		{

@@ -67,6 +67,12 @@ check:
   - shell: "true"
 prompt: "ignored"
 `)
+	writeScopeTestFile(t, filepath.Join(invariantsDir, "wrong-name.yaml"), `version: v0.1.0
+id: other-check
+check:
+  - shell: "true"
+prompt: "ignored"
+`)
 	writeScopeTestFile(t, filepath.Join(invariantsDir, "notes.txt"), "not yaml")
 
 	invariants, err := artifactScope.LoadInvariants()
@@ -186,6 +192,13 @@ jobs:
     prompt: "Build the binary"
 `)
 	writeScopeTestFile(t, filepath.Join(workflowsDir, "broken.yaml"), "{{invalid yaml")
+	writeScopeTestFile(t, filepath.Join(workflowsDir, "wrong-name.yaml"), `version: v0.1.0
+id: wrong-id
+description: "Wrongly named workflow"
+jobs:
+  - id: lint
+    prompt: "Run lint"
+`)
 	writeScopeTestFile(t, filepath.Join(workflowsDir, "_shared.yaml"), `jobs:
   lint:
     prompt: "Run lint"
@@ -203,6 +216,7 @@ jobs:
 
 	assert.Equal(t, WorkflowSummary{ID: "build", Description: "Build workflow", Jobs: 1}, summaryByID["build"])
 	assert.Equal(t, WorkflowSummary{ID: "release", Description: "Release workflow", Jobs: 2}, summaryByID["release"])
+	assert.NotContains(t, summaryByID, "wrong-id")
 }
 
 func TestLoadWorkflowSummaries_MissingDir(t *testing.T) {

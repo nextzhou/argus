@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/nextzhou/argus/internal/assets"
 	"github.com/nextzhou/argus/internal/core"
 	"github.com/nextzhou/argus/internal/install"
 	"github.com/nextzhou/argus/internal/invariant"
@@ -214,7 +215,12 @@ func CheckWorkflowFiles(projectRoot string) CheckResult {
 		return skippedProjectCheck(checkWorkflowFiles)
 	}
 
-	report, err := workflow.InspectDirectory(filepath.Join(projectRoot, ".argus", "workflows"))
+	allowReservedID, err := builtinWorkflowAllowReservedID()
+	if err != nil {
+		return failResult(checkWorkflowFiles, err.Error(), "repair the embedded built-in workflow metadata before re-running doctor")
+	}
+
+	report, err := workflow.InspectDirectory(filepath.Join(projectRoot, ".argus", "workflows"), allowReservedID)
 	if err != nil {
 		return failResult(checkWorkflowFiles, fmt.Sprintf("inspecting workflows: %v", err), "fix workflow directory access or restore workflow files")
 	}
@@ -234,9 +240,14 @@ func CheckInvariantFiles(projectRoot string) CheckResult {
 	}
 
 	workflowDir := filepath.Join(projectRoot, ".argus", "workflows")
+	allowReservedID, err := builtinInvariantAllowReservedID()
+	if err != nil {
+		return failResult(checkInvariantFiles, err.Error(), "repair the embedded built-in invariant metadata before re-running doctor")
+	}
+
 	report, err := invariant.InspectDirectory(filepath.Join(projectRoot, ".argus", "invariants"), func(id string) bool {
-		return isExistingFile(filepath.Join(workflowDir, id+".yaml"))
-	})
+		return workflow.ExistsAtExpectedPath(workflowDir, id)
+	}, allowReservedID)
 	if err != nil {
 		return failResult(checkInvariantFiles, fmt.Sprintf("inspecting invariants: %v", err), "fix invariant directory access or restore invariant files")
 	}
@@ -255,6 +266,11 @@ func CheckBuiltinInvariants(projectRoot string) CheckResult {
 		return skippedProjectCheck(checkBuiltinChecks)
 	}
 
+	builtinIDs, err := assets.BuiltinInvariantIDs()
+	if err != nil {
+		return failResult(checkBuiltinChecks, fmt.Sprintf("loading built-in invariants: %v", err), "repair the embedded built-in invariant metadata before re-running doctor")
+	}
+
 	entries, err := os.ReadDir(filepath.Join(projectRoot, ".argus", "invariants"))
 	if err != nil {
 		return failResult(checkBuiltinChecks, fmt.Sprintf("reading built-in invariants: %v", err), "restore the invariant directory before re-running doctor")
@@ -265,10 +281,19 @@ func CheckBuiltinInvariants(projectRoot string) CheckResult {
 		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".yaml") {
 			continue
 		}
-		matched, matchErr := filepath.Match("argus-*.yaml", entry.Name())
-		if matchErr == nil && matched {
-			files = append(files, entry.Name())
+
+		path := filepath.Join(projectRoot, ".argus", "invariants", entry.Name())
+		inv, parseErr := invariant.ParseInvariantFile(path)
+		if parseErr != nil {
+			continue
 		}
+		if _, ok := builtinIDs[inv.ID]; !ok {
+			continue
+		}
+		if !core.DefinitionFileNameMatchesID(entry.Name(), inv.ID) {
+			continue
+		}
+		files = append(files, entry.Name())
 	}
 	if len(files) == 0 {
 		return passResult(checkBuiltinChecks, "no built-in invariants found")
@@ -624,12 +649,6 @@ func workflowInspectIssues(report *workflow.InspectReport) []string {
 			continue
 		}
 		for _, fieldErr := range fileResult.Errors {
-			// FIXME: this filtering compensates for InspectDirectory flagging built-in argus- prefixed IDs as errors.
-			// This logic should not exist here — doctor should consume InspectDirectory results directly.
-			// See FIXME in invariant/validate.go and workflow/validate.go for the root cause.
-			if strings.Contains(fieldErr.Message, "uses reserved argus- prefix") && fileResult.Workflow != nil && core.IsArgusReserved(fileResult.Workflow.ID) {
-				continue
-			}
 			issues = append(issues, formatFieldError(name, fieldErr.Path, fieldErr.Message))
 		}
 	}
@@ -656,12 +675,6 @@ func invariantInspectIssues(report *invariant.InspectReport) []string {
 			continue
 		}
 		for _, fieldErr := range fileResult.Errors {
-			// FIXME: this filtering compensates for InspectDirectory flagging built-in argus- prefixed IDs as errors.
-			// This logic should not exist here — doctor should consume InspectDirectory results directly.
-			// See FIXME in invariant/validate.go and workflow/validate.go for the root cause.
-			if strings.Contains(fieldErr.Message, "uses reserved argus- prefix") && core.IsArgusReserved(fileResult.ID) {
-				continue
-			}
 			issues = append(issues, formatFieldError(name, fieldErr.Path, fieldErr.Message))
 		}
 	}
@@ -674,6 +687,29 @@ func formatFieldError(fileName string, fieldPath string, message string) string 
 		return fmt.Sprintf("%s: %s", fileName, message)
 	}
 	return fmt.Sprintf("%s:%s %s", fileName, fieldPath, message)
+}
+
+func builtinWorkflowAllowReservedID() (func(string) bool, error) {
+	ids, err := assets.BuiltinWorkflowIDs()
+	if err != nil {
+		return nil, fmt.Errorf("loading built-in workflows: %w", err)
+	}
+	return allowReservedIDs(ids), nil
+}
+
+func builtinInvariantAllowReservedID() (func(string) bool, error) {
+	ids, err := assets.BuiltinInvariantIDs()
+	if err != nil {
+		return nil, fmt.Errorf("loading built-in invariants: %w", err)
+	}
+	return allowReservedIDs(ids), nil
+}
+
+func allowReservedIDs(ids map[string]struct{}) func(string) bool {
+	return func(id string) bool {
+		_, ok := ids[id]
+		return ok
+	}
 }
 
 func describeInvariantFailure(invariantID string, check *invariant.CheckResult) string {

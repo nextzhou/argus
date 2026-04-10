@@ -90,6 +90,8 @@ Typical collaboration loop:
 
 `prompt` and `workflow` may not both be empty. They may coexist, in which case Argus injects both prompt guidance and a workflow suggestion.
 
+Invariant file names are also part of the contract: each file must be named `<invariant-id>.yaml`.
+
 ### Multi-Line Shell and Step Isolation
 
 Each check step runs in its own process, but a multi-line `shell: |` block shares shell context internally:
@@ -256,8 +258,9 @@ Validation includes:
 3. unknown-key detection
 4. `auto` enum validation
 5. duplicate ID detection across files
-6. reserved-namespace validation for `argus-`
-7. workflow-reference validation against the current project’s `.argus/workflows/`, even if a non-default invariant directory is passed
+6. file-name validation: every invariant file must be named `<id>.yaml`
+7. reserved-namespace validation for `argus-`, while allowing built-in IDs embedded in the current Argus binary
+8. workflow-reference validation against the current project’s `.argus/workflows/`, even if a non-default invariant directory is passed
 8. version compatibility validation
 9. invariant ID format validation (`^[a-z0-9]+(-[a-z0-9]+)*$`)
 10. `check` non-empty validation

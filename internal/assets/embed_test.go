@@ -128,6 +128,19 @@ func TestBuiltinInvariantProjectInit(t *testing.T) {
 	assert.Equal(t, "session_start", inv.Auto)
 }
 
+func TestBuiltinWorkflowIDs(t *testing.T) {
+	ids, err := BuiltinWorkflowIDs()
+	require.NoError(t, err)
+	assert.Contains(t, ids, "argus-init")
+}
+
+func TestBuiltinInvariantIDs(t *testing.T) {
+	ids, err := BuiltinInvariantIDs()
+	require.NoError(t, err)
+	assert.Contains(t, ids, "argus-init")
+	assert.Contains(t, ids, "argus-project-init")
+}
+
 func TestPromptTemplates(t *testing.T) {
 	templates := []string{
 		"prompts/tick-no-pipeline.md.tmpl",
