@@ -608,6 +608,9 @@ func workflowInspectIssues(report *workflow.InspectReport) []string {
 			continue
 		}
 		for _, fieldErr := range fileResult.Errors {
+			// FIXME: this filtering compensates for InspectDirectory flagging built-in argus- prefixed IDs as errors.
+			// This logic should not exist here — doctor should consume InspectDirectory results directly.
+			// See FIXME in invariant/validate.go and workflow/validate.go for the root cause.
 			if strings.Contains(fieldErr.Message, "uses reserved argus- prefix") && fileResult.Workflow != nil && core.IsArgusReserved(fileResult.Workflow.ID) {
 				continue
 			}
@@ -637,6 +640,9 @@ func invariantInspectIssues(report *invariant.InspectReport) []string {
 			continue
 		}
 		for _, fieldErr := range fileResult.Errors {
+			// FIXME: this filtering compensates for InspectDirectory flagging built-in argus- prefixed IDs as errors.
+			// This logic should not exist here — doctor should consume InspectDirectory results directly.
+			// See FIXME in invariant/validate.go and workflow/validate.go for the root cause.
 			if strings.Contains(fieldErr.Message, "uses reserved argus- prefix") && core.IsArgusReserved(fileResult.ID) {
 				continue
 			}

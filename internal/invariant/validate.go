@@ -95,6 +95,12 @@ func InspectDirectory(dir string, workflowChecker func(id string) bool) (*Inspec
 	for _, p := range parsed {
 		fr := report.Files[p.filename]
 
+		// FIXME: this check rejects ALL argus- prefixed IDs, including legitimate built-in invariants.
+		// The intent is to prevent users from creating custom invariants with the reserved argus- prefix.
+		// Currently, doctor works around this by filtering the error in invariantInspectIssues(),
+		// but the CLI `argus invariant inspect` command shows it as an error.
+		// Fix: InspectDirectory should distinguish built-in vs user content, so consumers
+		// (doctor, CLI inspect) all get correct results without post-filtering.
 		if core.IsArgusReserved(p.inv.ID) {
 			fr.Valid = false
 			fr.Errors = append(fr.Errors, FieldError{

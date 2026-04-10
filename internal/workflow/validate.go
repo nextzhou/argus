@@ -140,6 +140,12 @@ func InspectDirectory(dir string) (*InspectReport, error) {
 	for _, p := range parsed {
 		fr := report.Files[p.filename]
 
+		// FIXME: this check rejects ALL argus- prefixed IDs, including legitimate built-in workflows.
+		// The intent is to prevent users from creating custom workflows with the reserved argus- prefix.
+		// Currently, doctor works around this by filtering the error in workflowInspectIssues(),
+		// but the CLI `argus workflow inspect` command shows it as an error.
+		// Fix: InspectDirectory should distinguish built-in vs user content, so consumers
+		// (doctor, CLI inspect) all get correct results without post-filtering.
 		if core.IsArgusReserved(p.wf.ID) {
 			fr.Valid = false
 			fr.Errors = append(fr.Errors, FieldError{
