@@ -20,7 +20,7 @@ Argus solves these by acting as an **orchestration layer** — it does not repla
 | **Codex** | Supported | Bash only |
 | **OpenCode** | Supported | Full (Bash, files, MCP) |
 
-\* **Trap is not yet enforced.** The hook entry points are installed, but the current version always allows all operations. The "Full" and "Bash only" columns describe each agent's underlying capability — what Argus will be able to gate once trap policies are implemented. Codex's hook system can only intercept Bash commands, not file edits or MCP tools.
+\* **Trap is a reserved future capability.** In Phase 1, `argus install` wires only `tick` hooks; no tool-use hooks are installed yet. The "Full" and "Bash only" columns describe each agent's underlying capability — what Argus will be able to gate once trap policies are implemented. Codex's hook system can only intercept Bash commands, not file edits or MCP tools.
 
 All three agents share the same state on disk: pipeline progress in `.argus/pipelines/`, invariant definitions in `.argus/invariants/`, and freshness data in `.argus/data/`. You can switch agents mid-workflow — the new agent picks up where the previous one left off because the state lives on disk, not in the agent's memory.
 
@@ -142,7 +142,7 @@ Argus integrates via each agent's hook system. It is purely reactive — it only
 
 ```
 User input → Agent Hook → argus tick → Check state + inject context → Agent proceeds
-Agent tool call → Agent Hook → argus trap → Gate operation → Allow / Deny
+Future: Agent tool call → Agent Hook → argus trap → Gate operation → Allow / Deny
 ```
 
 Each agent's hook configuration is different (Claude Code uses `.claude/settings.json`, Codex uses `.codex/hooks.json`, OpenCode uses a TypeScript plugin), but they all forward events to the same `argus` binary. The hook layer is intentionally thin — it only passes through the agent's raw JSON context via stdin. All logic lives in the Go binary.
@@ -161,7 +161,7 @@ Every time the user submits a message, the agent's hook calls `argus tick`. Argu
 
 Before the agent executes a tool (Bash command, file edit, etc.), `argus trap` can allow or deny the operation based on pipeline state.
 
-> **Note:** In the current version, trap always allows all operations. The hook entry point is installed now so that future versions can add gating rules without requiring users to reconfigure their agents.
+> **Note:** In the current version, `trap` remains a reserved internal command. Phase 1 installs do not wire tool-use hooks yet; only `tick` is installed.
 
 ### job-done — Progress Advancement
 
@@ -238,8 +238,8 @@ argus uninstall --workspace ~/work/client-x
 
 A workspace is a registered parent directory. The `--workspace` flag does three things:
 
-1. **Installs global hooks** — writes `argus tick` and `argus trap` into each agent's **user-level** (global) hook configuration, so they fire for all projects, not just Argus-initialized ones.
-2. **Installs global skills** — releases bootstrap skills (such as `argus-intro`, `argus-install`, and `argus-doctor`) to each agent's global skill directory, so agents can guide installation even in projects that don't have Argus yet.
+1. **Installs global hooks** — writes `argus tick` into each agent's **user-level** (global) hook configuration, so it fires for projects inside registered workspaces, not just Argus-initialized ones.
+2. **Installs global skills** — releases the current managed global built-in skills (`argus-configure-invariant`, `argus-configure-workflow`, `argus-doctor`, `argus-install`, `argus-intro`, and `argus-uninstall`) to each agent's global skill directory.
 3. **Records the workspace path** in `~/.config/argus/config.yaml`.
 
 Re-running `argus install --workspace <path>` for an already registered workspace refreshes those global hooks, skills, and bootstrap artifacts to match the current Argus binary.

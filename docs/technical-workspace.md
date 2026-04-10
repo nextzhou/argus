@@ -16,12 +16,12 @@ A workspace is Argus’s **scope discovery mechanism**.
 
 This command registers a directory as an Argus workspace, usually a parent directory containing multiple repositories.
 
-If the path is already registered, rerunning the command does not add a second registration. Instead, it refreshes the managed global hooks, global bootstrap skills, and global bootstrap artifacts so they match the current Argus binary.
+If the path is already registered, rerunning the command does not add a second registration. Instead, it refreshes the managed global hooks, global built-in skills, and global artifacts so they match the current Argus binary.
 
 **Actions performed**:
 
 1. Write `argus tick` to **global** hook configuration for supported agents
-2. Install global bootstrap skills such as `argus-intro`, `argus-install`, and `argus-doctor`
+2. Install the current managed global built-in skills: `argus-configure-invariant`, `argus-configure-workflow`, `argus-doctor`, `argus-install`, `argus-intro`, and `argus-uninstall`
 3. **Release global artifacts**: release workspace-specific invariants such as `argus-project-init` into `~/.config/argus/invariants/`, and create the global directory structure (`invariants/`, `workflows/`, `pipelines/`, `logs/`, and so on). The `workflows/` directory is created but no workflows are released into it. Project-only invariants such as `argus-init` are not released into global scope because their remediation workflows do not exist there
 4. Record the workspace path in `~/.config/argus/config.yaml`
 
@@ -223,7 +223,7 @@ Skills are tightly coupled to project configuration.
 | Codex | `~/.agents/skills/argus-*/` |
 | OpenCode | `~/.config/opencode/skills/argus-*/` |
 
-Global scope distributes only the bootstrap-oriented skill subset: `argus-intro`, `argus-install`, `argus-uninstall`, and `argus-doctor`.
+Global scope currently distributes these managed built-in skills: `argus-configure-invariant`, `argus-configure-workflow`, `argus-doctor`, `argus-install`, `argus-intro`, and `argus-uninstall`.
 
 **OpenCode compatibility note**: in addition to its native `~/.config/opencode/skills/`, OpenCode also scans `~/.claude/skills/` and `~/.agents/skills/`.
 

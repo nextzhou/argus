@@ -322,6 +322,7 @@ Everything prefixed with `argus-` is built-in and reserved. Users cannot create 
 | ID | Description |
 |----|-------------|
 | `argus-init` | Checks that the project has completed initialization (rules exist, skills installed, git hooks configured, .gitignore set up, workflows generated, example invariants created) |
+| `argus-project-init` | Workspace-scope installation reminder that checks whether the current project has Argus installed and, if not, guides the agent to present install / explain / ignore choices |
 
 ### Built-in Skills
 
