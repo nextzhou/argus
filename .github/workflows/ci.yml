@@ -1,0 +1,82 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: lint (linux x64)
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Check English-only files
+        run: bash scripts/check-english-only.sh
+
+      - name: Run Biome when present
+        run: |
+          if command -v biome >/dev/null 2>&1; then
+            biome check --no-errors-on-unmatched
+          else
+            echo "biome not found, skipping TypeScript lint"
+          fi
+
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.11.4
+
+  build-and-test:
+    name: build and test (${{ matrix.os }} ${{ matrix.arch }})
+    runs-on: ${{ matrix.runs_on }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: linux
+            arch: x64
+            runs_on: ubuntu-24.04
+          - os: linux
+            arch: arm64
+            runs_on: ubuntu-24.04-arm
+          - os: macos
+            arch: x64
+            runs_on: macos-15-intel
+          - os: macos
+            arch: arm64
+            runs_on: macos-15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Build
+        run: make build
+
+      - name: Test
+        run: make test

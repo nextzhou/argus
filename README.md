@@ -254,6 +254,13 @@ Multiple workspaces can be registered. Remove one with `argus uninstall --worksp
 - **[Technical Docs](docs/)** — Internal architecture and design documents
 - **[AGENTS.md](AGENTS.md)** — Contributing guidelines and development conventions
 
+## Community
+
+- **[Contributing Guide](CONTRIBUTING.md)** — Development workflow, testing expectations, and pull request guidance
+- **[Code of Conduct](CODE_OF_CONDUCT.md)** — Community participation expectations and enforcement policy
+- **[Security Policy](SECURITY.md)** — Supported branches and how to report security issues
+- **[Support](SUPPORT.md)** — Where to ask usage and troubleshooting questions
+
 ## Development
 
 ```bash
@@ -268,4 +275,4 @@ make lint     # Run golangci-lint + biome
 
 ## License
 
-TBD
+[MIT](LICENSE)

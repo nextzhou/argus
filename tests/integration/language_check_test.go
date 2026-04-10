@@ -36,6 +36,34 @@ func TestLanguageCheckScriptFailsForHanCharacters(t *testing.T) {
 	assert.Contains(t, string(output), "Han characters")
 }
 
+func TestLanguageCheckScriptPassesWithoutRipgrep(t *testing.T) {
+	projectDir := initGitRepo(t)
+	writeFile(t, projectDir, "README.md", "# Argus\n\nEnglish only.\n")
+
+	stageAll(t, projectDir)
+
+	cmd := exec.Command("bash", filepath.Join(findProjectRoot(), "scripts", "check-english-only.sh"))
+	cmd.Dir = projectDir
+	cmd.Env = append(os.Environ(), "PATH=/usr/bin:/bin")
+	output, err := cmd.CombinedOutput()
+	require.NoError(t, err, "script output: %s", output)
+}
+
+func TestLanguageCheckScriptFailsForHanCharactersWithoutRipgrep(t *testing.T) {
+	projectDir := initGitRepo(t)
+	writeFile(t, projectDir, "README.md", "# Argus\n\n\u4e2d\u6587\n")
+
+	stageAll(t, projectDir)
+
+	cmd := exec.Command("bash", filepath.Join(findProjectRoot(), "scripts", "check-english-only.sh"))
+	cmd.Dir = projectDir
+	cmd.Env = append(os.Environ(), "PATH=/usr/bin:/bin")
+	output, err := cmd.CombinedOutput()
+	require.Error(t, err, "script should fail when Han characters are present without ripgrep")
+	assert.Contains(t, string(output), "README.md")
+	assert.Contains(t, string(output), "Han characters")
+}
+
 func initGitRepo(t *testing.T) string {
 	t.Helper()
 
