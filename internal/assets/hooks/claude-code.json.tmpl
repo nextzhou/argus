@@ -1,3 +1,4 @@
+{{/* TODO: replace the generic missing-binary hint with the final Claude/Codex URL or skill guidance. */}}
 {
   "hooks": {
     "UserPromptSubmit": [
@@ -5,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "argus tick --agent claude-code{{ if .Global }} --global{{ end }}",
+            "command": "if ! command -v argus >/dev/null 2>&1; then printf '%s\\n' 'Argus: Please install Argus CLI. See project README for instructions.'; exit 0; fi; exec argus tick --agent claude-code{{ if .Global }} --global{{ end }}",
             "timeout": 10,
             "statusMessage": "Argus"
           }

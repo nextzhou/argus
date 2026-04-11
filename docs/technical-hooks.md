@@ -104,7 +104,7 @@ Claude Code and Codex both support a `UserPromptSubmit` event.
         "hooks": [
           {
             "type": "command",
-            "command": "argus tick --agent claude-code",
+            "command": "if ! command -v argus >/dev/null 2>&1; then printf '%s\\n' 'Argus: Please install Argus CLI. See project README for instructions.'; exit 0; fi; exec argus tick --agent claude-code",
             "timeout": 10,
             "statusMessage": "Argus"
           }
@@ -125,7 +125,7 @@ Claude Code and Codex both support a `UserPromptSubmit` event.
         "hooks": [
           {
             "type": "command",
-            "command": "argus tick --agent codex",
+            "command": "if ! command -v argus >/dev/null 2>&1; then printf '%s\\n' 'Argus: Please install Argus CLI. See project README for instructions.'; exit 0; fi; exec argus tick --agent codex",
             "timeout": 10,
             "statusMessage": "Argus"
           }
@@ -152,6 +152,8 @@ Claude Code and Codex both support a `UserPromptSubmit` event.
 **Output (stdout)**:
 
 `tick` emits plain text. Claude Code will wrap that stdout as model context.
+
+If `argus` is unavailable, the shell wrappers print the installation hint and exit successfully instead of failing the hook.
 
 **Compatibility constraint**: although `tick` uses plain text, its first non-whitespace character must **not** be `[` or `{`. Current Codex CLI behavior (verified against `codex-cli 0.118.0` on April 9, 2026) treats those prefixes as candidate JSON. If the output is not valid JSON, Codex reports `hook returned invalid user prompt submit JSON output`. To keep one shared output contract across agents, Argus uses a text prefix such as `Argus:` rather than a JSON-like or bracket-style prefix.
 
@@ -304,12 +306,12 @@ Older Argus setups may already contain `PreToolUse` or equivalent `argus trap` e
 ### Write Locations
 
 - **Claude Code**: `.claude/settings.json`. This file should be committed to the repository so the team shares the configuration. The setup flow merges configuration and preserves existing non-Argus hooks.
-- **Codex**: `.codex/hooks.json`, plus ensure `codex_hooks = true` in `~/.codex/config.toml`
+- **Codex**: `.codex/hooks.json`, plus ensure `[features].codex_hooks = true` in `~/.codex/config.toml`
 - **OpenCode**: `.opencode/plugins/argus.ts`
 
 ### Team Collaboration Compatibility
 
-Wrappers locate the Argus binary through `PATH`, preferring `command -v argus` and covering common Go installation locations such as `GOPATH/bin`.
+Wrappers locate the Argus binary through `PATH`, using `command -v argus` in shell wrappers and equivalent host-specific checks elsewhere.
 
 If the binary is missing:
 
@@ -322,7 +324,7 @@ The exact CLI installation hint string is not a protocol contract in Phase 1. A 
 
 `argus teardown` performs the inverse operation.
 
-For Codex, Argus intentionally **does not** disable the global `codex_hooks` toggle during teardown, because that could break unrelated custom hooks managed by the user.
+For Codex, Argus intentionally **does not** disable the global `[features].codex_hooks` toggle during teardown, because that could break unrelated custom hooks managed by the user.
 
 ### Identifying Argus-Owned Hook Entries
 

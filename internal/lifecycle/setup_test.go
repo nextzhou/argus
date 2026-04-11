@@ -106,7 +106,9 @@ func TestSetupCreatesProjectStructureAndAssets(t *testing.T) {
 	assertGlobalSkillsReleased(t)
 
 	settings := readJSONFile(t, filepath.Join(projectRoot, ".claude", "settings.json"))
-	assert.Equal(t, []string{"argus tick --agent claude-code"}, hookCommandsForEvent(t, settings, "UserPromptSubmit"))
+	commands := hookCommandsForEvent(t, settings, "UserPromptSubmit")
+	require.Len(t, commands, 1)
+	assertArgusShellHookCommand(t, commands[0], "claude-code", false)
 	assert.Empty(t, hookCommandsForEvent(t, settings, "PreToolUse"))
 
 	assert.FileExists(t, filepath.Join(projectRoot, ".codex", "hooks.json"))
@@ -131,7 +133,9 @@ func TestSetupIsIdempotent(t *testing.T) {
 	assert.Contains(t, result.Report.AffectedPaths, "~/.agents/skills/argus-*/SKILL.md")
 
 	settings := readJSONFile(t, filepath.Join(projectRoot, ".claude", "settings.json"))
-	assert.Equal(t, []string{"argus tick --agent claude-code"}, hookCommandsForEvent(t, settings, "UserPromptSubmit"))
+	commands := hookCommandsForEvent(t, settings, "UserPromptSubmit")
+	require.Len(t, commands, 1)
+	assertArgusShellHookCommand(t, commands[0], "claude-code", false)
 	assert.Empty(t, hookCommandsForEvent(t, settings, "PreToolUse"))
 
 	assertProjectSkillsReleased(t, projectRoot)

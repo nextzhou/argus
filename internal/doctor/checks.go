@@ -188,7 +188,9 @@ func CheckHookConfig(projectRoot string) CheckResult {
 				issues = append(issues, fmt.Sprintf("%s: %v", cfg.agent, err))
 				continue
 			}
-			if !slices.Contains(commands, cfg.tickCommand) {
+			if !slices.ContainsFunc(commands, func(command string) bool {
+				return strings.Contains(command, cfg.tickCommand)
+			}) {
 				issues = append(issues, fmt.Sprintf("%s: missing argus tick entry", cfg.agent))
 				continue
 			}

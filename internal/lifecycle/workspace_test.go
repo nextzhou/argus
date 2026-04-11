@@ -49,11 +49,15 @@ func TestSetupWorkspace_Success(t *testing.T) {
 	assert.Equal(t, []string{"~/work/company"}, config.Workspaces)
 
 	settings := readJSONFile(t, filepath.Join(homeDir, claudeSettingsRelativePath))
-	assert.Equal(t, []string{"argus tick --agent claude-code --global"}, hookCommandsForEvent(t, settings, "UserPromptSubmit"))
+	claudeCommands := hookCommandsForEvent(t, settings, "UserPromptSubmit")
+	require.Len(t, claudeCommands, 1)
+	assertArgusShellHookCommand(t, claudeCommands[0], "claude-code", true)
 	assert.Empty(t, hookCommandsForEvent(t, settings, "PreToolUse"))
 
 	codexHooks := readJSONFile(t, filepath.Join(homeDir, codexHooksRelativePath))
-	assert.Equal(t, []string{"argus tick --agent codex --global"}, hookCommandsForEvent(t, codexHooks, "UserPromptSubmit"))
+	codexCommands := hookCommandsForEvent(t, codexHooks, "UserPromptSubmit")
+	require.Len(t, codexCommands, 1)
+	assertArgusShellHookCommand(t, codexCommands[0], "codex", true)
 	assert.Empty(t, hookCommandsForEvent(t, codexHooks, "PreToolUse"))
 
 	//nolint:gosec // Test reads a plugin file created under its temp HOME directory.
@@ -213,7 +217,9 @@ func TestSetupGlobalHooks_ClaudeCode(t *testing.T) {
 	require.NoError(t, SetupGlobalHooks([]string{agentClaudeCode}))
 
 	settings := readJSONFile(t, filepath.Join(homeDir, claudeSettingsRelativePath))
-	assert.Equal(t, []string{"argus tick --agent claude-code --global"}, hookCommandsForEvent(t, settings, "UserPromptSubmit"))
+	claudeCommands := hookCommandsForEvent(t, settings, "UserPromptSubmit")
+	require.Len(t, claudeCommands, 1)
+	assertArgusShellHookCommand(t, claudeCommands[0], "claude-code", true)
 	assert.Empty(t, hookCommandsForEvent(t, settings, "PreToolUse"))
 }
 
@@ -224,11 +230,13 @@ func TestSetupGlobalHooks_Codex(t *testing.T) {
 	require.NoError(t, SetupGlobalHooks([]string{agentCodex}))
 
 	hooks := readJSONFile(t, filepath.Join(homeDir, codexHooksRelativePath))
-	assert.Equal(t, []string{"argus tick --agent codex --global"}, hookCommandsForEvent(t, hooks, "UserPromptSubmit"))
+	codexCommands := hookCommandsForEvent(t, hooks, "UserPromptSubmit")
+	require.Len(t, codexCommands, 1)
+	assertArgusShellHookCommand(t, codexCommands[0], "codex", true)
 	assert.Empty(t, hookCommandsForEvent(t, hooks, "PreToolUse"))
 
 	config := readTOMLFile(t, filepath.Join(homeDir, codexConfigRelativePath))
-	assert.Equal(t, true, config["codex_hooks"])
+	assert.Equal(t, map[string]any{"codex_hooks": true}, requireTOMLMap(t, config["features"]))
 }
 
 func TestSetupGlobalHooks_OpenCode(t *testing.T) {

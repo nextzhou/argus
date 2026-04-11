@@ -404,7 +404,7 @@ func writeClaudeHooks(t *testing.T, projectRoot string) {
 	t.Helper()
 	writeRepoFile(t, projectRoot, filepath.Join(".claude", "settings.json"), `{
 	  "hooks": {
-	    "UserPromptSubmit": [{"hooks": [{"type": "command", "command": "argus tick --agent claude-code"}]}]
+	    "UserPromptSubmit": [{"hooks": [{"type": "command", "command": "`+hookWrapperCommand("claude-code")+`"}]}]
 	  }
 	}`)
 }
@@ -413,9 +413,13 @@ func writeCodexHooks(t *testing.T, projectRoot string) {
 	t.Helper()
 	writeRepoFile(t, projectRoot, filepath.Join(".codex", "hooks.json"), `{
 	  "hooks": {
-	    "UserPromptSubmit": [{"hooks": [{"type": "command", "command": "argus tick --agent codex"}]}]
+	    "UserPromptSubmit": [{"hooks": [{"type": "command", "command": "`+hookWrapperCommand("codex")+`"}]}]
 	  }
 	}`)
+}
+
+func hookWrapperCommand(agent string) string {
+	return "if ! command -v argus >/dev/null 2>&1; then printf '%s\\\\n' 'Argus: Please install Argus CLI. See project README for instructions.'; exit 0; fi; exec argus tick --agent " + agent
 }
 
 func writeOpenCodePlugin(t *testing.T, projectRoot string) {

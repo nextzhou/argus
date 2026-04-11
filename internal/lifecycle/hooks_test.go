@@ -21,7 +21,9 @@ func TestClaudeCodeHookSetupTeardown(t *testing.T) {
 	settingsPath := filepath.Join(projectRoot, ".claude", "settings.json")
 	settings := readJSONFile(t, settingsPath)
 
-	assert.Equal(t, []string{"argus tick --agent claude-code"}, hookCommandsForEvent(t, settings, "UserPromptSubmit"))
+	commands := hookCommandsForEvent(t, settings, "UserPromptSubmit")
+	require.Len(t, commands, 1)
+	assertArgusShellHookCommand(t, commands[0], "claude-code", false)
 	assert.Empty(t, hookCommandsForEvent(t, settings, "PreToolUse"))
 
 	require.NoError(t, TeardownHooks(projectRoot, []string{"claude-code"}))
@@ -89,7 +91,10 @@ func TestClaudeCodePreserveNonArgusHooks(t *testing.T) {
 	assert.NotContains(t, string(rawSettings), `\u003c`)
 
 	settings := readJSONFile(t, settingsPath)
-	assert.Equal(t, []string{"custom <hook>", "argus tick --agent claude-code"}, hookCommandsForEvent(t, settings, "UserPromptSubmit"))
+	commands := hookCommandsForEvent(t, settings, "UserPromptSubmit")
+	require.Len(t, commands, 2)
+	assert.Equal(t, "custom <hook>", commands[0])
+	assertArgusShellHookCommand(t, commands[1], "claude-code", false)
 	assert.Equal(t, []string{"custom pre-tool"}, hookCommandsForEvent(t, settings, "PreToolUse"))
 	assert.Equal(t, map[string]any{"allow": []any{"Read"}}, settings["permissions"])
 
@@ -109,7 +114,9 @@ func TestIdempotentSetup(t *testing.T) {
 	require.NoError(t, SetupHooks(projectRoot, []string{"claude-code"}))
 
 	settings := readJSONFile(t, filepath.Join(projectRoot, ".claude", "settings.json"))
-	assert.Equal(t, []string{"argus tick --agent claude-code"}, hookCommandsForEvent(t, settings, "UserPromptSubmit"))
+	commands := hookCommandsForEvent(t, settings, "UserPromptSubmit")
+	require.Len(t, commands, 1)
+	assertArgusShellHookCommand(t, commands[0], "claude-code", false)
 	assert.Empty(t, hookCommandsForEvent(t, settings, "PreToolUse"))
 }
 
@@ -144,7 +151,7 @@ func TestCodexConfigToml(t *testing.T) {
 		require.NoError(t, SetupHooks(projectRoot, []string{"codex"}))
 
 		config := readTOMLFile(t, filepath.Join(homeDir, ".codex", "config.toml"))
-		assert.Equal(t, true, config["codex_hooks"])
+		assert.Equal(t, map[string]any{"codex_hooks": true}, requireTOMLMap(t, config["features"]))
 	})
 
 	t.Run("preserves existing fields", func(t *testing.T) {
@@ -153,12 +160,12 @@ func TestCodexConfigToml(t *testing.T) {
 		projectRoot := newTestProjectRoot(t)
 		configPath := filepath.Join(homeDir, ".codex", "config.toml")
 
-		writeTestFile(t, configPath, "theme = \"dark\"\n[nested]\nvalue = 1\n")
+		writeTestFile(t, configPath, "theme = \"dark\"\n[features]\nother = true\n[nested]\nvalue = 1\n")
 
 		require.NoError(t, SetupHooks(projectRoot, []string{"codex"}))
 
 		config := readTOMLFile(t, configPath)
-		assert.Equal(t, true, config["codex_hooks"])
+		assert.Equal(t, map[string]any{"codex_hooks": true, "other": true}, requireTOMLMap(t, config["features"]))
 		assert.Equal(t, "dark", config["theme"])
 		assert.Equal(t, map[string]any{"value": int64(1)}, config["nested"])
 	})
@@ -172,7 +179,9 @@ func TestCodexHooksJson(t *testing.T) {
 
 	hooksPath := filepath.Join(projectRoot, ".codex", "hooks.json")
 	hooks := readJSONFile(t, hooksPath)
-	assert.Equal(t, []string{"argus tick --agent codex"}, hookCommandsForEvent(t, hooks, "UserPromptSubmit"))
+	commands := hookCommandsForEvent(t, hooks, "UserPromptSubmit")
+	require.Len(t, commands, 1)
+	assertArgusShellHookCommand(t, commands[0], "codex", false)
 	assert.Empty(t, hookCommandsForEvent(t, hooks, "PreToolUse"))
 
 	require.NoError(t, TeardownHooks(projectRoot, []string{"codex"}))
@@ -181,7 +190,7 @@ func TestCodexHooksJson(t *testing.T) {
 	require.ErrorIs(t, err, os.ErrNotExist)
 
 	config := readTOMLFile(t, filepath.Join(os.Getenv("HOME"), ".codex", "config.toml"))
-	assert.Equal(t, true, config["codex_hooks"])
+	assert.Equal(t, map[string]any{"codex_hooks": true}, requireTOMLMap(t, config["features"]))
 }
 
 func TestOpenCodePlugin(t *testing.T) {
@@ -285,6 +294,28 @@ func hookCommandsForEvent(t *testing.T, settings map[string]any, event string) [
 	return commands
 }
 
+func expectedMissingArgusHookMessage() string {
+	return "Argus: Please install Argus CLI. See project README for instructions."
+}
+
+func expectedTickHookCommand(agent string, global bool) string {
+	command := "argus tick --agent " + agent
+	if global {
+		command += " --global"
+	}
+	return command
+}
+
+func assertArgusShellHookCommand(t *testing.T, command string, agent string, global bool) {
+	t.Helper()
+
+	assert.Contains(t, command, "command -v argus")
+	assert.Contains(t, command, "exit 0")
+	assert.Contains(t, command, expectedMissingArgusHookMessage())
+	assert.Contains(t, command, "exec "+expectedTickHookCommand(agent, global))
+	assert.NotContains(t, command, "argus trap --agent "+agent)
+}
+
 func requireJSONMap(t *testing.T, value any) map[string]any {
 	t.Helper()
 
@@ -297,6 +328,14 @@ func requireJSONArray(t *testing.T, value any) []any {
 	t.Helper()
 
 	parsed, ok := value.([]any)
+	require.True(t, ok)
+	return parsed
+}
+
+func requireTOMLMap(t *testing.T, value any) map[string]any {
+	t.Helper()
+
+	parsed, ok := value.(map[string]any)
 	require.True(t, ok)
 	return parsed
 }

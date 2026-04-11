@@ -8,6 +8,7 @@ export const ArgusPlugin: Plugin = async ({ $, client, directory }) => {
       try {
         const which = await $`which argus`.cwd(directory).quiet().nothrow();
         if (which.exitCode !== 0) {
+          // TODO: replace the generic missing-binary hint with the final OpenCode URL or skill guidance.
           pendingInjections.set(
             input.sessionID,
             "Argus: Please install Argus CLI. See project README for instructions.",

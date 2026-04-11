@@ -231,7 +231,11 @@ func ensureCodexHooksEnabled(tracker *mutationTracker) error {
 		return fmt.Errorf("parsing codex config: %w", err)
 	}
 
-	config["codex_hooks"] = true
+	features, err := ensureObject(config, "features")
+	if err != nil {
+		return fmt.Errorf("reading codex features config: %w", err)
+	}
+	features["codex_hooks"] = true
 
 	rendered, err := toml.Marshal(config)
 	if err != nil {
