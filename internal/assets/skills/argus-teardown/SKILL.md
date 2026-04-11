@@ -16,7 +16,7 @@ Remove project-level Argus setup from a repository.
 ## Commands
 
 - `argus teardown [--yes] [--json]` — Remove project-level Argus setup from the current directory
-- `argus teardown --workspace <path> [--yes] [--json]` — Remove a workspace registration and, if it is the last one, tear down global hooks, global skills, global bootstrap artifacts, and the managed `~/.config/argus/` root
+- `argus teardown --workspace <path> [--yes] [--json]` — Remove a workspace registration and, if it is the last one, tear down global hooks, global skills, global artifacts, and the managed `~/.config/argus/` root
 
 ## Output Mode
 
@@ -33,11 +33,12 @@ Remove project-level Argus setup from a repository.
 Workspace teardown (`argus teardown --workspace <path>`) instead:
 
 1. Removes the normalized workspace path from `~/.config/argus/config.yaml`
-2. If it was the last registered workspace, removes global hooks, global bootstrap skills, and the global `~/.config/argus/` root
+2. If it was the last registered workspace, removes global hooks, global skills, managed global artifacts, and the global `~/.config/argus/` root
 3. Preserves unrelated user-managed skills and hook settings outside the Argus-managed entries
 
 ## Notes
 
-- Git-tracked files can be restored via `git checkout`
-- Project-level teardown does not remove future workspace/global skill roots
+- Git-tracked files can be restored via Git if needed
+- Project-level teardown does not unregister workspaces
+- Project-level teardown does not remove user-level global skill roots or managed global skills refreshed by `argus setup`
 - Codex `config.toml` hook flag is preserved to avoid breaking other hooks

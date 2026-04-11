@@ -26,7 +26,7 @@ jobs:
     description: "Optional description of this job"
   - id: second_step
     prompt: "Instructions for the next job"
-  - ref: _shared.reusable_job
+  - ref: reusable_job
 ```
 
 ## Fields
@@ -78,20 +78,20 @@ Human-readable description of the job's purpose.
 
 #### `ref` (optional)
 
-Reference to a shared job defined in `_shared.yaml`. Format: `_shared.<job_id>`.
+Reference to a shared job defined in `_shared.yaml`. Value is the shared job key.
 
-**Resolution rule:** Each job must have at least one of `prompt`, `skill`, or `ref`. A job with only `ref` inherits all fields from the shared definition. A job can combine `ref` with local fields — local fields override the shared definition.
+**Resolution rule:** Each job must have at least one of `prompt`, `skill`, or `ref`. A job with only `ref` inherits all fields from the shared definition. A job can combine `ref` with local fields; local fields override the shared definition. If `id` is omitted on a ref job, the resolved job ID defaults to the `ref` value.
 
 ## Shared Jobs
 
-Define reusable jobs in `.argus/workflows/_shared.yaml` and reference them with `ref: _shared.<job_id>`.
+Define reusable jobs in `.argus/workflows/_shared.yaml` and reference them with `ref: <job_key>`.
 
 ```yaml
 # .argus/workflows/_shared.yaml
 jobs:
-  - id: run_tests
+  run_tests:
     prompt: "Run the full test suite and report results"
-  - id: lint_check
+  lint_check:
     prompt: "Run linters and fix any issues"
 ```
 
@@ -101,8 +101,8 @@ Reference shared jobs in any workflow:
 version: v0.1.0
 id: release
 jobs:
-  - ref: _shared.run_tests
-  - ref: _shared.lint_check
+  - ref: run_tests
+  - ref: lint_check
   - id: tag_release
     prompt: "Create a git tag and push it"
 ```
@@ -144,12 +144,12 @@ When creating or editing workflow files, use a staging directory to avoid corrup
 
 1. **Prepare staging directory.** Clean `.argus/tmp/workflows/` if it exists, then create it fresh.
 
-2. **Copy existing user files.** Copy non-`argus-*` YAML files from `.argus/workflows/` to `.argus/tmp/workflows/`. Built-in `argus-*` files are managed by `argus setup` — do not copy or edit them. If creating from scratch and no user files exist, just create the empty `.argus/tmp/workflows/` directory.
+2. **Copy existing user files.** Copy the current user-managed workflow set into `.argus/tmp/workflows/`. Include `_shared.yaml` if the project uses shared jobs. Built-in `argus-*` workflows are managed by `argus setup`; do not stage or edit them. If creating from scratch and no user files exist, just create the empty `.argus/tmp/workflows/` directory.
 
 3. **Make all changes in staging.** Create, edit, or delete files only in `.argus/tmp/workflows/`.
 
 4. **Validate.** Run `argus workflow inspect .argus/tmp/workflows/` and confirm all definitions pass.
 
-5. **Apply.** If valid: replace non-`argus-*` files in `.argus/workflows/` with the contents of `.argus/tmp/workflows/`. Do not touch `argus-*` built-in files. Ensure user file deletions are synced (remove files from `.argus/workflows/` that no longer exist in staging).
+5. **Apply.** If valid: replace the user-managed workflow files in `.argus/workflows/` with the contents of `.argus/tmp/workflows/`, including `_shared.yaml` when present. Do not touch built-in `argus-*` workflows. Ensure user file deletions are synced.
 
 6. **On failure.** If validation fails: fix errors in `.argus/tmp/workflows/` and re-validate. Do not touch the original `.argus/workflows/` directory until validation passes.

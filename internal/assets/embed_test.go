@@ -29,19 +29,16 @@ func TestReadAssetNotFound(t *testing.T) {
 func TestListSkills(t *testing.T) {
 	names, err := ListAssets("skills")
 	require.NoError(t, err)
-	assert.Len(t, names, 10)
+	assert.Len(t, names, 7)
 
 	expected := []string{
 		"argus-configure-invariant",
 		"argus-configure-workflow",
 		"argus-doctor",
-		"argus-generate-rules",
 		"argus-intro",
-		"argus-invariant-check",
+		"argus-runtime",
 		"argus-setup",
-		"argus-status",
 		"argus-teardown",
-		"argus-workflow",
 	}
 	assert.Equal(t, expected, names)
 }
@@ -84,7 +81,7 @@ func TestWalkAssets(t *testing.T) {
 		return nil
 	})
 	require.NoError(t, err)
-	assert.Equal(t, 21, count)
+	assert.Equal(t, 16, count)
 }
 
 func TestBuiltinWorkflow(t *testing.T) {
@@ -96,11 +93,14 @@ func TestBuiltinWorkflow(t *testing.T) {
 
 	assert.Equal(t, "argus-project-init", w.ID)
 	assert.Equal(t, "v0.1.0", w.Version)
-	assert.Len(t, w.Jobs, 5)
-	assert.Equal(t, "generate_rules", w.Jobs[0].ID)
-	assert.Equal(t, "generate_invariant_examples", w.Jobs[4].ID)
-	assert.Equal(t, "argus-configure-workflow", w.Jobs[3].Skill)
-	assert.Equal(t, "argus-configure-invariant", w.Jobs[4].Skill)
+	assert.Len(t, w.Jobs, 6)
+	assert.Equal(t, "bootstrap_argus", w.Jobs[0].ID)
+	assert.Empty(t, w.Jobs[0].Skill)
+	assert.Equal(t, "generate_rules", w.Jobs[1].ID)
+	assert.Empty(t, w.Jobs[1].Skill)
+	assert.Equal(t, "generate_invariant_examples", w.Jobs[5].ID)
+	assert.Equal(t, "argus-configure-workflow", w.Jobs[4].Skill)
+	assert.Equal(t, "argus-configure-invariant", w.Jobs[5].Skill)
 }
 
 func TestBuiltinInvariant(t *testing.T) {

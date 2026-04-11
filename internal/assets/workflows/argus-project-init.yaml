@@ -3,9 +3,27 @@ id: argus-project-init
 description: "Complete project-specific Argus initialization"
 
 jobs:
+  - id: bootstrap_argus
+    prompt: |
+      Before continuing, verify that this machine can complete the remaining Argus initialization jobs.
+
+      Check all of the following:
+      1. The `argus` binary is available in PATH.
+      2. The global skills `argus-configure-workflow` and `argus-configure-invariant` are installed in the user's managed global skill roots.
+
+      If the `argus` binary is missing, explain that the remaining initialization jobs depend on a local Argus installation, give the user installation guidance, and stop on this job. Do not continue automatically.
+
+      If the binary exists but the required global skills are missing or stale, explain that `argus setup` refreshes the managed global skills for the current user, ask for confirmation before mutating user-level files, and then run `argus setup` from this project root.
+
+      Do not continue to later jobs until these checks succeed.
+
   - id: generate_rules
-    skill: argus-generate-rules
-    prompt: "Analyze the project structure and generate rules covering technical architecture, coding conventions, and domain context."
+    prompt: |
+      Analyze the project structure and generate project rules covering technical architecture, coding conventions, and domain context.
+
+      Write or refresh the agent-native rule files that make sense for this repository, and keep `.argus/rules/` aligned with them.
+
+      Keep the rules concise and actionable. Focus on conventions, architecture constraints, terminology, and rationale that are not obvious from source code or config files alone. When existing formatter, linter, or CI config already defines a rule, reference it instead of duplicating it.
 
   - id: setup_git_hooks
     prompt: "Set up a git pre-commit hook for the project so lint checks run automatically before each commit."

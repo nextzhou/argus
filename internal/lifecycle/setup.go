@@ -46,7 +46,6 @@ func SetupWithReport(projectRoot string) (ProjectOperationResult, error) {
 
 	releaseMap := map[string][]string{
 		"workflows": {filepath.Join(".argus", "workflows")},
-		"skills":    SkillPaths(),
 	}
 
 	for srcDir, dstDirs := range releaseMap {
@@ -61,11 +60,16 @@ func SetupWithReport(projectRoot string) (ProjectOperationResult, error) {
 		return ProjectOperationResult{}, fmt.Errorf("releasing project invariant asset: %w", err)
 	}
 
-	builtinSkillNames, err := BuiltinSkillNames()
-	if err != nil {
-		return ProjectOperationResult{}, err
+	for _, skillName := range ProjectSkillNames() {
+		if err := releaseGlobalSkill(skillName, projectSkillRoots(projectRoot), tracker); err != nil {
+			return ProjectOperationResult{}, fmt.Errorf("releasing project skill %s: %w", skillName, err)
+		}
 	}
-	if err := pruneManagedSkills(projectSkillRoots(projectRoot), builtinSkillNames, tracker); err != nil {
+
+	if err := setupGlobalSkills(homeDir, tracker); err != nil {
+		return ProjectOperationResult{}, fmt.Errorf("refreshing global skills: %w", err)
+	}
+	if err := pruneManagedSkills(projectSkillRoots(projectRoot), ProjectSkillNames(), tracker); err != nil {
 		return ProjectOperationResult{}, fmt.Errorf("pruning managed project skills: %w", err)
 	}
 	if err := pruneManagedYAMLFiles(filepath.Join(projectRoot, ".argus", "workflows"), projectBuiltinWorkflowIDs(), tracker); err != nil {

@@ -29,6 +29,9 @@ func ListAssets(subdir string) ([]string, error) {
 	}
 	names := make([]string, 0, len(entries))
 	for _, e := range entries {
+		if subdir == "skills" && !e.IsDir() {
+			continue
+		}
 		names = append(names, e.Name())
 	}
 	return names, nil

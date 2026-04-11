@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/nextzhou/argus/internal/core"
+	"github.com/nextzhou/argus/internal/lifecycle"
 	"github.com/nextzhou/argus/internal/pipeline"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -148,8 +149,8 @@ func TestCheckSkillIntegrity_Present(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	projectRoot := t.TempDir()
 
-	writeProjectSkill(t, projectRoot, ".agents")
-	writeProjectSkill(t, projectRoot, ".claude")
+	writeProjectSkills(t, projectRoot, ".agents")
+	writeProjectSkills(t, projectRoot, ".claude")
 
 	result := CheckSkillIntegrity(projectRoot)
 
@@ -164,8 +165,8 @@ func TestCheckSkillIntegrity_Missing(t *testing.T) {
 	result := CheckSkillIntegrity(projectRoot)
 
 	assert.Equal(t, "fail", result.Status)
-	assert.Contains(t, result.Message, ".agents/skills")
-	assert.Contains(t, result.Message, ".claude/skills")
+	assert.Contains(t, result.Message, ".agents/skills/argus-doctor/SKILL.md")
+	assert.Contains(t, result.Message, ".claude/skills/argus-doctor/SKILL.md")
 }
 
 func TestCheckGitignore_Complete(t *testing.T) {
@@ -297,8 +298,8 @@ func TestRunAllChecks_InstalledProject(t *testing.T) {
 	writeInvariantFile(t, projectRoot, "argus-project-init.yaml", "argus-project-init", "argus-project-init")
 	writePipelineFile(t, projectRoot, "release-20260408T000000Z", "release")
 
-	writeProjectSkill(t, projectRoot, ".agents")
-	writeProjectSkill(t, projectRoot, ".claude")
+	writeProjectSkills(t, projectRoot, ".agents")
+	writeProjectSkills(t, projectRoot, ".claude")
 	writeRepoFile(t, projectRoot, ".gitignore", ".argus/pipelines/\n.argus/logs/\n.argus/tmp/\n")
 	writeRepoFile(t, projectRoot, filepath.Join(".argus", "logs", "hook.log"), "20260408T071500Z [tick] OK pipeline ok\n")
 	writeClaudeHooks(t, projectRoot)
@@ -392,9 +393,11 @@ func writePipelineFile(t *testing.T, projectRoot string, instanceID string, work
 	require.NoError(t, pipeline.SavePipeline(filepath.Join(projectRoot, ".argus", "pipelines"), instanceID, p))
 }
 
-func writeProjectSkill(t *testing.T, projectRoot string, baseDir string) {
+func writeProjectSkills(t *testing.T, projectRoot string, baseDir string) {
 	t.Helper()
-	writeRepoFile(t, projectRoot, filepath.Join(baseDir, "skills", "argus-doctor", "SKILL.md"), "# argus-doctor\n")
+	for _, skillName := range lifecycle.ProjectSkillNames() {
+		writeRepoFile(t, projectRoot, filepath.Join(baseDir, "skills", skillName, "SKILL.md"), "# "+skillName+"\n")
+	}
 }
 
 func writeClaudeHooks(t *testing.T, projectRoot string) {

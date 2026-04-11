@@ -66,7 +66,7 @@ Examples:
 
 # Skill-only: the agent uses a named skill
 - id: generate_rules
-  skill: argus-generate-rules
+  skill: argus-runtime
 
 # Original script-style scenario expressed as a multi-line prompt
 - id: lint_and_fix

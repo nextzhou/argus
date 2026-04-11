@@ -48,7 +48,8 @@ Explain this specific situation:
 
 - creates `.argus/` with workflows, invariants, rules, pipeline state dirs, logs, data, and tmp
 - releases the built-in `argus-project-init` workflow and invariant
-- releases built-in project-level skills into `.agents/skills/` and `.claude/skills/`
+- releases built-in project-level lifecycle skills into `.agents/skills/` and `.claude/skills/`
+- refreshes the managed global Argus skills for the current user
 - configures project-level hooks for supported agents
 - sets up the project-level Argus scaffold; it does not install the Argus CLI binary itself and it is not the full project initialization flow
 
@@ -56,7 +57,7 @@ Explain this specific situation:
 
 - registers the workspace in `~/.config/argus/config.yaml`
 - sets up or refreshes user-level hooks
-- sets up or refreshes global bootstrap skills and bootstrap artifacts
+- sets up or refreshes global skills and global artifacts
 - does not set up project-level Argus in every repository under that workspace
 
 ## Decision Guidance

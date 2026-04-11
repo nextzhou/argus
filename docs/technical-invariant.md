@@ -113,7 +113,7 @@ check:
 version: v0.1.0
 id: argus-project-init
 description: "The project has completed Argus initialization"
-auto: always
+auto: session_start
 
 check:
   - shell: "test -d .argus/rules"
@@ -302,9 +302,11 @@ id: argus-project-init
 description: "Initialize Argus for the project"
 
 jobs:
+  - id: bootstrap_argus
+    prompt: "Verify the local Argus binary and required global skills are available before continuing."
+
   - id: generate_rules
-    skill: argus-generate-rules
-    prompt: "Analyze the project structure and generate rules covering technical architecture, coding conventions, and domain context."
+    prompt: "Analyze the project structure and generate concise project rules, keeping agent-native rule files and `.argus/rules/` aligned."
 
   - id: setup_git_hooks
     prompt: "Set up a git pre-commit hook so lint checks run automatically before each commit."
@@ -373,7 +375,7 @@ graph TD
 
 ### Slash-Command Surface
 
-- `/argus-invariant-check`: unified agent-facing entry point for a full invariant run and report
+- `/argus-runtime`: unified agent-facing entry point for runtime inspection, workflow control, and invariant operations
 
 ## 4.10 Use Cases
 

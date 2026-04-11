@@ -22,6 +22,29 @@ func BuiltinSkillNames() ([]string, error) {
 	return names, nil
 }
 
+// ProjectSkillNames returns the built-in skills released into project scope.
+func ProjectSkillNames() []string {
+	return []string{
+		"argus-doctor",
+		"argus-intro",
+		"argus-setup",
+		"argus-teardown",
+	}
+}
+
+// GlobalSkillNames returns the built-in skills released into global scope.
+func GlobalSkillNames() []string {
+	return []string{
+		"argus-configure-invariant",
+		"argus-configure-workflow",
+		"argus-doctor",
+		"argus-intro",
+		"argus-runtime",
+		"argus-setup",
+		"argus-teardown",
+	}
+}
+
 func projectSkillRoots(projectRoot string) []string {
 	roots := make([]string, 0, len(SkillPaths()))
 	for _, skillPath := range SkillPaths() {

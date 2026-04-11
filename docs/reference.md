@@ -256,10 +256,10 @@ These commands default to human-readable text. Add `--json` when you need struct
 
 | Command | Description |
 |---------|-------------|
-| `argus setup [--yes] [--json]` | Set up project-level Argus in the current directory |
-| `argus setup --workspace <path> [--yes] [--json]` | Register a workspace and set up or refresh global bootstrap resources |
-| `argus teardown [--yes] [--json]` | Remove project-level Argus setup from the current directory |
-| `argus teardown --workspace <path> [--yes] [--json]` | Remove a registered workspace; if it is the last one, also remove managed global hooks, skills, bootstrap artifacts, and the `~/.config/argus/` root |
+| `argus setup [--yes] [--json]` | Set up project-level Argus in the current directory and refresh the managed global skills for the current user |
+| `argus setup --workspace <path> [--yes] [--json]` | Register a workspace and set up or refresh global hooks, skills, and global artifacts |
+| `argus teardown [--yes] [--json]` | Remove project-level Argus setup from the current directory; managed user-level global skills are left in place |
+| `argus teardown --workspace <path> [--yes] [--json]` | Remove a registered workspace; if it is the last one, also remove managed global hooks, skills, global artifacts, and the `~/.config/argus/` root |
 | `argus doctor [--json]` | Diagnose setup and configuration issues |
 | `argus version [--json]` | Show version |
 
@@ -319,7 +319,7 @@ Everything prefixed with `argus-` is built-in and reserved. Users cannot create 
 
 | ID | Description |
 |----|-------------|
-| `argus-project-init` | Project initialization: generate rules, set up git hooks, configure .gitignore, create workflows and example invariants |
+| `argus-project-init` | Project initialization: bootstrap the local Argus runtime, generate rules, set up git hooks, configure .gitignore, create workflows, and create example invariants |
 
 ### Built-in Invariant
 
@@ -330,17 +330,19 @@ Everything prefixed with `argus-` is built-in and reserved. Users cannot create 
 
 ### Built-in Skills
 
-Released during `argus setup` to `.agents/skills/` and `.claude/skills/`:
+Project scope (`argus setup`) releases these lifecycle skills into `.agents/skills/` and `.claude/skills/`:
+
+| Skill | Description |
+|-------|-------------|
+| `argus-doctor` | Diagnostic troubleshooting |
+| `argus-intro` | Bootstrap explanation of what Argus is and what setup changes |
+| `argus-setup` | Project setup and upgrade guidance |
+| `argus-teardown` | Teardown guidance |
+
+Managed global scope (`argus setup` and `argus setup --workspace`) also refreshes these global-only skills for the current user:
 
 | Skill | Description |
 |-------|-------------|
 | `argus-configure-invariant` | YAML authoring reference for writing invariants with validation and safe-write flow |
 | `argus-configure-workflow` | YAML authoring reference for writing workflows with validation and safe-write flow |
-| `argus-doctor` | Diagnostic troubleshooting |
-| `argus-generate-rules` | Guide for generating project rules into `.argus/rules/` |
-| `argus-setup` | Project setup and upgrade guidance |
-| `argus-intro` | Bootstrap explanation of what Argus is and what setup changes |
-| `argus-invariant-check` | Invariant check operations |
-| `argus-status` | Pipeline and job status queries |
-| `argus-teardown` | Teardown guidance |
-| `argus-workflow` | Workflow lifecycle management |
+| `argus-runtime` | Runtime commands for workflow control, pipeline progress, and invariant operations |

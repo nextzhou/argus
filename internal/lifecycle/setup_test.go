@@ -84,6 +84,9 @@ func TestSetupCreatesProjectStructureAndAssets(t *testing.T) {
 	assert.Equal(t, projectRoot, result.Root)
 	assert.Contains(t, result.Report.AffectedPaths, ".argus/{workflows,invariants,rules,pipelines,logs,data,tmp}/")
 	assert.Contains(t, result.Report.Changes.Created, ".argus/{workflows,invariants,rules,pipelines,logs,data,tmp}/")
+	assert.Contains(t, result.Report.AffectedPaths, "~/.agents/skills/argus-*/SKILL.md")
+	assert.Contains(t, result.Report.AffectedPaths, "~/.claude/skills/argus-*/SKILL.md")
+	assert.Contains(t, result.Report.AffectedPaths, "~/.config/opencode/skills/argus-*/SKILL.md")
 
 	for _, relDir := range []string{
 		".argus/workflows",
@@ -99,9 +102,8 @@ func TestSetupCreatesProjectStructureAndAssets(t *testing.T) {
 
 	assertReleasedAsset(t, projectRoot, "workflows/argus-project-init.yaml", ".argus/workflows/argus-project-init.yaml")
 	assertReleasedAsset(t, projectRoot, "invariants/argus-project-init.yaml", ".argus/invariants/argus-project-init.yaml")
-	for _, skillPath := range SkillPaths() {
-		assertReleasedAsset(t, projectRoot, "skills/argus-doctor/SKILL.md", filepath.Join(skillPath, "argus-doctor", "SKILL.md"))
-	}
+	assertProjectSkillsReleased(t, projectRoot)
+	assertGlobalSkillsReleased(t)
 
 	settings := readJSONFile(t, filepath.Join(projectRoot, ".claude", "settings.json"))
 	assert.Equal(t, []string{"argus tick --agent claude-code"}, hookCommandsForEvent(t, settings, "UserPromptSubmit"))
@@ -126,14 +128,14 @@ func TestSetupIsIdempotent(t *testing.T) {
 	assert.Empty(t, result.Report.Changes.Updated)
 	assert.Empty(t, result.Report.Changes.Removed)
 	assert.Contains(t, result.Report.AffectedPaths, ".argus/{workflows,invariants,rules,pipelines,logs,data,tmp}/")
+	assert.Contains(t, result.Report.AffectedPaths, "~/.agents/skills/argus-*/SKILL.md")
 
 	settings := readJSONFile(t, filepath.Join(projectRoot, ".claude", "settings.json"))
 	assert.Equal(t, []string{"argus tick --agent claude-code"}, hookCommandsForEvent(t, settings, "UserPromptSubmit"))
 	assert.Empty(t, hookCommandsForEvent(t, settings, "PreToolUse"))
 
-	for _, skillPath := range SkillPaths() {
-		assertReleasedAsset(t, projectRoot, "skills/argus-setup/SKILL.md", filepath.Join(skillPath, "argus-setup", "SKILL.md"))
-	}
+	assertProjectSkillsReleased(t, projectRoot)
+	assertGlobalSkillsReleased(t)
 	assert.FileExists(t, filepath.Join(homeDir, ".codex", "config.toml"))
 }
 
@@ -147,6 +149,11 @@ func TestSetupPrunesObsoleteBuiltinSkills(t *testing.T) {
 		require.NoError(t, os.MkdirAll(legacySkillDir, 0o700))
 		require.NoError(t, os.WriteFile(filepath.Join(legacySkillDir, "SKILL.md"), []byte("# legacy\n"), 0o600))
 	}
+	for _, skillPath := range GlobalSkillPaths() {
+		legacySkillDir := filepath.Join(skillPath, "argus-concepts")
+		require.NoError(t, os.MkdirAll(legacySkillDir, 0o700))
+		require.NoError(t, os.WriteFile(filepath.Join(legacySkillDir, "SKILL.md"), []byte("# legacy\n"), 0o600))
+	}
 
 	result, err := SetupWithReport(projectRoot)
 	require.NoError(t, err)
@@ -154,11 +161,17 @@ func TestSetupPrunesObsoleteBuiltinSkills(t *testing.T) {
 	for _, skillPath := range SkillPaths() {
 		_, statErr := os.Stat(filepath.Join(projectRoot, skillPath, "argus-concepts"))
 		assert.True(t, os.IsNotExist(statErr), "%s/argus-concepts should be pruned", skillPath)
-		_, statErr = os.Stat(filepath.Join(projectRoot, skillPath, "argus-intro", "SKILL.md"))
-		require.NoError(t, statErr, "%s/argus-intro/SKILL.md should exist", skillPath)
+	}
+	for _, skillPath := range GlobalSkillPaths() {
+		_, statErr := os.Stat(filepath.Join(skillPath, "argus-concepts"))
+		assert.True(t, os.IsNotExist(statErr), "%s/argus-concepts should be pruned", skillPath)
 	}
 
+	assertProjectSkillsReleased(t, projectRoot)
+	assertGlobalSkillsReleased(t)
+
 	assert.Contains(t, result.Report.Changes.Removed, ".agents/skills/argus-*/SKILL.md")
+	assert.Contains(t, result.Report.Changes.Removed, "~/.agents/skills/argus-*/SKILL.md")
 }
 
 func TestSetupPrunesObsoleteBuiltinYAML(t *testing.T) {
@@ -200,4 +213,21 @@ func assertReleasedAsset(t *testing.T, projectRoot, srcPath, dstPath string) {
 	require.NoError(t, err)
 
 	assert.Equal(t, string(want), string(got))
+}
+
+func assertProjectSkillsReleased(t *testing.T, projectRoot string) {
+	t.Helper()
+
+	for _, skillName := range ProjectSkillNames() {
+		for _, skillPath := range SkillPaths() {
+			assertReleasedAsset(t, projectRoot, filepath.Join("skills", skillName, "SKILL.md"), filepath.Join(skillPath, skillName, "SKILL.md"))
+		}
+	}
+
+	for _, skillName := range []string{"argus-configure-workflow", "argus-configure-invariant", "argus-runtime"} {
+		for _, skillPath := range SkillPaths() {
+			_, err := os.Stat(filepath.Join(projectRoot, skillPath, skillName, "SKILL.md"))
+			assert.True(t, os.IsNotExist(err), "%s/%s/SKILL.md should not be released to project scope", skillPath, skillName)
+		}
+	}
 }

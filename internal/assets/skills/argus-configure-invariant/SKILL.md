@@ -56,9 +56,10 @@ Controls when the invariant is automatically checked during `tick`.
 
 | Value | Behavior |
 |-------|----------|
-| `always` | Checked on every tick when no pipeline is active |
-| `session_start` | Checked once per session |
-| `never` | Only checked manually (default if omitted or empty) |
+| `always` | Checked on every tick when no pipeline is active, and included in `argus status` |
+| `session_start` | Checked once per session during tick, and included in `argus status` |
+| `never` | Not auto-checked by tick or `argus status`; manual only |
+| omitted or empty | Not auto-checked by tick, but still included in `argus status` and manual invariant checks |
 
 ### `check` (required)
 
@@ -104,7 +105,7 @@ argus invariant inspect [dir] [--json]
 
 When `[dir]` is omitted, it validates `.argus/invariants/` by default.
 
-Validation also enforces the `<id>.yaml` file-name contract.
+Validation also enforces the `<id>.yaml` file-name contract. If an invariant references `workflow: <id>`, inspect validates that reference against the live `.argus/workflows/` directory.
 
 ## Safe-Write Flow
 
@@ -112,12 +113,12 @@ When creating or editing invariant files, use a staging directory to avoid corru
 
 1. **Prepare staging directory.** Clean `.argus/tmp/invariants/` if it exists, then create it fresh.
 
-2. **Copy existing user files.** Copy non-`argus-*` YAML files from `.argus/invariants/` to `.argus/tmp/invariants/`. Built-in `argus-*` files are managed by `argus setup` — do not copy or edit them. If creating from scratch and no user files exist, just create the empty `.argus/tmp/invariants/` directory.
+2. **Copy existing user files.** Copy the current user-managed invariant files into `.argus/tmp/invariants/`. Built-in `argus-*` invariants are managed by `argus setup`; do not stage or edit them. If creating from scratch and no user files exist, just create the empty `.argus/tmp/invariants/` directory.
 
 3. **Make all changes in staging.** Create, edit, or delete files only in `.argus/tmp/invariants/`.
 
-4. **Validate.** Run `argus invariant inspect .argus/tmp/invariants/` and confirm all definitions pass.
+4. **Validate.** Run `argus invariant inspect .argus/tmp/invariants/` and confirm all definitions pass. Workflow references are still checked against the live `.argus/workflows/` directory, not `.argus/tmp/workflows/`.
 
-5. **Apply.** If valid: replace non-`argus-*` files in `.argus/invariants/` with the contents of `.argus/tmp/invariants/`. Do not touch `argus-*` built-in files. Ensure user file deletions are synced (remove files from `.argus/invariants/` that no longer exist in staging).
+5. **Apply.** If valid: replace the user-managed files in `.argus/invariants/` with the contents of `.argus/tmp/invariants/`. Do not touch built-in `argus-*` invariants. Ensure user file deletions are synced.
 
-6. **On failure.** If validation fails: fix errors in `.argus/tmp/invariants/` and re-validate. Do not touch the original `.argus/invariants/` directory until validation passes.
+6. **On failure.** If validation fails: fix errors in `.argus/tmp/invariants/` and re-validate. If the invariant changes depend on workflow edits, validate and apply workflows first so live workflow references resolve correctly. Do not touch the original `.argus/invariants/` directory until validation passes.

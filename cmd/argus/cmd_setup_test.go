@@ -61,7 +61,7 @@ func TestConfirmWorkspaceSetup(t *testing.T) {
 		assert.True(t, got)
 		assert.Contains(t, buf.String(), "This will register the workspace path:")
 		assert.Contains(t, buf.String(), "~/work/company")
-		assert.Contains(t, buf.String(), "global hooks, global skills, and global bootstrap artifacts")
+		assert.Contains(t, buf.String(), "global hooks, global skills, and global artifacts")
 	})
 
 	t.Run("refreshes existing workspace", func(t *testing.T) {
@@ -74,7 +74,7 @@ func TestConfirmWorkspaceSetup(t *testing.T) {
 		require.NoError(t, err)
 		assert.True(t, got)
 		assert.Contains(t, buf.String(), "This workspace path is already registered:")
-		assert.Contains(t, buf.String(), "refresh global hooks, global skills, and global bootstrap artifacts")
+		assert.Contains(t, buf.String(), "refresh global hooks, global skills, and global artifacts")
 	})
 }
 
@@ -112,7 +112,7 @@ func TestConfirmWorkspaceTeardown(t *testing.T) {
 		require.NoError(t, err)
 		assert.True(t, got)
 		assert.Contains(t, buf.String(), "No registered workspaces will remain.")
-		assert.Contains(t, buf.String(), "remove global hooks, global skills, global bootstrap artifacts, and the managed ~/.config/argus/ root")
+		assert.Contains(t, buf.String(), "remove global hooks, global skills, global artifacts, and the managed ~/.config/argus/ root")
 	})
 }
 

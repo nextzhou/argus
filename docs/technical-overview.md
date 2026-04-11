@@ -123,7 +123,7 @@ var embedded embed.FS
 
 Usage rules:
 
-- `skills/`, `workflows/`, and `invariants/` are released into project or global scope during setup. At project scope, skills are released to `.agents/skills/` and `.claude/skills/`. OpenCode discovers skills through compatible path scanning, so no separate `.opencode/skills/` is generated. At global scope (`setup --workspace`), Argus releases the current managed global built-in skill set to each agent's global skill directory and refreshes those managed resources on repeat setup (see [§11.5](technical-workspace.md)).
+- `skills/`, `workflows/`, and `invariants/` are released into project or global scope during setup. At project scope, Argus releases the project-scope skill subset to `.agents/skills/` and `.claude/skills/`, and it also refreshes the managed global skill set for the current user. OpenCode discovers project skills through compatible path scanning, so no separate `.opencode/skills/` is generated at project scope. At global scope (`setup --workspace`), Argus releases the current managed global built-in skill set to each agent's global skill directory and refreshes those managed resources on repeat setup (see [§11.5](technical-workspace.md)).
 - `prompts/` and `hooks/` are runtime assets read internally by the Argus binary for template rendering (tick injection, job-done output, hook wrapper generation). They are not released as project files.
 
 ---
@@ -149,7 +149,7 @@ Commands such as `tick`, `job-done`, and `status` keep the same semantics across
 ### 3.4 Setup Layers
 
 1. Install the Argus binary globally.
-2. Run `argus setup` inside a repository for project-level artifacts.
+2. Run `argus setup` inside a repository for project-level artifacts and to refresh the managed global skills for the current user.
 3. Run `argus setup --workspace <path>` to register a workspace and enable global scope behavior.
 
 ---

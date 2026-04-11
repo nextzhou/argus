@@ -332,15 +332,14 @@ func CheckSkillIntegrity(projectRoot string) CheckResult {
 		return skippedProjectCheck(checkSkillIntegrity)
 	}
 
-	missing := make([]string, 0, len(lifecycle.SkillPaths()))
+	missing := make([]string, 0, len(lifecycle.SkillPaths())*len(lifecycle.ProjectSkillNames()))
 	for _, skillDir := range lifecycle.SkillPaths() {
-		matches, err := filepath.Glob(filepath.Join(projectRoot, skillDir, "argus-*", "SKILL.md"))
-		if err != nil {
-			missing = append(missing, skillDir)
-			continue
-		}
-		if len(matches) == 0 {
-			missing = append(missing, skillDir)
+		for _, skillName := range lifecycle.ProjectSkillNames() {
+			skillPath := filepath.Join(projectRoot, skillDir, skillName, "SKILL.md")
+			if isExistingFile(skillPath) {
+				continue
+			}
+			missing = append(missing, filepath.Join(skillDir, skillName, "SKILL.md"))
 		}
 	}
 	if len(missing) > 0 {

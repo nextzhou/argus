@@ -118,7 +118,7 @@ func newSetupCmd() *cobra.Command {
 	}
 
 	cmd.Flags().BoolVar(&yesFlag, "yes", false, "Skip confirmation prompts")
-	cmd.Flags().StringVar(&workspacePath, "workspace", "", "Register a workspace path and set up global hooks, skills, and bootstrap artifacts")
+	cmd.Flags().StringVar(&workspacePath, "workspace", "", "Register a workspace path and set up global hooks, skills, and global artifacts")
 	bindJSONFlag(cmd, &jsonFlag)
 	return cmd
 }
@@ -136,7 +136,7 @@ func confirmWorkspaceSetup(cmd *cobra.Command, normalizedPath string, alreadyReg
 			"This workspace path is already registered:",
 			"  " + normalizedPath,
 			"",
-			"Argus will refresh global hooks, global skills, and global bootstrap artifacts for this user account.",
+			"Argus will refresh global hooks, global skills, and global artifacts for this user account.",
 			"Use this after upgrading Argus or when built-in global resources need to be restored.",
 		}, stdinReader, isTTY, "workspace refresh requires confirmation in interactive mode; use --yes to skip confirmation")
 	}
@@ -145,7 +145,7 @@ func confirmWorkspaceSetup(cmd *cobra.Command, normalizedPath string, alreadyReg
 		"This will register the workspace path:",
 		"  " + normalizedPath,
 		"",
-		"Argus will set up global hooks, global skills, and global bootstrap artifacts for this user account.",
+		"Argus will set up global hooks, global skills, and global artifacts for this user account.",
 		"This does not set up project-level Argus in any repository yet.",
 		"Repositories inside this workspace may be guided to run project-level Argus setup.",
 	}, stdinReader, isTTY, "workspace setup requires confirmation in interactive mode; use --yes to skip confirmation")

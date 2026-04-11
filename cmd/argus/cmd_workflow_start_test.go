@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/nextzhou/argus/internal/assets"
 	"github.com/nextzhou/argus/internal/workflow"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -207,6 +208,28 @@ jobs:
 
 	assert.Contains(t, stdout, "Current job: review")
 	assert.NotContains(t, stdout, "Skill:")
+}
+
+func TestWorkflowStartBuiltinProjectInitStartsWithBootstrapJob(t *testing.T) {
+	t.Chdir(t.TempDir())
+
+	data, err := assets.ReadAsset("workflows/argus-project-init.yaml")
+	require.NoError(t, err)
+	writeWorkflowFixture(t, "argus-project-init", string(data))
+
+	output, cmdErr := executeStartCmd(t, "argus-project-init")
+	require.NoError(t, cmdErr)
+
+	var payload map[string]any
+	require.NoError(t, json.Unmarshal(output, &payload))
+	assert.Equal(t, "ok", payload["status"])
+	assert.Equal(t, "running", payload["pipeline_status"])
+	assert.Equal(t, "1/6", payload["progress"])
+
+	nextJob, ok := payload["next_job"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "bootstrap_argus", nextJob["id"])
+	assert.Nil(t, nextJob["skill"])
 }
 
 func writeSharedFixture(t *testing.T, yamlContent string) {

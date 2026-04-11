@@ -274,11 +274,6 @@ func teardownGlobalSkills(homeDir string, tracker *mutationTracker) error {
 	return nil
 }
 
-// GlobalSkillNames returns the built-in skills that are safe for global distribution.
-func GlobalSkillNames() []string {
-	return []string{"argus-configure-invariant", "argus-configure-workflow", "argus-doctor", "argus-setup", "argus-intro", "argus-teardown"}
-}
-
 // GlobalSkillPaths returns the global Agent skill directories Argus manages.
 func GlobalSkillPaths() []string {
 	homeDir, err := resolveUserHomeDir()

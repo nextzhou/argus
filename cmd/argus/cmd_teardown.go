@@ -134,7 +134,7 @@ func confirmWorkspaceTeardown(cmd *cobra.Command, normalizedPath string, isLast 
 	if isLast {
 		lines = append(lines,
 			"No registered workspaces will remain.",
-			"Argus will remove global hooks, global skills, global bootstrap artifacts, and the managed ~/.config/argus/ root for this user account.",
+			"Argus will remove global hooks, global skills, global artifacts, and the managed ~/.config/argus/ root for this user account.",
 		)
 	} else {
 		lines = append(lines,

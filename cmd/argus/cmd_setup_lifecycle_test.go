@@ -95,6 +95,7 @@ func TestSetupLifecycle(t *testing.T) {
 	assertLifecycleReportShape(t, data,
 		".argus/{workflows,invariants,rules,pipelines,logs,data,tmp}/",
 		".agents/skills/argus-*/SKILL.md",
+		"~/.agents/skills/argus-*/SKILL.md",
 		".claude/settings.json",
 	)
 
@@ -108,11 +109,21 @@ func TestSetupLifecycle(t *testing.T) {
 
 	skillEntries, err := os.ReadDir(filepath.Join(".agents", "skills"))
 	require.NoError(t, err)
-	assert.Len(t, skillEntries, 10, "should have 10 argus-* skill directories")
+	assert.Len(t, skillEntries, len(lifecycle.ProjectSkillNames()), "should have project-scope argus-* skill directories only")
 
 	for _, skillPath := range lifecycle.SkillPaths() {
-		_, err = os.Stat(filepath.Join(skillPath, "argus-doctor", "SKILL.md"))
-		require.NoError(t, err, "%s/argus-doctor/SKILL.md should exist", skillPath)
+		for _, skillName := range lifecycle.ProjectSkillNames() {
+			_, err = os.Stat(filepath.Join(skillPath, skillName, "SKILL.md"))
+			require.NoError(t, err, "%s/%s/SKILL.md should exist", skillPath, skillName)
+		}
+		_, err = os.Stat(filepath.Join(skillPath, "argus-configure-workflow", "SKILL.md"))
+		assert.True(t, os.IsNotExist(err), "%s/argus-configure-workflow/SKILL.md should not exist in project scope", skillPath)
+	}
+	for _, skillPath := range lifecycle.GlobalSkillPaths() {
+		for _, skillName := range lifecycle.GlobalSkillNames() {
+			_, err = os.Stat(filepath.Join(skillPath, skillName, "SKILL.md"))
+			require.NoError(t, err, "%s/%s/SKILL.md should exist", skillPath, skillName)
+		}
 	}
 
 	output, cmdErr = executeTeardownCmd(t, "--yes")
@@ -132,6 +143,10 @@ func TestSetupLifecycle(t *testing.T) {
 	for _, skillPath := range lifecycle.SkillPaths() {
 		_, err = os.Stat(filepath.Join(skillPath, "argus-doctor"))
 		assert.True(t, os.IsNotExist(err), "%s/argus-doctor should not exist after teardown", skillPath)
+	}
+	for _, skillPath := range lifecycle.GlobalSkillPaths() {
+		_, err = os.Stat(filepath.Join(skillPath, "argus-runtime", "SKILL.md"))
+		require.NoError(t, err, "%s/argus-runtime/SKILL.md should survive project teardown", skillPath)
 	}
 
 	output, cmdErr = executeSetupCmd(t, "--yes")
@@ -198,7 +213,7 @@ func TestSetupEdgeCases(t *testing.T) {
 		data := parseLifecycleOutput(t, output)
 		assert.Equal(t, "ok", data["status"])
 		assertEmptyLifecycleChanges(t, data)
-		assertLifecycleReportShape(t, data, ".argus/{workflows,invariants,rules,pipelines,logs,data,tmp}/")
+		assertLifecycleReportShape(t, data, ".argus/{workflows,invariants,rules,pipelines,logs,data,tmp}/", "~/.agents/skills/argus-*/SKILL.md")
 
 		settingsData, err := os.ReadFile(filepath.Join(".claude", "settings.json"))
 		require.NoError(t, err)
@@ -260,6 +275,10 @@ func TestSetupEdgeCases(t *testing.T) {
 		for _, skillPath := range lifecycle.SkillPaths() {
 			_, err = os.Stat(filepath.Join(skillPath, "argus-doctor"))
 			assert.True(t, os.IsNotExist(err), "%s/argus-doctor should be removed after teardown", skillPath)
+		}
+		for _, skillPath := range lifecycle.GlobalSkillPaths() {
+			_, err = os.Stat(filepath.Join(skillPath, "argus-runtime", "SKILL.md"))
+			require.NoError(t, err, "%s/argus-runtime/SKILL.md should survive project teardown", skillPath)
 		}
 	})
 
