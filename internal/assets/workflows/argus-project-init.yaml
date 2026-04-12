@@ -1,40 +1,205 @@
 version: v0.1.0
 id: argus-project-init
-description: "Complete project-specific Argus initialization"
+description: "Survey the repository, obtain explicit approval, and build a reusable Argus collaboration model"
 
 jobs:
-  - id: bootstrap_argus
+  - id: survey_repository
     prompt: |
-      Before continuing, verify that this machine can complete the remaining Argus initialization jobs.
+      Before generating project-specific Argus artifacts, survey the repository and record the results in `.argus/data/project-init/survey.yaml`.
 
-      Check all of the following:
-      1. The `argus` binary is available in PATH.
-      2. The global skills `argus-configure-workflow` and `argus-configure-invariant` are installed in the user's managed global skill roots.
+      Capture at least:
+      1. The primary language or languages, package managers, and build tooling.
+      2. The canonical local commands for build, test, lint, and other routine validation.
+      3. Existing CI, git hook, and developer entrypoint conventions.
+      4. Existing agent-native rule files, developer docs, and other collaboration guidance.
+      5. Monorepo or package boundaries, if any.
+      6. The current version-control handling of dot-directories, especially whether existing ignore rules currently hide `.argus/`.
+      7. Open questions and low-confidence areas that could materially change the initialization plan.
 
-      If the `argus` binary is missing, explain that the remaining initialization jobs depend on a local Argus installation, give the user installation guidance, and stop on this job. Do not continue automatically.
+      Treat existing repository config and docs as the primary source of truth. Reuse the repository's existing commands and tools unless the user later approves introducing something new.
 
-      If the binary exists but the required global skills are missing or stale, explain that `argus setup` refreshes the managed global skills for the current user, ask for confirmation before mutating user-level files, and then run `argus setup` from this project root.
+      Treat `.argus/` as the repo-managed collaboration model surface. Agent integration directories created by `argus setup`, such as `.agents/`, `.claude/`, `.codex/`, and `.opencode/`, are setup artifacts rather than required `argus-project-init` outputs unless the repository already intentionally tracks them.
 
-      Do not continue to later jobs until these checks succeed.
+      Also confirm that the referenced built-in authoring skills are available before later jobs depend on them. If they are missing or stale, explain that `argus setup` refreshes the managed global skills for the current user, ask for confirmation before mutating user-level files, and only then refresh them.
 
-  - id: generate_rules
+      If any high-impact question remains unresolved, stop and ask the user before proceeding. Do not start generating rules, workflows, or invariants until the survey file exists and the key unknowns are handled.
+
+  - id: draft_init_plan
     prompt: |
-      Analyze the project structure and generate project rules covering technical architecture, coding conventions, and domain context.
+      Turn the repository survey into a concrete initialization proposal and write a draft plan to `.argus/data/project-init/plan.yaml`.
 
-      Write or refresh the agent-native rule files that make sense for this repository, and keep `.argus/rules/` aligned with them.
+      Use this exact top-level structure so later jobs can rely on it:
 
-      Keep the rules concise and actionable. Focus on conventions, architecture constraints, terminology, and rationale that are not obvious from source code or config files alone. When existing formatter, linter, or CI config already defines a rule, reference it instead of duplicating it.
+      ```yaml
+      status: draft
+      repo_managed_surface:
+        - .argus/
+      planned_rule_files:
+        - ...
+      planned_workflow_ids:
+        - ...
+      planned_invariant_ids:
+        - ...
+      planned_doc_targets:
+        - ...
+      planned_gitignore_updates:
+        - ...
+      planned_hook_action: ...
+      pending_explicit_approvals:
+        - ...
+      declined_changes:
+        - ...
+      deferred_changes:
+        - ...
+      notes:
+        - ...
+      ```
 
-  - id: setup_git_hooks
-    prompt: "Set up a git pre-commit hook for the project so lint checks run automatically before each commit."
+      Cover at least:
+      1. Rules and agent-native collaboration guidance.
+      2. Project-specific workflows and invariants.
+      3. Local entrypoints such as `.gitignore` and git hooks.
+      4. Human-facing collaboration docs such as README or CONTRIBUTING sections.
 
-  - id: setup_gitignore
-    prompt: "Ensure .gitignore includes the Argus temporary paths .argus/pipelines/, .argus/logs/, and .argus/tmp/."
+      Include the exact workflow IDs, invariant IDs, and rule files you expect to create or refresh. If later jobs would need different IDs or a wider change set, revise the plan and get fresh user approval before proceeding.
 
-  - id: generate_workflows
-    skill: argus-configure-workflow
-    prompt: "Generate workflow files suited to this project under .argus/workflows/. When finished, run argus toolbox touch-timestamp .argus/data/project_init_workflows_generated."
+      Separate repo-managed `.argus/` assets from agent-specific setup artifacts. Do not require `.agents/`, `.claude/`, `.codex/`, or `.opencode/` to become git-tracked unless the repository already intends to track them.
 
-  - id: generate_invariant_examples
+      This is a proposal only. Do not create project-specific rules, workflows, invariants, or doc changes in this job.
+
+  - id: confirm_init_plan
+    prompt: |
+      Present the draft plan to the user in phases and wait for explicit approval before continuing.
+
+      Explicit approval means a direct user reply that clearly approves the plan or the named phase changes. Continued conversation, silence, unrelated requests, or generic momentum phrases are not approval.
+
+      Do not continue to later jobs until the user has explicitly approved the planned `.gitignore` updates, the workflow and invariant set, and any documentation targets.
+
+      Once the user explicitly approves, update `.argus/data/project-init/plan.yaml` to this exact top-level structure:
+
+      ```yaml
+      status: approved
+      approval_mode: explicit_user_confirmation
+      approval_source: ...
+      repo_managed_surface:
+        - .argus/
+      approved_changes:
+        - ...
+      planned_rule_files:
+        - ...
+      planned_workflow_ids:
+        - ...
+      planned_invariant_ids:
+        - ...
+      planned_doc_targets:
+        - ...
+      planned_gitignore_updates:
+        - ...
+      planned_hook_action: ...
+      declined_changes:
+        - ...
+      deferred_changes:
+        - ...
+      notes:
+        - ...
+      ```
+
+      Do not write `approval_mode: inferred`. If explicit approval is not available yet, stop and ask the user for it instead of proceeding.
+
+  - id: refresh_rules
+    prompt: |
+      Refresh the project's durable collaboration guidance.
+
+      Update `.argus/rules/` and the Argus-managed sections of agent-native rule files such as `AGENTS.md` or `CLAUDE.md` so they reflect the surveyed repository and the approved plan.
+
+      Focus on durable constraints and guidance:
+      - architecture and terminology
+      - canonical command entrypoints
+      - validation and review expectations
+      - project context that is not obvious from source code or existing config
+
+      Only create or refresh the rule files listed in the approved `planned_rule_files` set unless the user explicitly approves a revised plan.
+
+      Do not duplicate what formatter, linter, or CI config already states clearly. Preserve human-authored content outside managed sections and prefer minimal, reviewable changes over wholesale rewrites.
+
+  - id: refresh_invariants
     skill: argus-configure-invariant
-    prompt: "Create 1-2 custom invariant examples for this project under .argus/invariants/."
+    prompt: |
+      Generate or refresh project-specific invariants under `.argus/invariants/` so they enforce the approved collaboration model.
+
+      Use the injected `argus-configure-invariant` skill as the authoring contract for schema, file layout, safe-write flow, and validation. Keep this prompt focused on project-specific invariant selection and policy rather than repeating authoring mechanics.
+
+      Keep checks fast, deterministic, and shell-only. Prefer direct file checks or freshness checks over semantic or LLM-based evaluation. When a failure should suggest remediation, point to a real workflow that exists in this project.
+
+      Create or refresh exactly the invariant IDs listed in `planned_invariant_ids`. Do not silently substitute names or add extra invariants. If the approved IDs or scope need to change, revise the plan and get explicit approval again before continuing.
+
+      Prefer invariants that guard collaboration-model drift: canonical validation surfaces, documented entrypoints, important repository conventions, and freshness or presence of key docs or assets. Avoid weak repo-shape checks that only restate detected language files or top-level directories unless that structure itself is a durable collaboration contract.
+
+      For slow-changing or structural checks, prefer the less chatty auto-check mode; reserve every-turn checks for drift that is genuinely worth checking continuously.
+
+  - id: refresh_workflows
+    skill: argus-configure-workflow
+    prompt: |
+      Use the survey results, approved plan, and approved invariant set to generate or refresh project-specific workflows under `.argus/workflows/`.
+
+      Use the injected `argus-configure-workflow` skill as the authoring contract for schema, file layout, safe-write flow, and validation. Keep this prompt focused on which workflows this project needs and what those workflows should accomplish.
+
+      Treat the invariants as the target collaboration model and the workflows as the paths that create, preserve, or remediate that model. Prioritize workflows that support the repository's real daily development loop first. Reuse existing commands, scripts, and team conventions instead of inventing placeholder examples.
+
+      Create or refresh exactly the workflow IDs listed in `planned_workflow_ids`. Do not silently substitute different names or add extra workflows. If the approved IDs or scope need to change, revise the plan and get explicit approval again before continuing.
+
+      Ensure any workflow named as remediation by the approved invariants actually exists and matches the approved ID set.
+
+      The output should be a useful workflow set for this project, not sample files. Refresh outdated user-managed workflows with minimal disruption, keep valid existing ones when appropriate, and do not edit built-in `argus-*` workflows.
+
+  - id: resolve_local_entrypoints
+    prompt: |
+      Align local collaboration entrypoints with the approved initialization plan.
+
+      Make the repo-managed `.argus/` surface trackable when current ignore rules hide it.
+
+      Always ensure `.argus/pipelines/`, `.argus/logs/`, and `.argus/tmp/` remain ignored as runtime-only state.
+
+      Agent integration directories created by `argus setup`, such as `.agents/`, `.claude/`, `.codex/`, and `.opencode/`, are not required outputs of `argus-project-init` and do not need to be unignored unless the repository already intends to track them.
+
+      For git hooks:
+      - prefer integrating with the repository's existing hook framework when one already exists
+      - if no framework exists, propose a community-standard option and wait for explicit user confirmation before adding it
+      - do not silently introduce a new hook tool
+
+      When inside a Git repository, verify the final ignore behavior with `git check-ignore`, not just by editing `.gitignore`.
+
+      Write `.argus/data/project-init/hook.yaml` only when no natural repo file records the hook decision or when the hook decision is intentionally deferred. If the decision is fully visible from existing repo files plus the approved plan and verification record, you may omit `hook.yaml`.
+
+  - id: sync_collaboration_docs
+    prompt: |
+      Update human-facing collaboration docs only where the approved plan calls for it.
+
+      Limit changes to sections that help developers or agents use the repository correctly:
+      - development entrypoints
+      - validation commands
+      - how the project uses Argus
+
+      Only edit the doc files listed in `planned_doc_targets`. Avoid broad README or CONTRIBUTING rewrites.
+
+      Prefer the edited doc files themselves as the natural output. Write `.argus/data/project-init/docs.yaml` only when no doc change was needed, when doc work was deferred, or when a narrow doc decision needs to be recorded explicitly.
+
+  - id: verify_outputs
+    prompt: |
+      Verify the initialized collaboration model before finishing this workflow.
+
+      At minimum:
+      1. Run `argus workflow inspect`.
+      2. Run `argus invariant inspect`.
+      3. Compare the approved plan against the actual outputs before you declare success.
+
+      Confirm at least:
+      - `.argus/data/project-init/plan.yaml` has `status: approved` and `approval_mode: explicit_user_confirmation`
+      - the generated rule files, workflow IDs, invariant IDs, and changed doc files match the approved plan exactly
+      - any remediation workflow referenced by a generated invariant exists and matches the approved workflow ID set
+      - project-managed `.argus/` files are not ignored by git, while `.argus/pipelines/`, `.argus/logs/`, and `.argus/tmp/` remain ignored; use `git check-ignore` when inside a Git repository
+      - any omitted `hook.yaml` or `docs.yaml` is justified by a natural repo file change or by an explicit no-op or deferred record here
+
+      Write `.argus/data/project-init/verification.yaml` summarizing the commands you ran, the exact rule/workflow/invariant IDs you verified, the repo files changed by initialization, any intentionally omitted optional outcome files, what was intentionally deferred, and any follow-up tasks the user should know about.
+
+      Do not complete this workflow until those checks are done, the verification file exists, and any plan-versus-output mismatch has been fixed or explicitly re-approved by the user.

@@ -1,23 +1,45 @@
 version: v0.1.0
 id: argus-project-init
 order: 20
-description: "The project has completed Argus initialization"
+description: "The project has a usable Argus collaboration model"
 auto: session_start
 
 check:
   - shell: 'test -d .argus/rules && test "$(ls .argus/rules/)"'
     description: "Project rules have been generated"
   - shell: "test -f CLAUDE.md || test -f AGENTS.md"
-    description: "Agent-native rules file exists"
-  - shell: "test -f .agents/skills/argus-doctor/SKILL.md && test -f .claude/skills/argus-doctor/SKILL.md"
-    description: "Built-in skills have been released to both project-level paths"
-  - shell: "test -f .git/hooks/pre-commit || test -f .husky/pre-commit || test -f .lefthook.yml || test -f .pre-commit-config.yaml"
-    description: "A git pre-commit hook is configured (.git/hooks, husky, lefthook, or pre-commit)"
-  - shell: "grep -q '.argus/pipelines' .gitignore && grep -q '.argus/logs' .gitignore && grep -q '.argus/tmp' .gitignore"
-    description: ".gitignore includes Argus temporary files (pipelines, logs, tmp)"
-  - shell: "test -f .argus/data/project_init_workflows_generated"
-    description: "Project workflows have been generated (marker file exists)"
-  - shell: 'test "$(ls .argus/invariants/*.yaml 2>/dev/null | grep -v argus-)"'
-    description: "Custom invariant examples have been generated"
+    description: "An agent-native rules file exists"
+  - shell: "test -f .argus/data/project-init/survey.yaml"
+    description: "Repository survey results are recorded"
+  - shell: "test -f .argus/data/project-init/plan.yaml && grep -Eq '^status:[[:space:]]*approved$' .argus/data/project-init/plan.yaml && grep -Eq '^approval_mode:[[:space:]]*explicit_user_confirmation$' .argus/data/project-init/plan.yaml && grep -Eq '^planned_rule_files:' .argus/data/project-init/plan.yaml && grep -Eq '^planned_workflow_ids:' .argus/data/project-init/plan.yaml && grep -Eq '^planned_invariant_ids:' .argus/data/project-init/plan.yaml"
+    description: "Approved initialization decisions are recorded with explicit user confirmation"
+  - shell: 'test "$(ls .argus/workflows/*.yaml 2>/dev/null | grep -v "/argus-")"'
+    description: "Project-specific workflows have been generated"
+  - shell: 'test "$(ls .argus/invariants/*.yaml 2>/dev/null | grep -v "/argus-")"'
+    description: "Project-specific invariants have been generated"
+  - shell: "git rev-parse --is-inside-work-tree >/dev/null 2>&1 && ! git check-ignore -q .argus/data/project-init/verification.yaml"
+    description: "Project-managed .argus files are not ignored by git"
+  - shell: "git rev-parse --is-inside-work-tree >/dev/null 2>&1 && git check-ignore -q .argus/pipelines/.probe && git check-ignore -q .argus/logs/.probe && git check-ignore -q .argus/tmp/.probe"
+    description: "Argus runtime state remains ignored by git"
+  - shell: "test -f .argus/data/project-init/verification.yaml"
+    description: "Initialization verification has been recorded"
+
+prompt: |
+  This repository has project-level Argus set up, but it has not completed `argus-project-init` yet, so the project-specific Argus collaboration model is still missing.
+
+  Prefer using the agent's question tool or other structured choice input tool to present these options. If no such tool is available, ask the same question in a normal text response.
+
+  Offer exactly these options:
+  1. Start `argus-project-init` now by running `argus workflow start argus-project-init`.
+  2. Explain what `argus-project-init` will do, which repo-managed `.argus/` files it may create or refresh, and which minimal `.gitignore` or collaboration-doc updates it may propose before asking for explicit approval. Reuse the `argus-setup` skill if it helps, or explain in concise plain text.
+  3. Ignore this reminder for now and continue the current task.
+
+  This is a soft reminder. Offer the options briefly, then continue the user's current task unless they choose option 1 or want to talk more about Argus first.
+
+  If the user chooses option 2, explain the workflow briefly and then restate that they can either start `argus-project-init` now or ignore the reminder for this conversation.
+
+  If the user chooses option 3, continue the task normally and do not repeat this reminder again in the same conversation unless the user asks about Argus.
+
+  Do not start `argus-project-init` automatically without the user's confirmation.
 
 workflow: argus-project-init

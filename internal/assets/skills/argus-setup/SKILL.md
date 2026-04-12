@@ -36,7 +36,7 @@ Set up project-level Argus in a repository and guide the follow-up initializatio
 4. Refreshes the managed global Argus skills under the user's Agent skill directories so global-only built-in skills are available locally
 5. Configures Agent `tick` hooks (Claude Code, Codex, OpenCode)
 
-This establishes the managed project scaffold. It does not complete project-specific initialization tasks such as generating custom rules, workflows, and example invariants.
+This establishes the managed project scaffold. It does not yet survey the repository or build the project-specific collaboration model. That work belongs to the built-in `argus-project-init` workflow.
 
 Workspace setup (`argus setup --workspace <path>`) instead:
 
@@ -55,3 +55,13 @@ Workspace setup (`argus setup --workspace <path>`) instead:
 ## After Setup
 
 Run `argus workflow start argus-project-init` to complete project initialization.
+
+That workflow is expected to:
+
+1. survey the repository and identify its real build, test, lint, CI, hook, and documentation entrypoints
+2. draft a concrete initialization plan and wait for explicit user approval before applying high-impact changes
+3. refresh project rules, then project-specific invariants, and then project-specific workflows so the approved target state is defined before the remediation paths
+4. align repo-managed `.argus/` tracking, local entrypoints such as `.gitignore`, and git hooks with the approved plan while keeping runtime-only Argus state ignored
+5. update only the collaboration-focused parts of README or CONTRIBUTING when needed
+
+`argus-project-init` establishes the repo-managed collaboration model under `.argus/`. Agent integration directories created by `argus setup`, such as `.agents/`, `.claude/`, `.codex/`, and `.opencode/`, are setup artifacts rather than required project-init outputs unless the repository already chooses to track them.

@@ -53,6 +53,10 @@ Explain this specific situation:
 - configures project-level hooks for supported agents
 - sets up the project-level Argus scaffold; it does not install the Argus CLI binary itself and it is not the full project initialization flow
 
+After setup, the built-in `argus-project-init` workflow can survey the repository, draft an initialization plan, obtain explicit user approval for high-impact changes, and then build the project-specific collaboration model: rules, workflows, invariants, local entrypoints, and collaboration-focused doc updates.
+
+`argus-project-init` treats `.argus/` as the repo-managed collaboration model surface. The agent integration directories created by setup, such as `.agents/`, `.claude/`, `.codex/`, and `.opencode/`, are setup artifacts rather than required project-init outputs unless the repository already intends to track them.
+
 ### `argus setup --workspace <path>`
 
 - registers the workspace in `~/.config/argus/config.yaml`
@@ -62,7 +66,7 @@ Explain this specific situation:
 
 ## Decision Guidance
 
-- Setting up Argus now is useful if the user wants workflow orchestration, project invariants, and persistent cross-session progress in this repo.
+- Setting up Argus now is useful if the user wants workflow orchestration, project invariants, persistent cross-session progress, and a project-specific collaboration model in this repo.
 - Ignoring for now is reasonable if the user only wants to continue the current task without adding Argus to the project yet.
 - If the user is unsure, explain the changes above first, then restate the setup / ignore choice clearly.
 

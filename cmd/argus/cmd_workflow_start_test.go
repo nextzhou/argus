@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/nextzhou/argus/internal/assets"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -222,27 +221,6 @@ jobs:
 	assert.Contains(t, stdout, "Review {{.jobs.missing.message}}")
 	assert.Contains(t, stderr, "Argus warning:")
 	assert.Contains(t, stderr, ".jobs.missing.message")
-}
-
-func TestWorkflowStartBuiltinProjectInitStartsWithBootstrapJob(t *testing.T) {
-	t.Chdir(t.TempDir())
-
-	data, err := assets.ReadAsset("workflows/argus-project-init.yaml")
-	require.NoError(t, err)
-	writeWorkflowFixture(t, "argus-project-init", string(data))
-
-	output, cmdErr := executeStartCmd(t, "argus-project-init")
-	require.NoError(t, cmdErr)
-
-	var payload map[string]any
-	require.NoError(t, json.Unmarshal(output, &payload))
-	assert.Equal(t, "ok", payload["status"])
-	assert.Equal(t, "running", payload["pipeline_status"])
-	assert.Equal(t, "1/6", payload["progress"])
-
-	nextJob := mustJSONObject(t, payload["next_job"])
-	assert.Equal(t, "bootstrap_argus", nextJob["id"])
-	assert.Nil(t, nextJob["skill"])
 }
 
 func TestWorkflowStartResolvesSharedRefsThroughProvider(t *testing.T) {

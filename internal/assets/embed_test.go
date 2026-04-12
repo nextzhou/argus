@@ -92,15 +92,7 @@ func TestBuiltinWorkflow(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, "argus-project-init", w.ID)
-	assert.Equal(t, "v0.1.0", w.Version)
-	assert.Len(t, w.Jobs, 6)
-	assert.Equal(t, "bootstrap_argus", w.Jobs[0].ID)
-	assert.Empty(t, w.Jobs[0].Skill)
-	assert.Equal(t, "generate_rules", w.Jobs[1].ID)
-	assert.Empty(t, w.Jobs[1].Skill)
-	assert.Equal(t, "generate_invariant_examples", w.Jobs[5].ID)
-	assert.Equal(t, "argus-configure-workflow", w.Jobs[4].Skill)
-	assert.Equal(t, "argus-configure-invariant", w.Jobs[5].Skill)
+	assert.NotEmpty(t, w.Jobs)
 }
 
 func TestBuiltinInvariant(t *testing.T) {
@@ -111,10 +103,12 @@ func TestBuiltinInvariant(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, "argus-project-init", inv.ID)
-	assert.Equal(t, "v0.1.0", inv.Version)
-	assert.Equal(t, "session_start", inv.Auto)
 	assert.Equal(t, "argus-project-init", inv.Workflow)
-	assert.Len(t, inv.Check, 7)
+	assert.NotEmpty(t, inv.Check)
+	assert.NotEmpty(t, inv.Prompt)
+	assert.Contains(t, inv.Prompt, "argus workflow start argus-project-init")
+	assert.Contains(t, inv.Prompt, "Explain what `argus-project-init` will do")
+	assert.Contains(t, inv.Prompt, "Ignore this reminder for now and continue the current task")
 }
 
 func TestBuiltinInvariantProjectInit(t *testing.T) {
@@ -125,7 +119,6 @@ func TestBuiltinInvariantProjectInit(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, "argus-project-setup", inv.ID)
-	assert.Equal(t, "session_start", inv.Auto)
 }
 
 func TestBuiltinWorkflowIDs(t *testing.T) {

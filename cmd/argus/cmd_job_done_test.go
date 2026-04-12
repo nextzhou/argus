@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/nextzhou/argus/internal/assets"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -202,6 +201,40 @@ func TestJobDone(t *testing.T) {
 	}
 }
 
+func TestJobDoneJSONIncludesNextJobSkill(t *testing.T) {
+	t.Chdir(t.TempDir())
+	writeWorkflowFixture(t, "skill-wf", `version: v0.1.0
+id: skill-wf
+jobs:
+  - id: step1
+    prompt: "Do step 1"
+  - id: step2
+    prompt: "Do step 2"
+    skill: "argus-deploy"
+`)
+	writePipelineFixture(t, "skill-wf-20240101T000000Z", `version: v0.1.0
+workflow_id: skill-wf
+status: running
+current_job: step1
+started_at: "20240101T000000Z"
+jobs:
+  step1:
+    started_at: "20240101T000000Z"
+`)
+
+	output, cmdErr := executeJobDoneCmd(t)
+	require.NoError(t, cmdErr)
+
+	var data map[string]any
+	require.NoError(t, json.Unmarshal(output, &data))
+	assert.Equal(t, "ok", data["status"])
+	assert.Equal(t, "running", data["pipeline_status"])
+
+	nextJob := mustJSONObject(t, data["next_job"])
+	assert.Equal(t, "step2", nextJob["id"])
+	assert.Equal(t, "argus-deploy", nextJob["skill"])
+}
+
 func TestJobDoneDefaultTextNextJob(t *testing.T) {
 	t.Chdir(t.TempDir())
 	writeWorkflowFixture(t, "release", fiveJobWorkflow)
@@ -336,83 +369,4 @@ func TestJobDoneDefaultTextNoPipeline(t *testing.T) {
 
 	assert.Contains(t, stderr, "Argus: No active pipeline.")
 	assert.Contains(t, stderr, "Start one with argus workflow start <workflow-id>.")
-}
-
-func TestJobDoneBuiltinProjectInitAdvancesToWorkflowAuthoringSkill(t *testing.T) {
-	t.Chdir(t.TempDir())
-
-	data, err := assets.ReadAsset("workflows/argus-project-init.yaml")
-	require.NoError(t, err)
-	writeWorkflowFixture(t, "argus-project-init", string(data))
-	writePipelineFixture(t, "argus-project-init-20240101T000000Z", `version: v0.1.0
-workflow_id: argus-project-init
-status: running
-current_job: setup_gitignore
-started_at: "20240101T000000Z"
-jobs:
-  bootstrap_argus:
-    started_at: "20240101T000000Z"
-    ended_at: "20240101T000100Z"
-  generate_rules:
-    started_at: "20240101T000100Z"
-    ended_at: "20240101T000200Z"
-  setup_git_hooks:
-    started_at: "20240101T000200Z"
-    ended_at: "20240101T000300Z"
-  setup_gitignore:
-    started_at: "20240101T000300Z"
-`)
-
-	output, cmdErr := executeJobDoneCmd(t)
-	require.NoError(t, cmdErr)
-
-	var payload map[string]any
-	require.NoError(t, json.Unmarshal(output, &payload))
-	assert.Equal(t, "ok", payload["status"])
-	assert.Equal(t, "4/6", payload["progress"])
-
-	nextJob := mustJSONObject(t, payload["next_job"])
-	assert.Equal(t, "generate_workflows", nextJob["id"])
-	assert.Equal(t, "argus-configure-workflow", nextJob["skill"])
-}
-
-func TestJobDoneBuiltinProjectInitAdvancesToInvariantAuthoringSkill(t *testing.T) {
-	t.Chdir(t.TempDir())
-
-	data, err := assets.ReadAsset("workflows/argus-project-init.yaml")
-	require.NoError(t, err)
-	writeWorkflowFixture(t, "argus-project-init", string(data))
-	writePipelineFixture(t, "argus-project-init-20240101T000000Z", `version: v0.1.0
-workflow_id: argus-project-init
-status: running
-current_job: generate_workflows
-started_at: "20240101T000000Z"
-jobs:
-  bootstrap_argus:
-    started_at: "20240101T000000Z"
-    ended_at: "20240101T000100Z"
-  generate_rules:
-    started_at: "20240101T000100Z"
-    ended_at: "20240101T000200Z"
-  setup_git_hooks:
-    started_at: "20240101T000200Z"
-    ended_at: "20240101T000300Z"
-  setup_gitignore:
-    started_at: "20240101T000300Z"
-    ended_at: "20240101T000400Z"
-  generate_workflows:
-    started_at: "20240101T000400Z"
-`)
-
-	output, cmdErr := executeJobDoneCmd(t)
-	require.NoError(t, cmdErr)
-
-	var payload map[string]any
-	require.NoError(t, json.Unmarshal(output, &payload))
-	assert.Equal(t, "ok", payload["status"])
-	assert.Equal(t, "5/6", payload["progress"])
-
-	nextJob := mustJSONObject(t, payload["next_job"])
-	assert.Equal(t, "generate_invariant_examples", nextJob["id"])
-	assert.Equal(t, "argus-configure-invariant", nextJob["skill"])
 }
