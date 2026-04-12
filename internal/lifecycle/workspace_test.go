@@ -318,10 +318,10 @@ func TestSetupWorkspace_PrunesObsoleteManagedYAML(t *testing.T) {
 	require.NoError(t, SetupWorkspace(workspaceDir))
 
 	globalRoot := filepath.Join(homeDir, ".config", "argus")
-	writeTestFile(t, filepath.Join(globalRoot, "invariants", "argus-init.yaml"), "version: v0.1.0\nid: argus-init\ncheck:\n  - shell: true\n")
-	writeTestFile(t, filepath.Join(globalRoot, "invariants", "argus-project-init.yaml"), "version: v0.1.0\nid: argus-project-init\ncheck:\n  - shell: true\n")
+	writeTestFile(t, filepath.Join(globalRoot, "invariants", "argus-init.yaml"), "version: v0.1.0\nid: argus-init\norder: 10\nprompt: legacy\ncheck:\n  - shell: true\n")
+	writeTestFile(t, filepath.Join(globalRoot, "invariants", "argus-project-init.yaml"), "version: v0.1.0\nid: argus-project-init\norder: 20\nprompt: legacy\ncheck:\n  - shell: true\n")
 	writeTestFile(t, filepath.Join(globalRoot, "workflows", "argus-project-init.yaml"), "version: v0.1.0\nid: argus-project-init\njobs:\n  - id: legacy\n    prompt: legacy\n")
-	writeTestFile(t, filepath.Join(globalRoot, "invariants", "team-check.yaml"), "version: v0.1.0\nid: team-check\nprompt: keep\ncheck:\n  - shell: true\n")
+	writeTestFile(t, filepath.Join(globalRoot, "invariants", "team-check.yaml"), "version: v0.1.0\nid: team-check\norder: 30\nprompt: keep\ncheck:\n  - shell: true\n")
 	writeTestFile(t, filepath.Join(globalRoot, "workflows", "team-workflow.yaml"), "version: v0.1.0\nid: team-workflow\njobs:\n  - id: keep\n    prompt: keep\n")
 
 	_, err := SetupWorkspaceWithReport(workspaceDir)

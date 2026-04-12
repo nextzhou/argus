@@ -2,9 +2,6 @@ package invariant
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
-	"strings"
 
 	"github.com/nextzhou/argus/internal/core"
 )
@@ -31,9 +28,9 @@ type InspectReport struct {
 // InspectDirectory validates all *.yaml files in dir and returns an InspectReport.
 // workflowChecker is called for each invariant that references a workflow to verify it exists.
 func InspectDirectory(dir string, workflowChecker func(id string) bool, allowReservedID func(id string) bool) (*InspectReport, error) {
-	entries, err := os.ReadDir(dir)
+	scanned, err := scanInvariantDirectory(dir, scanOptions{})
 	if err != nil {
-		return nil, fmt.Errorf("reading invariant directory %q: %w", dir, err)
+		return nil, err
 	}
 
 	report := &InspectReport{
@@ -41,84 +38,45 @@ func InspectDirectory(dir string, workflowChecker func(id string) bool, allowRes
 		Files: make(map[string]*FileResult),
 	}
 
-	// Phase 1: parse each YAML file, collect parsed invariants and per-file results.
-	type parsedEntry struct {
-		filename string
-		inv      *Invariant
-	}
-	var parsed []parsedEntry
-
-	for _, entry := range entries {
-		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".yaml") {
-			continue
-		}
-
+	for _, entry := range scanned.entries {
 		fr := &FileResult{Valid: true}
-		report.Files[entry.Name()] = fr
+		if entry.inv != nil {
+			fr.ID = entry.inv.ID
+		}
+		report.Files[entry.file] = fr
 
-		fullPath := filepath.Join(dir, entry.Name())
-		inv, parseErr := ParseInvariantFile(fullPath)
-		if parseErr != nil {
+		for _, issue := range entry.issues {
 			fr.Valid = false
 			fr.Errors = append(fr.Errors, FieldError{
-				Path:    entry.Name(),
-				Message: parseErr.Error(),
+				Path:    issue.Path,
+				Message: issue.Message,
 			})
-			report.Valid = false
+		}
+
+		if entry.inv == nil {
+			if !fr.Valid {
+				report.Valid = false
+			}
 			continue
 		}
 
-		fr.ID = inv.ID
-		parsed = append(parsed, parsedEntry{filename: entry.Name(), inv: inv})
-	}
-
-	// Phase 2: cross-file duplicate ID detection.
-	idToFiles := make(map[string][]string)
-	for _, p := range parsed {
-		idToFiles[p.inv.ID] = append(idToFiles[p.inv.ID], p.filename)
-	}
-	for id, files := range idToFiles {
-		if len(files) > 1 {
-			for _, fname := range files {
-				fr := report.Files[fname]
-				fr.Valid = false
-				fr.Errors = append(fr.Errors, FieldError{
-					Path:    fname,
-					Message: fmt.Sprintf("duplicate invariant ID %q found in files: %s", id, strings.Join(files, ", ")),
-				})
-			}
-			report.Valid = false
-		}
-	}
-
-	// Phase 3: per-file cross-domain checks on successfully parsed invariants.
-	for _, p := range parsed {
-		fr := report.Files[p.filename]
-
-		if !core.DefinitionFileNameMatchesID(p.filename, p.inv.ID) {
+		if core.IsArgusReserved(entry.inv.ID) && !reservedIDAllowed(allowReservedID, entry.inv.ID) {
 			fr.Valid = false
 			fr.Errors = append(fr.Errors, FieldError{
 				Path:    "id",
-				Message: core.DefinitionFileNameMismatchMessage("invariant", p.filename, p.inv.ID),
+				Message: fmt.Sprintf("invariant ID %q uses reserved argus- prefix", entry.inv.ID),
 			})
-			report.Valid = false
 		}
 
-		if core.IsArgusReserved(p.inv.ID) && !reservedIDAllowed(allowReservedID, p.inv.ID) {
+		if entry.inv.Workflow != "" && !workflowChecker(entry.inv.Workflow) {
 			fr.Valid = false
 			fr.Errors = append(fr.Errors, FieldError{
-				Path:    p.filename,
-				Message: fmt.Sprintf("invariant ID %q uses reserved argus- prefix", p.inv.ID),
+				Path:    "workflow",
+				Message: fmt.Sprintf("referenced workflow %q not found", entry.inv.Workflow),
 			})
-			report.Valid = false
 		}
 
-		if p.inv.Workflow != "" && !workflowChecker(p.inv.Workflow) {
-			fr.Valid = false
-			fr.Errors = append(fr.Errors, FieldError{
-				Path:    p.filename,
-				Message: fmt.Sprintf("referenced workflow %q not found", p.inv.Workflow),
-			})
+		if !fr.Valid {
 			report.Valid = false
 		}
 	}

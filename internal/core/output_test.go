@@ -116,6 +116,20 @@ func TestErrorEnvelope(t *testing.T) {
 		assert.Contains(t, string(data), "&&")
 		assert.NotContains(t, string(data), `\u0026`)
 	})
+
+	t.Run("structured details are preserved", func(t *testing.T) {
+		data, err := ErrorEnvelopeWithDetails("invalid invariant configuration", []map[string]any{
+			{"file": "bad.yaml", "path": "order", "message": "order must be a positive integer"},
+		})
+		require.NoError(t, err)
+		var result map[string]any
+		require.NoError(t, json.Unmarshal(data, &result))
+		assert.Equal(t, "error", result["status"])
+		assert.Equal(t, "invalid invariant configuration", result["message"])
+		details, ok := result["details"].([]any)
+		require.True(t, ok)
+		require.Len(t, details, 1)
+	})
 }
 
 func TestWriteJSON(t *testing.T) {

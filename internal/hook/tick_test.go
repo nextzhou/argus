@@ -91,8 +91,9 @@ func TestLoadTickWorkflowSummaries_LoadError(t *testing.T) {
 
 func TestRunTickInvariants_LoadError(t *testing.T) {
 	logs := captureDebugLogs(t, func() {
-		failure := runTickInvariants(errorLoadingScope{invariantErr: errors.New("boom")}, true)
-		assert.Nil(t, failure)
+		catalog, warning := loadTickInvariantCatalog(errorLoadingScope{invariantErr: errors.New("boom")})
+		assert.Empty(t, catalog.Invariants)
+		assert.Contains(t, warning, "could not load invariants")
 	})
 
 	assert.Contains(t, logs, "tick: could not load invariants")
@@ -380,6 +381,7 @@ jobs:
 `)
 	writeTickInvariantFixture(t, projectRoot, "argus-project-init", `version: v0.1.0
 id: argus-project-init
+order: 10
 description: Project not initialized
 auto: always
 check:
@@ -672,6 +674,7 @@ func TestRunTickInvariants(t *testing.T) {
 			projectRoot := t.TempDir()
 			writeTickInvariantFixture(t, projectRoot, "pass-always", `version: v0.1.0
 id: pass-always
+order: 10
 auto: always
 check:
   - shell: ":"
@@ -679,6 +682,7 @@ prompt: "Passing invariant should not fail"
 `)
 			writeTickInvariantFixture(t, projectRoot, "fail-always", `version: v0.1.0
 id: fail-always
+order: 20
 description: Always failing invariant
 auto: always
 check:
@@ -687,6 +691,7 @@ prompt: "Fix the always invariant"
 `)
 			writeTickInvariantFixture(t, projectRoot, "fail-session-start", `version: v0.1.0
 id: fail-session-start
+order: 30
 auto: session_start
 check:
   - shell: "exit 1"
@@ -694,6 +699,7 @@ prompt: "Fix the session-start invariant"
 `)
 			writeTickInvariantFixture(t, projectRoot, "fail-never", `version: v0.1.0
 id: fail-never
+order: 40
 auto: never
 check:
   - shell: "exit 1"
@@ -705,7 +711,9 @@ check:
   - shell: [not valid yaml
 `)
 
-			failure := runTickInvariants(scope.NewProjectScope(projectRoot), tt.firstTick)
+			catalog, err := scope.NewProjectScope(projectRoot).LoadInvariantCatalog()
+			require.NoError(t, err)
+			failure := runTickInvariants(catalog, projectRoot, tt.firstTick)
 			require.NotNil(t, failure)
 			assert.Equal(t, *tt.wantFailure, *failure)
 		})
@@ -745,7 +753,7 @@ type errorLoadingScope struct {
 	invariantErr error
 }
 
-func (s errorLoadingScope) LoadInvariants() ([]*invariant.Invariant, error) {
+func (s errorLoadingScope) LoadInvariantCatalog() (*invariant.Catalog, error) {
 	return nil, s.invariantErr
 }
 

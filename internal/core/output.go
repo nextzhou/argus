@@ -28,6 +28,7 @@ func marshalNoHTMLEscape(v any) ([]byte, error) {
 type errorEnvelopeJSON struct {
 	Status  string `json:"status"`
 	Message string `json:"message"`
+	Details any    `json:"details,omitempty"`
 }
 
 // OKEnvelope marshals data into a flat JSON envelope with "status":"ok".
@@ -66,9 +67,16 @@ func OKEnvelope(data any) ([]byte, error) {
 // ErrorEnvelope marshals an error message into the standard error envelope.
 // Always produces: {"status":"error","message":"..."}
 func ErrorEnvelope(msg string) ([]byte, error) {
+	return ErrorEnvelopeWithDetails(msg, nil)
+}
+
+// ErrorEnvelopeWithDetails marshals an error message and optional structured details
+// into the standard error envelope.
+func ErrorEnvelopeWithDetails(msg string, details any) ([]byte, error) {
 	return marshalNoHTMLEscape(errorEnvelopeJSON{
 		Status:  "error",
 		Message: msg,
+		Details: details,
 	})
 }
 

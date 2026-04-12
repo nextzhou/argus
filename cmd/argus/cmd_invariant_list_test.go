@@ -46,12 +46,14 @@ func TestInvariantList(t *testing.T) {
 
 				inv0 := invariants[0].(map[string]any)
 				assert.Equal(t, "check-fail", inv0["id"])
+				assert.InDelta(t, 10, inv0["order"], 0)
 				assert.Equal(t, "Always fails", inv0["description"])
 				assert.Equal(t, "never", inv0["auto"])
 				assert.InDelta(t, 1, inv0["checks"], 0)
 
 				inv1 := invariants[1].(map[string]any)
 				assert.Equal(t, "check-pass", inv1["id"])
+				assert.InDelta(t, 20, inv1["order"], 0)
 				assert.Equal(t, "Always passes", inv1["description"])
 				assert.Equal(t, "always", inv1["auto"])
 				assert.InDelta(t, 1, inv1["checks"], 0)
@@ -68,8 +70,32 @@ func TestInvariantList(t *testing.T) {
 				require.Len(t, invariants, 1)
 				inv0 := invariants[0].(map[string]any)
 				assert.Equal(t, "no-desc", inv0["id"])
+				assert.InDelta(t, 30, inv0["order"], 0)
 				assert.Equal(t, "echo hello; false", inv0["description"])
 				assert.InDelta(t, 2, inv0["checks"], 0)
+			},
+		},
+		{
+			name: "invalid invariants are reported separately",
+			setup: func(t *testing.T) {
+				writeInvariantFixture(t, "check-pass", successfulInvariantYAML)
+				writeInvariantFixture(t, "broken-order", `version: v0.1.0
+id: broken-order
+check:
+  - shell: "true"
+prompt: "Fix it"
+`)
+			},
+			wantStatus: "ok",
+			checkJSON: func(t *testing.T, data map[string]any) {
+				invariants := data["invariants"].([]any)
+				require.Len(t, invariants, 1)
+				invalid, ok := data["invalid_invariants"].([]any)
+				require.True(t, ok)
+				require.Len(t, invalid, 1)
+				issue := invalid[0].(map[string]any)
+				assert.Equal(t, "broken-order.yaml", issue["file"])
+				assert.Equal(t, "order", issue["path"])
 			},
 		},
 	}

@@ -292,6 +292,7 @@ func TestStatusWithInvariants(t *testing.T) {
 			setup: func(t *testing.T) {
 				writeInvariantFixture(t, "check-pass", `version: v0.1.0
 id: check-pass
+order: 10
 description: Always passes
 auto: always
 check:
@@ -309,8 +310,12 @@ prompt: "Fix it"
 				require.Len(t, details, 1)
 				d0 := details[0].(map[string]any)
 				assert.Equal(t, "check-pass", d0["id"])
+				assert.InDelta(t, 10, d0["order"], 0)
 				assert.Equal(t, "Always passes", d0["description"])
 				assert.Equal(t, "passed", d0["status"])
+				invalid, ok := data["invalid_invariants"].([]any)
+				require.True(t, ok)
+				assert.Empty(t, invalid)
 			},
 		},
 		{
@@ -318,6 +323,7 @@ prompt: "Fix it"
 			setup: func(t *testing.T) {
 				writeInvariantFixture(t, "check-fail", `version: v0.1.0
 id: check-fail
+order: 10
 description: Always fails
 auto: always
 check:
@@ -335,6 +341,7 @@ prompt: "Fix it"
 				require.Len(t, details, 1)
 				d0 := details[0].(map[string]any)
 				assert.Equal(t, "check-fail", d0["id"])
+				assert.InDelta(t, 10, d0["order"], 0)
 				assert.Equal(t, "Always fails", d0["description"])
 				assert.Equal(t, "failed", d0["status"])
 			},
@@ -344,6 +351,7 @@ prompt: "Fix it"
 			setup: func(t *testing.T) {
 				writeInvariantFixture(t, "always-pass", `version: v0.1.0
 id: always-pass
+order: 10
 description: Always passes
 auto: always
 check:
@@ -352,6 +360,7 @@ prompt: "Fix it"
 `)
 				writeInvariantFixture(t, "never-run", `version: v0.1.0
 id: never-run
+order: 20
 description: Never runs
 auto: never
 check:
@@ -375,6 +384,7 @@ prompt: "Fix it"
 			setup: func(t *testing.T) {
 				writeInvariantFixture(t, "no-desc", `version: v0.1.0
 id: no-desc
+order: 10
 auto: always
 check:
   - shell: "true"
@@ -395,6 +405,7 @@ prompt: "Fix it"
 			setup: func(t *testing.T) {
 				writeInvariantFixture(t, "slow-check", `version: v0.1.0
 id: slow-check
+order: 10
 description: Slow check
 auto: always
 check:
@@ -413,6 +424,36 @@ prompt: "Fix it"
 					}
 				}
 				assert.True(t, found, "should contain slow check hint")
+			},
+		},
+		{
+			name: "invalid invariants are reported separately",
+			setup: func(t *testing.T) {
+				writeInvariantFixture(t, "check-pass", `version: v0.1.0
+id: check-pass
+order: 10
+description: Always passes
+auto: always
+check:
+  - shell: "true"
+prompt: "Fix it"
+`)
+				writeInvariantFixture(t, "broken-order", `version: v0.1.0
+id: broken-order
+check:
+  - shell: "true"
+prompt: "Fix it"
+`)
+			},
+			checkJSON: func(t *testing.T, data map[string]any) {
+				invalid := data["invalid_invariants"].([]any)
+				require.Len(t, invalid, 1)
+				issue := invalid[0].(map[string]any)
+				assert.Equal(t, "broken-order.yaml", issue["file"])
+				assert.Equal(t, "order", issue["path"])
+
+				inv := data["invariants"].(map[string]any)
+				assert.InDelta(t, 1, inv["passed"], 0)
 			},
 		},
 	}
@@ -442,6 +483,7 @@ func TestStatusDefaultTextWithFailedInvariants(t *testing.T) {
 
 	writeInvariantFixture(t, "check-fail", `version: v0.1.0
 id: check-fail
+order: 10
 description: Always fails
 auto: always
 check:
@@ -455,7 +497,7 @@ prompt: "Fix it"
 	assert.Empty(t, stderr)
 
 	assert.Contains(t, stdout, "Invariants: 0 passed, 1 failed")
-	assert.Contains(t, stdout, "[FAIL] check-fail: Always fails")
+	assert.Contains(t, stdout, "[FAIL] #10 check-fail: Always fails")
 }
 
 func TestStatusDefaultTextWithMessage(t *testing.T) {

@@ -1,5 +1,6 @@
 version: v0.1.0
 id: argus-project-init
+order: 20
 description: "The project has completed Argus initialization"
 auto: session_start
 

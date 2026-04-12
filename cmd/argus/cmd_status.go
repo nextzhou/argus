@@ -15,9 +15,10 @@ import (
 )
 
 type statusOutput struct {
-	Pipeline   *statusPipeline  `json:"pipeline"`
-	Invariants statusInvariants `json:"invariants"`
-	Hints      []string         `json:"hints"`
+	Pipeline          *statusPipeline   `json:"pipeline"`
+	Invariants        statusInvariants  `json:"invariants"`
+	Hints             []string          `json:"hints"`
+	InvalidInvariants []invariant.Issue `json:"invalid_invariants"`
 }
 
 type statusPipeline struct {
@@ -43,6 +44,7 @@ type statusJob struct {
 
 type statusInvariantDetail struct {
 	ID          string `json:"id"`
+	Order       int    `json:"order"`
 	Description string `json:"description"`
 	Status      string `json:"status"`
 }
@@ -90,7 +92,8 @@ func newStatusCmd() *cobra.Command {
 				Invariants: statusInvariants{
 					Details: []statusInvariantDetail{},
 				},
-				Hints: []string{},
+				Hints:             []string{},
+				InvalidInvariants: []invariant.Issue{},
 			}
 
 			runStatusInvariants(cmd.Context(), s, &out)
@@ -170,13 +173,19 @@ func buildStatusPipeline(p *pipeline.Pipeline, wf *workflow.Workflow, _ string, 
 }
 
 func runStatusInvariants(ctx context.Context, s scope.Scope, out *statusOutput) {
-	invs, err := s.LoadInvariants()
+	catalog, err := s.LoadInvariantCatalog()
 	if err != nil {
+		out.Hints = append(out.Hints, fmt.Sprintf("Could not load invariants: %v", err))
+		return
+	}
+	if catalog == nil {
 		return
 	}
 
+	out.InvalidInvariants = append(out.InvalidInvariants, catalog.Issues...)
+
 	var totalCheckTime time.Duration
-	for _, inv := range invs {
+	for _, inv := range catalog.Invariants {
 		if inv.Auto == "never" {
 			continue
 		}
@@ -194,6 +203,7 @@ func runStatusInvariants(ctx context.Context, s scope.Scope, out *statusOutput) 
 
 		out.Invariants.Details = append(out.Invariants.Details, statusInvariantDetail{
 			ID:          inv.ID,
+			Order:       inv.Order,
 			Description: invariantDescription(inv),
 			Status:      status,
 		})
@@ -207,8 +217,20 @@ func runStatusInvariants(ctx context.Context, s scope.Scope, out *statusOutput) 
 func renderStatusTextFailedInvariants(w io.Writer, out statusOutput) {
 	for _, d := range out.Invariants.Details {
 		if d.Status == "failed" {
-			_, _ = fmt.Fprintf(w, "  [FAIL] %s: %s\n", d.ID, d.Description)
+			_, _ = fmt.Fprintf(w, "  [FAIL] #%d %s: %s\n", d.Order, d.ID, d.Description)
 		}
+	}
+}
+
+func renderStatusTextInvalidInvariants(w io.Writer, out statusOutput) {
+	if len(out.InvalidInvariants) == 0 {
+		return
+	}
+
+	_, _ = fmt.Fprintln(w)
+	_, _ = fmt.Fprintf(w, "Invalid invariants: %d\n", len(out.InvalidInvariants))
+	for _, issue := range out.InvalidInvariants {
+		_, _ = fmt.Fprintf(w, "  - %s\n", issue.String())
 	}
 }
 
@@ -217,6 +239,7 @@ func renderStatusTextNoPipeline(w io.Writer, out statusOutput) {
 	_, _ = fmt.Fprintf(w, "Pipeline: No active pipeline\n\n")
 	_, _ = fmt.Fprintf(w, "Invariants: %d passed, %d failed\n", out.Invariants.Passed, out.Invariants.Failed)
 	renderStatusTextFailedInvariants(w, out)
+	renderStatusTextInvalidInvariants(w, out)
 }
 
 func renderStatusTextActive(w io.Writer, out statusOutput, instanceID string) {
@@ -246,4 +269,5 @@ func renderStatusTextActive(w io.Writer, out statusOutput, instanceID string) {
 
 	_, _ = fmt.Fprintf(w, "\nInvariants: %d passed, %d failed\n", out.Invariants.Passed, out.Invariants.Failed)
 	renderStatusTextFailedInvariants(w, out)
+	renderStatusTextInvalidInvariants(w, out)
 }

@@ -204,23 +204,34 @@ func buildActivePipelineOutput(
 
 func buildNoActivePipelineOutput(s scope.Scope, firstTick bool) (output string, logDetails string) {
 	logDetails = "active=0 warnings=0"
-	failure := runTickInvariants(s, firstTick)
+	catalog, warning := loadTickInvariantCatalog(s)
+	if catalog != nil && len(catalog.Issues) > 0 {
+		logDetails += fmt.Sprintf(" invalid_invariants=%d", len(catalog.Issues))
+	}
+
+	failure := runTickInvariants(catalog, s.ProjectRoot(), firstTick)
 	if failure != nil {
 		output, err := FormatInvariantFailure(*failure)
 		if err != nil {
 			return appendTickWarningText("", fmt.Sprintf("format error: %v", err)), logDetails + " scenario=format-error"
+		}
+		if warning != "" {
+			output = appendTickWarningText(output, warning)
 		}
 		return output, logDetails + " scenario=invariant-failed invariant=" + failure.ID
 	}
 
 	workflows := loadTickWorkflowSummaries(s)
 	if len(workflows) == 0 {
-		return "", logDetails + " scenario=no-output"
+		return appendTickWarningText("", warning), logDetails + " scenario=no-output"
 	}
 
 	output, err := FormatNoPipeline(workflows)
 	if err != nil {
 		return appendTickWarningText("", fmt.Sprintf("format error: %v", err)), logDetails + " scenario=format-error"
+	}
+	if warning != "" {
+		output = appendTickWarningText(output, warning)
 	}
 	return output, logDetails + " scenario=no-pipeline"
 }
@@ -288,27 +299,45 @@ func buildPipelineJobDataMap(p *pipeline.Pipeline) map[string]*workflow.Pipeline
 	return templateJobs
 }
 
-func runTickInvariants(s scope.Scope, firstTick bool) *InvariantFailure {
+func loadTickInvariantCatalog(s scope.Scope) (*invariant.Catalog, string) {
 	if s == nil {
+		return invariant.EmptyCatalog(), ""
+	}
+
+	catalog, err := s.LoadInvariantCatalog()
+	if err != nil {
+		slog.Debug("tick: could not load invariants", "error", err)
+		return invariant.EmptyCatalog(), fmt.Sprintf("could not load invariants: %v", err)
+	}
+	if catalog == nil {
+		return invariant.EmptyCatalog(), ""
+	}
+	if len(catalog.Issues) > 0 {
+		return catalog, fmt.Sprintf(
+			"found %d invalid invariant definitions; run argus invariant inspect",
+			len(catalog.Issues),
+		)
+	}
+
+	return catalog, ""
+}
+
+func runTickInvariants(catalog *invariant.Catalog, projectRoot string, firstTick bool) *InvariantFailure {
+	if catalog == nil {
 		return nil
 	}
 
-	invariants, err := s.LoadInvariants()
-	if err != nil {
-		slog.Debug("tick: could not load invariants", "error", err)
-		return nil
-	}
-	if len(invariants) == 0 {
+	if len(catalog.Invariants) == 0 {
 		return nil
 	}
 
 	ctx := context.Background()
-	for _, inv := range invariants {
+	for _, inv := range catalog.Invariants {
 		if !shouldRunInvariantAuto(inv, firstTick) {
 			continue
 		}
 
-		result := invariant.RunCheck(ctx, inv, s.ProjectRoot())
+		result := invariant.RunCheck(ctx, inv, projectRoot)
 		if result.Passed {
 			continue
 		}

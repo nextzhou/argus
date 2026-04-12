@@ -27,6 +27,7 @@ func TestInspectDirectory(t *testing.T) {
 		writeFile(t, dir, "my-check.yaml", `
 version: v0.1.0
 id: my-check
+order: 10
 check:
   - shell: "test -f README.md"
 prompt: "Create a README"
@@ -61,6 +62,7 @@ this is: [not valid yaml
 		writeFile(t, dir, "a.yaml", `
 version: v0.1.0
 id: dup-check
+order: 10
 check:
   - shell: "test -f README.md"
 prompt: "Fix it"
@@ -68,6 +70,7 @@ prompt: "Fix it"
 		writeFile(t, dir, "b.yaml", `
 version: v0.1.0
 id: dup-check
+order: 20
 check:
   - shell: "test -f LICENSE"
 prompt: "Fix it"
@@ -95,6 +98,7 @@ prompt: "Fix it"
 		writeFile(t, dir, "reserved.yaml", `
 version: v0.1.0
 id: argus-custom
+order: 10
 check:
   - shell: "test -f README.md"
 prompt: "Fix it"
@@ -119,6 +123,7 @@ prompt: "Fix it"
 		writeFile(t, dir, "argus-project-init.yaml", `
 version: v0.1.0
 id: argus-project-init
+order: 10
 check:
   - shell: "true"
 workflow: argus-project-init
@@ -134,6 +139,7 @@ workflow: argus-project-init
 		writeFile(t, dir, "wrong-name.yaml", `
 version: v0.1.0
 id: lint-clean
+order: 10
 check:
   - shell: "true"
 prompt: "Fix it"
@@ -158,6 +164,7 @@ prompt: "Fix it"
 		writeFile(t, dir, "check.yaml", `
 version: v0.1.0
 id: my-check
+order: 10
 check:
   - shell: "test -f README.md"
 workflow: nonexistent-workflow
@@ -196,6 +203,7 @@ workflow: nonexistent-workflow
 		writeFile(t, dir, "my-check.yaml", `
 version: v0.1.0
 id: my-check
+order: 10
 check:
   - shell: "test -f README.md"
 prompt: "Fix it"
@@ -213,6 +221,7 @@ prompt: "Fix it"
 		writeFile(t, dir, "my-check.yaml", `
 version: v0.1.0
 id: my-check
+order: 10
 check:
   - shell: "test -f README.md"
 prompt: "Fix it"

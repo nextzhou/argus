@@ -80,6 +80,7 @@ Typical collaboration loop:
 |------|----------|---------|
 | `version` | Yes | Schema version, currently `v0.1.0` |
 | `id` | Yes | Unique identifier. Must match `^[a-z0-9]+(-[a-z0-9]+)*$`. The `argus-` prefix is reserved |
+| `order` | Yes | Global runtime order for valid invariants in the current scope. Must be a positive integer, unique within the scope, and lower numbers run first |
 | `description` | No | Human-readable description |
 | `auto` | No | Automatic execution mode: `always`, `session_start`, or `never` (default) |
 | `check` | Yes | List of shell steps; must contain at least one step |
@@ -112,6 +113,7 @@ check:
 ```yaml
 version: v0.1.0
 id: argus-project-init
+order: 20
 description: "The project has completed Argus initialization"
 auto: session_start
 
@@ -129,6 +131,7 @@ workflow: argus-project-init
 ```yaml
 version: v0.1.0
 id: lint-clean
+order: 30
 description: "The codebase should pass lint"
 auto: session_start
 
@@ -145,6 +148,7 @@ workflow: run-lint
 ```yaml
 version: v0.1.0
 id: gitignore-complete
+order: 40
 description: ".gitignore should include Argus temporary files"
 auto: session_start
 
@@ -160,6 +164,7 @@ prompt: "Please add .argus/logs/ to .gitignore."
 ```yaml
 version: v0.1.0
 id: agents-md-fresh
+order: 50
 description: "AGENTS.md should stay up to date"
 auto: never
 
@@ -179,6 +184,8 @@ During `tick`, Argus only considers automatic invariants when no active pipeline
 - **`always`**: run on every tick
 - **`session_start`**: run only on the first tick of a session
 - **`never`**: do not run automatically
+
+Argus evaluates valid automatic invariants in ascending `order`. `session_start` and `always` share the same ordering pool; on the first tick of a session, both categories may participate, and the first failure is whichever valid invariant with the lowest `order` fails first.
 
 To keep hooks responsive, automatic checks should remain fast. A single check step has a timeout of 5 seconds. If total invariant-check time exceeds 2 seconds, Argus warns the user to investigate slow checks.
 
@@ -207,7 +214,9 @@ Each check step runs in an isolated Bash process:
 
 ### Failure Handling
 
-When an automatic check fails, Argus does not auto-start a repair workflow. Instead, it stops at the first failing invariant and injects that failure's remediation guidance as the exclusive tick output. The agent explains the issue to the user and guides the next decision.
+When an automatic check fails, Argus does not auto-start a repair workflow. Instead, it stops at the first failing invariant in `order` and injects that failure's remediation guidance as the exclusive tick output. The agent explains the issue to the user and guides the next decision.
+
+If some invariant files are invalid, Argus excludes them from the ordered runtime evaluation set. `tick` emits only a summary warning and points the agent to `argus invariant inspect`; `status`, `invariant list`, and `invariant check` continue operating on valid invariants while surfacing invalid-definition issues separately.
 
 ### Three-State Step Output
 
@@ -258,12 +267,13 @@ Validation includes:
 3. unknown-key detection
 4. `auto` enum validation
 5. duplicate ID detection across files
-6. file-name validation: every invariant file must be named `<id>.yaml`
-7. reserved-namespace validation for `argus-`, while allowing built-in IDs embedded in the current Argus binary
-8. workflow-reference validation against the current project’s `.argus/workflows/`, even if a non-default invariant directory is passed
-8. version compatibility validation
-9. invariant ID format validation (`^[a-z0-9]+(-[a-z0-9]+)*$`)
-10. `check` non-empty validation
+6. duplicate `order` detection across files
+7. file-name validation: every invariant file must be named `<id>.yaml`
+8. reserved-namespace validation for `argus-`, while allowing built-in IDs embedded in the current Argus binary
+9. workflow-reference validation against the current project’s `.argus/workflows/`, even if a non-default invariant directory is passed
+10. version compatibility validation
+11. invariant ID format validation (`^[a-z0-9]+(-[a-z0-9]+)*$`)
+12. `check` non-empty validation
 
 ## 4.8 Deep Dive: `argus-project-init`
 
@@ -272,6 +282,7 @@ Validation includes:
 ```yaml
 version: v0.1.0
 id: argus-project-init
+order: 20
 description: "The project has completed Argus initialization"
 auto: always
 

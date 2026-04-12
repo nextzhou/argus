@@ -19,7 +19,7 @@ import (
 
 // Scope exposes artifact loading and write locations for a resolved root.
 type Scope interface {
-	LoadInvariants() ([]*invariant.Invariant, error)
+	LoadInvariantCatalog() (*invariant.Catalog, error)
 	ScanActivePipelines() ([]pipeline.ActivePipeline, []pipeline.ScanWarning, error)
 	LoadWorkflow(id string) (*workflow.Workflow, error)
 	LoadWorkflowSummaries() ([]WorkflowSummary, error)
@@ -71,45 +71,16 @@ func NewGlobalScope(globalRoot, projectRoot string) Scope {
 	}
 }
 
-func (s *fsScope) LoadInvariants() ([]*invariant.Invariant, error) {
+func (s *fsScope) LoadInvariantCatalog() (*invariant.Catalog, error) {
 	invariantsDir := filepath.Join(s.root, "invariants")
-	entries, err := os.ReadDir(invariantsDir)
+	catalog, err := invariant.LoadCatalog(invariantsDir, true)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
-			return nil, nil
+			return invariant.EmptyCatalog(), nil
 		}
-		return nil, fmt.Errorf("reading invariants directory: %w", err)
+		return nil, fmt.Errorf("loading invariant catalog: %w", err)
 	}
-
-	invariants := make([]*invariant.Invariant, 0, len(entries))
-	for _, entry := range entries {
-		name := entry.Name()
-		if entry.IsDir() || !strings.HasSuffix(name, ".yaml") || strings.HasPrefix(name, "_") {
-			continue
-		}
-
-		inv, err := invariant.ParseInvariantFile(filepath.Join(invariantsDir, name))
-		if err != nil {
-			slog.Warn("skipping unparseable invariant file", "file", name, "error", err)
-			continue
-		}
-		if !core.DefinitionFileNameMatchesID(name, inv.ID) {
-			slog.Warn(
-				"skipping invariant file with mismatched file name",
-				"file",
-				name,
-				"id",
-				inv.ID,
-				"expected",
-				core.ExpectedYAMLFileName(inv.ID),
-			)
-			continue
-		}
-
-		invariants = append(invariants, inv)
-	}
-
-	return invariants, nil
+	return catalog, nil
 }
 
 func (s *fsScope) ScanActivePipelines() ([]pipeline.ActivePipeline, []pipeline.ScanWarning, error) {

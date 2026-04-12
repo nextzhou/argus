@@ -14,6 +14,7 @@ func TestParseInvariant(t *testing.T) {
 		name       string
 		yaml       string
 		wantID     string
+		wantOrder  int
 		wantAuto   string
 		wantChecks int
 	}{
@@ -22,6 +23,7 @@ func TestParseInvariant(t *testing.T) {
 			yaml: `
 version: v0.1.0
 id: argus-project-init
+order: 10
 description: "project initialized"
 auto: always
 check:
@@ -30,6 +32,7 @@ check:
 workflow: argus-project-init
 `,
 			wantID:     "argus-project-init",
+			wantOrder:  10,
 			wantAuto:   "always",
 			wantChecks: 1,
 		},
@@ -38,6 +41,7 @@ workflow: argus-project-init
 			yaml: `
 version: v0.1.0
 id: lint-clean
+order: 20
 auto: session_start
 check:
   - shell: "test -f .lint-passed"
@@ -45,6 +49,7 @@ prompt: "Please run lint"
 workflow: run-lint
 `,
 			wantID:     "lint-clean",
+			wantOrder:  20,
 			wantAuto:   "session_start",
 			wantChecks: 1,
 		},
@@ -53,12 +58,14 @@ workflow: run-lint
 			yaml: `
 version: v0.1.0
 id: agents-md-fresh
+order: 30
 auto: never
 check:
   - shell: "find AGENTS.md -mtime -7 | grep -q ."
 workflow: update-agents-md
 `,
 			wantID:     "agents-md-fresh",
+			wantOrder:  30,
 			wantAuto:   "never",
 			wantChecks: 1,
 		},
@@ -67,11 +74,13 @@ workflow: update-agents-md
 			yaml: `
 version: v0.1.0
 id: my-check
+order: 40
 check:
   - shell: "test -f README.md"
 prompt: "Create a README"
 `,
 			wantID:     "my-check",
+			wantOrder:  40,
 			wantAuto:   "",
 			wantChecks: 1,
 		},
@@ -80,12 +89,14 @@ prompt: "Create a README"
 			yaml: `
 version: v0.1.0
 id: lint-clean
+order: 50
 check:
   - shell: "test -f .lint-passed"
 prompt: "Please run lint"
 workflow: run-lint
 `,
 			wantID:     "lint-clean",
+			wantOrder:  50,
 			wantAuto:   "",
 			wantChecks: 1,
 		},
@@ -94,11 +105,13 @@ workflow: run-lint
 			yaml: `
 version: v0.1.0
 id: gitignore-check
+order: 60
 check:
   - shell: "grep -q '.argus/logs' .gitignore"
 prompt: "Add .argus/logs/ to .gitignore"
 `,
 			wantID:     "gitignore-check",
+			wantOrder:  60,
 			wantAuto:   "",
 			wantChecks: 1,
 		},
@@ -107,11 +120,13 @@ prompt: "Add .argus/logs/ to .gitignore"
 			yaml: `
 version: v0.1.0
 id: agents-md-fresh
+order: 70
 check:
   - shell: "find AGENTS.md -mtime -7 | grep -q ."
 workflow: update-agents-md
 `,
 			wantID:     "agents-md-fresh",
+			wantOrder:  70,
 			wantAuto:   "",
 			wantChecks: 1,
 		},
@@ -120,6 +135,7 @@ workflow: update-agents-md
 			yaml: `
 version: v0.1.0
 id: full-check
+order: 80
 auto: always
 check:
   - shell: "test -d .argus/rules"
@@ -131,6 +147,7 @@ check:
 workflow: argus-project-init
 `,
 			wantID:     "full-check",
+			wantOrder:  80,
 			wantAuto:   "always",
 			wantChecks: 3,
 		},
@@ -140,6 +157,7 @@ workflow: argus-project-init
 			inv, err := ParseInvariant(strings.NewReader(tt.yaml))
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantID, inv.ID)
+			assert.Equal(t, tt.wantOrder, inv.Order)
 			assert.Equal(t, tt.wantAuto, inv.Auto)
 			assert.Len(t, inv.Check, tt.wantChecks)
 		})
@@ -157,6 +175,7 @@ func TestParseInvariant_Errors(t *testing.T) {
 			name: "missing version",
 			yaml: `
 id: my-check
+order: 10
 check:
   - shell: "test -f README.md"
 prompt: "Create a README"
@@ -167,6 +186,7 @@ prompt: "Create a README"
 			name: "missing id",
 			yaml: `
 version: v0.1.0
+order: 10
 check:
   - shell: "test -f README.md"
 prompt: "Create a README"
@@ -179,6 +199,7 @@ prompt: "Create a README"
 			yaml: `
 version: v0.1.0
 id: MY-CHECK
+order: 10
 check:
   - shell: "test -f README.md"
 prompt: "Create a README"
@@ -186,10 +207,34 @@ prompt: "Create a README"
 			wantErr: core.ErrInvalidID,
 		},
 		{
+			name: "missing order",
+			yaml: `
+version: v0.1.0
+id: my-check
+check:
+  - shell: "test -f README.md"
+prompt: "Create a README"
+`,
+			wantInMsg: "order",
+		},
+		{
+			name: "non-positive order",
+			yaml: `
+version: v0.1.0
+id: my-check
+order: 0
+check:
+  - shell: "test -f README.md"
+prompt: "Create a README"
+`,
+			wantInMsg: "order",
+		},
+		{
 			name: "invalid auto value",
 			yaml: `
 version: v0.1.0
 id: my-check
+order: 10
 auto: daily
 check:
   - shell: "test -f README.md"
@@ -202,6 +247,7 @@ prompt: "Create a README"
 			yaml: `
 version: v0.1.0
 id: my-check
+order: 10
 check: []
 prompt: "Create a README"
 `,
@@ -212,6 +258,7 @@ prompt: "Create a README"
 			yaml: `
 version: v0.1.0
 id: my-check
+order: 10
 check:
   - shell: "test -f README.md"
 `,
@@ -222,6 +269,7 @@ check:
 			yaml: `
 version: v0.1.0
 id: my-check
+order: 10
 unknown_field: "bad"
 check:
   - shell: "test -f README.md"
@@ -234,6 +282,7 @@ prompt: "Create a README"
 			yaml: `
 version: v2.0.0
 id: my-check
+order: 10
 check:
   - shell: "test -f README.md"
 prompt: "Create a README"
@@ -267,6 +316,7 @@ func TestPromptWorkflow(t *testing.T) {
 			yaml: `
 version: v0.1.0
 id: my-check
+order: 10
 check:
   - shell: "test -f README.md"
 `,
@@ -277,6 +327,7 @@ check:
 			yaml: `
 version: v0.1.0
 id: my-check
+order: 10
 check:
   - shell: "test -f README.md"
 prompt: "Fix it"
@@ -288,6 +339,7 @@ prompt: "Fix it"
 			yaml: `
 version: v0.1.0
 id: my-check
+order: 10
 check:
   - shell: "test -f README.md"
 workflow: fix-it
@@ -299,6 +351,7 @@ workflow: fix-it
 			yaml: `
 version: v0.1.0
 id: my-check
+order: 10
 check:
   - shell: "test -f README.md"
 prompt: "Fix it"

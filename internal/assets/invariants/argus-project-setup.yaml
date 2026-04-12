@@ -1,5 +1,6 @@
 version: v0.1.0
 id: argus-project-setup
+order: 10
 description: "Project-level Argus setup exists"
 auto: session_start
 

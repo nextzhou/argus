@@ -201,7 +201,7 @@ If the current pipeline has been snoozed in the current session, output becomes 
 
 ### Scenario 5: No Active Pipeline, First Failing Invariant
 
-When no active pipeline exists, `tick` evaluates auto invariants and stops at the first failing one. The invariant failure becomes the only output:
+When no active pipeline exists, `tick` evaluates valid auto invariants in ascending `order` and stops at the first failing one. Invalid invariant definitions are excluded from that runtime pool and summarized as a warning. The invariant failure becomes the only main output:
 
 ```markdown
 Argus: Invariant check failed:
@@ -436,11 +436,12 @@ Invariants: 2 passed, 1 failed
     "passed": 2,
     "failed": 1,
     "details": [
-      {"id": "argus-project-init", "description": "The project has completed Argus initialization", "status": "passed"},
-      {"id": "lint-clean", "description": "The codebase should pass lint", "status": "failed"},
-      {"id": "gitignore-complete", "description": ".gitignore should include Argus temporary files", "status": "passed"}
+      {"id": "argus-project-init", "order": 20, "description": "The project has completed Argus initialization", "status": "passed"},
+      {"id": "lint-clean", "order": 30, "description": "The codebase should pass lint", "status": "failed"},
+      {"id": "gitignore-complete", "order": 40, "description": ".gitignore should include Argus temporary files", "status": "passed"}
     ]
   },
+  "invalid_invariants": [],
   "hints": [
     "Invariant checks took 3.2s total. Run argus doctor to investigate slow checks."
   ]
@@ -451,6 +452,8 @@ Notes:
 
 - `pipeline.jobs` lists **all** jobs in the workflow definition, not only jobs that have already run
 - `invariants.details` includes every invariant whose `auto` value is not `never`
+- `invariants.details[*].order` is the global invariant order used by runtime evaluation
+- `invalid_invariants` lists malformed or conflicting invariant definitions that were excluded from runtime evaluation
 - `description` comes from top-level invariant YAML `description`; if missing, Argus may fall back to a shell-summary string
 - `hints` is a general-purpose array for performance warnings and other guidance
 
@@ -466,11 +469,12 @@ Notes:
     "passed": 3,
     "failed": 0,
     "details": [
-      {"id": "argus-project-init", "description": "The project has completed Argus initialization", "status": "passed"},
-      {"id": "lint-clean", "description": "The codebase should pass lint", "status": "passed"},
-      {"id": "gitignore-complete", "description": ".gitignore should include Argus temporary files", "status": "passed"}
+      {"id": "argus-project-init", "order": 20, "description": "The project has completed Argus initialization", "status": "passed"},
+      {"id": "lint-clean", "order": 30, "description": "The codebase should pass lint", "status": "passed"},
+      {"id": "gitignore-complete", "order": 40, "description": ".gitignore should include Argus temporary files", "status": "passed"}
     ]
   },
+  "invalid_invariants": [],
   "hints": []
 }
 ```

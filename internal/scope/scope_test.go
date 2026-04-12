@@ -47,13 +47,14 @@ func TestNewGlobalScope(t *testing.T) {
 	assert.Equal(t, filepath.Join(globalRoot, "logs"), artifactScope.LogsDir())
 }
 
-func TestLoadInvariants(t *testing.T) {
+func TestLoadInvariantCatalog(t *testing.T) {
 	projectRoot := t.TempDir()
 	artifactScope := NewProjectScope(projectRoot)
 	invariantsDir := filepath.Join(projectRoot, ".argus", "invariants")
 
 	writeScopeTestFile(t, filepath.Join(invariantsDir, "lint-clean.yaml"), `version: v0.1.0
 id: lint-clean
+order: 20
 description: "lint must stay green"
 auto: always
 check:
@@ -63,45 +64,53 @@ prompt: "Run lint"
 	writeScopeTestFile(t, filepath.Join(invariantsDir, "broken.yaml"), "{{invalid yaml")
 	writeScopeTestFile(t, filepath.Join(invariantsDir, "_ignored.yaml"), `version: v0.1.0
 id: ignored
+order: 30
 check:
   - shell: "true"
 prompt: "ignored"
 `)
 	writeScopeTestFile(t, filepath.Join(invariantsDir, "wrong-name.yaml"), `version: v0.1.0
 id: other-check
+order: 40
 check:
   - shell: "true"
 prompt: "ignored"
 `)
 	writeScopeTestFile(t, filepath.Join(invariantsDir, "notes.txt"), "not yaml")
 
-	invariants, err := artifactScope.LoadInvariants()
+	catalog, err := artifactScope.LoadInvariantCatalog()
 	require.NoError(t, err)
-	require.Len(t, invariants, 1)
+	require.Len(t, catalog.Invariants, 1)
+	require.Len(t, catalog.Issues, 2)
 
-	assert.Equal(t, "lint-clean", invariants[0].ID)
-	assert.Equal(t, "lint must stay green", invariants[0].Description)
-	assert.Equal(t, "always", invariants[0].Auto)
+	assert.Equal(t, "lint-clean", catalog.Invariants[0].ID)
+	assert.Equal(t, 20, catalog.Invariants[0].Order)
+	assert.Equal(t, "lint must stay green", catalog.Invariants[0].Description)
+	assert.Equal(t, "always", catalog.Invariants[0].Auto)
+	assert.Equal(t, "broken.yaml", catalog.Issues[0].File)
+	assert.Equal(t, "wrong-name.yaml", catalog.Issues[1].File)
 }
 
-func TestLoadInvariants_MissingDir(t *testing.T) {
+func TestLoadInvariantCatalog_MissingDir(t *testing.T) {
 	projectRoot := t.TempDir()
 	artifactScope := NewProjectScope(projectRoot)
 
-	invariants, err := artifactScope.LoadInvariants()
+	catalog, err := artifactScope.LoadInvariantCatalog()
 	require.NoError(t, err)
-	assert.Nil(t, invariants)
+	require.NotNil(t, catalog)
+	assert.Empty(t, catalog.Invariants)
+	assert.Empty(t, catalog.Issues)
 }
 
-func TestLoadInvariants_ReadDirError(t *testing.T) {
+func TestLoadInvariantCatalog_ReadDirError(t *testing.T) {
 	projectRoot := t.TempDir()
 	artifactScope := NewProjectScope(projectRoot)
 	writeScopeTestFile(t, filepath.Join(projectRoot, ".argus", "invariants"), "not a directory")
 
-	invariants, err := artifactScope.LoadInvariants()
+	catalog, err := artifactScope.LoadInvariantCatalog()
 	require.Error(t, err)
-	assert.Nil(t, invariants)
-	assert.ErrorContains(t, err, "reading invariants directory")
+	assert.Nil(t, catalog)
+	assert.ErrorContains(t, err, "loading invariant catalog")
 }
 
 func TestScanActivePipelines(t *testing.T) {

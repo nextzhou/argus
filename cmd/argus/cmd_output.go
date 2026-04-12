@@ -41,9 +41,27 @@ func writeJSONError(cmd *cobra.Command, msg string) error {
 	return writeJSONEnvelope(cmd.OutOrStdout(), errBytes)
 }
 
+func writeJSONErrorDetails(cmd *cobra.Command, msg string, details any) error {
+	errBytes, err := core.ErrorEnvelopeWithDetails(msg, details)
+	if err != nil {
+		return fmt.Errorf("marshaling JSON error output: %w", err)
+	}
+
+	return writeJSONEnvelope(cmd.OutOrStdout(), errBytes)
+}
+
 func writeCommandError(cmd *cobra.Command, jsonOutput bool, msg string) {
 	if jsonOutput {
 		_ = writeJSONError(cmd, msg)
+		return
+	}
+
+	_, _ = fmt.Fprintln(cmd.ErrOrStderr(), msg)
+}
+
+func writeCommandErrorDetails(cmd *cobra.Command, jsonOutput bool, msg string, details any) {
+	if jsonOutput {
+		_ = writeJSONErrorDetails(cmd, msg, details)
 		return
 	}
 

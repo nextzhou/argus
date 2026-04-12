@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"slices"
 	"strings"
 
 	"github.com/nextzhou/argus/internal/invariant"
@@ -20,6 +19,7 @@ type checkStepOutput struct {
 
 type checkResultOutput struct {
 	ID          string            `json:"id"`
+	Order       int               `json:"order"`
 	Description string            `json:"description"`
 	Status      string            `json:"status"`
 	Steps       []checkStepOutput `json:"steps"`
@@ -31,9 +31,10 @@ type checkResultOutput struct {
 }
 
 type invariantCheckOutput struct {
-	Passed  int                 `json:"passed"`
-	Failed  int                 `json:"failed"`
-	Results []checkResultOutput `json:"results"`
+	Passed            int                 `json:"passed"`
+	Failed            int                 `json:"failed"`
+	Results           []checkResultOutput `json:"results"`
+	InvalidInvariants []invariant.Issue   `json:"invalid_invariants"`
 }
 
 func newInvariantCheckCmd() *cobra.Command {
@@ -68,47 +69,48 @@ func newInvariantCheckCmd() *cobra.Command {
 }
 
 func runSingleCheck(cmd *cobra.Command, jsonOutput bool, id string, s scope.Scope) error {
-	invariants, err := s.LoadInvariants()
+	catalog, err := s.LoadInvariantCatalog()
 	if err != nil {
 		writeCommandError(cmd, jsonOutput, err.Error())
 		return fmt.Errorf("invariant check failed: %w", err)
 	}
-
-	var inv *invariant.Invariant
-	for _, candidate := range invariants {
-		if candidate.ID == id {
-			inv = candidate
-			break
-		}
-	}
-	if inv == nil {
-		writeCommandError(cmd, jsonOutput, "invariant not found")
-		return fmt.Errorf("invariant check failed: invariant %q not found", id)
+	if catalog == nil {
+		catalog = invariant.EmptyCatalog()
 	}
 
-	result := invariant.RunCheck(cmd.Context(), inv, s.ProjectRoot())
-	output := buildCheckOutput(inv, result)
+	inv, ok := catalog.FindByID(id)
+	if ok {
+		result := invariant.RunCheck(cmd.Context(), inv, s.ProjectRoot())
+		output := buildCheckOutput(inv, result)
+		return writeCheckOutput(cmd, jsonOutput, []checkResultOutput{output}, catalog.Issues)
+	}
 
-	return writeCheckOutput(cmd, jsonOutput, []checkResultOutput{output})
+	if issues := catalog.IssuesForID(id); len(issues) > 0 {
+		msg := fmt.Sprintf("invariant %q is invalid", id)
+		writeCommandErrorDetails(cmd, jsonOutput, msg, issues)
+		return fmt.Errorf("invariant check failed: %s", msg)
+	}
+
+	writeCommandError(cmd, jsonOutput, "invariant not found")
+	return fmt.Errorf("invariant check failed: invariant %q not found", id)
 }
 
 func runAllChecks(cmd *cobra.Command, jsonOutput bool, s scope.Scope) error {
-	invariants, err := s.LoadInvariants()
+	catalog, err := s.LoadInvariantCatalog()
 	if err != nil {
 		return fmt.Errorf("loading invariants: %w", err)
 	}
+	if catalog == nil {
+		catalog = invariant.EmptyCatalog()
+	}
 
-	results := make([]checkResultOutput, 0, len(invariants))
-	for _, inv := range invariants {
+	results := make([]checkResultOutput, 0, len(catalog.Invariants))
+	for _, inv := range catalog.Invariants {
 		result := invariant.RunCheck(cmd.Context(), inv, s.ProjectRoot())
 		results = append(results, buildCheckOutput(inv, result))
 	}
 
-	slices.SortFunc(results, func(a, b checkResultOutput) int {
-		return strings.Compare(a.ID, b.ID)
-	})
-
-	return writeCheckOutput(cmd, jsonOutput, results)
+	return writeCheckOutput(cmd, jsonOutput, results, catalog.Issues)
 }
 
 func buildCheckOutput(inv *invariant.Invariant, result *invariant.CheckResult) checkResultOutput {
@@ -128,6 +130,7 @@ func buildCheckOutput(inv *invariant.Invariant, result *invariant.CheckResult) c
 
 	out := checkResultOutput{
 		ID:          inv.ID,
+		Order:       inv.Order,
 		Description: invariantDescription(inv),
 		Status:      status,
 		Steps:       steps,
@@ -156,9 +159,12 @@ func invariantDescription(inv *invariant.Invariant) string {
 	return strings.Join(shells, "; ")
 }
 
-func writeCheckOutput(cmd *cobra.Command, jsonOutput bool, results []checkResultOutput) error {
+func writeCheckOutput(cmd *cobra.Command, jsonOutput bool, results []checkResultOutput, invalidInvariants []invariant.Issue) error {
 	if results == nil {
 		results = []checkResultOutput{}
+	}
+	if invalidInvariants == nil {
+		invalidInvariants = []invariant.Issue{}
 	}
 
 	passed := 0
@@ -172,9 +178,10 @@ func writeCheckOutput(cmd *cobra.Command, jsonOutput bool, results []checkResult
 	}
 
 	out := invariantCheckOutput{
-		Passed:  passed,
-		Failed:  failed,
-		Results: results,
+		Passed:            passed,
+		Failed:            failed,
+		Results:           results,
+		InvalidInvariants: invalidInvariants,
 	}
 
 	if jsonOutput {
@@ -190,37 +197,44 @@ func renderInvariantCheckText(w io.Writer, out invariantCheckOutput) {
 	_, _ = fmt.Fprintln(w)
 	_, _ = fmt.Fprintf(w, "Summary: %d passed, %d failed\n", out.Passed, out.Failed)
 
-	if len(out.Results) == 0 {
+	switch {
+	case len(out.Results) == 0:
 		_, _ = fmt.Fprintln(w)
 		_, _ = fmt.Fprintln(w, "No invariants found.")
-		return
-	}
-
-	if out.Failed == 0 {
+	case out.Failed == 0:
 		_, _ = fmt.Fprintln(w)
 		_, _ = fmt.Fprintf(w, "All %d invariants passed.\n", out.Passed)
+	default:
+		_, _ = fmt.Fprintln(w)
+		_, _ = fmt.Fprintln(w, "Failed invariants:")
+		for _, result := range out.Results {
+			if result.Status != "failed" {
+				continue
+			}
+
+			_, _ = fmt.Fprintf(w, "- #%d %s: %s\n", result.Order, result.ID, result.Description)
+			for _, step := range result.Steps {
+				_, _ = fmt.Fprintf(w, "  Step [%s]: %s\n", step.Status, step.Description)
+				if step.Output != "" {
+					_, _ = fmt.Fprintf(w, "  Output: %s\n", step.Output)
+				}
+			}
+			if result.Workflow != nil {
+				_, _ = fmt.Fprintf(w, "  Workflow: %s\n", *result.Workflow)
+			}
+			if result.Prompt != nil {
+				_, _ = fmt.Fprintf(w, "  Prompt: %s\n", *result.Prompt)
+			}
+		}
+	}
+
+	if len(out.InvalidInvariants) == 0 {
 		return
 	}
 
 	_, _ = fmt.Fprintln(w)
-	_, _ = fmt.Fprintln(w, "Failed invariants:")
-	for _, result := range out.Results {
-		if result.Status != "failed" {
-			continue
-		}
-
-		_, _ = fmt.Fprintf(w, "- %s: %s\n", result.ID, result.Description)
-		for _, step := range result.Steps {
-			_, _ = fmt.Fprintf(w, "  Step [%s]: %s\n", step.Status, step.Description)
-			if step.Output != "" {
-				_, _ = fmt.Fprintf(w, "  Output: %s\n", step.Output)
-			}
-		}
-		if result.Workflow != nil {
-			_, _ = fmt.Fprintf(w, "  Workflow: %s\n", *result.Workflow)
-		}
-		if result.Prompt != nil {
-			_, _ = fmt.Fprintf(w, "  Prompt: %s\n", *result.Prompt)
-		}
+	_, _ = fmt.Fprintf(w, "Invalid invariants: %d\n", len(out.InvalidInvariants))
+	for _, issue := range out.InvalidInvariants {
+		_, _ = fmt.Fprintf(w, "- %s\n", issue.String())
 	}
 }

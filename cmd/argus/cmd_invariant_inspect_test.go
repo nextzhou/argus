@@ -19,6 +19,7 @@ func executeInvariantInspectCmd(t *testing.T, args ...string) ([]byte, error) {
 
 const validInvariantForInspect = `version: v0.1.0
 id: my-check
+order: 10
 description: A valid invariant
 auto: always
 check:
@@ -29,6 +30,7 @@ prompt: "Fix it"
 
 const validInvariantWithWorkflow = `version: v0.1.0
 id: check-with-workflow
+order: 20
 description: Invariant referencing a workflow
 auto: always
 check:
@@ -40,6 +42,7 @@ prompt: "Run the workflow"
 
 const validInvariantWithMissingWorkflow = `version: v0.1.0
 id: check-missing-workflow
+order: 30
 description: Invariant referencing a non-existent workflow
 auto: always
 check:
@@ -51,6 +54,7 @@ prompt: "Run the workflow"
 
 const builtinInvariantForInspect = `version: v0.1.0
 id: argus-project-init
+order: 40
 description: Built-in invariant
 auto: always
 check:
@@ -118,6 +122,7 @@ func TestInvariantInspect(t *testing.T) {
 			setup: func(t *testing.T) {
 				writeInvariantFixture(t, "good", `version: v0.1.0
 id: good
+order: 10
 description: A valid invariant
 auto: always
 check:

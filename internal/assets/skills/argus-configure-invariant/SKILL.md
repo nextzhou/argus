@@ -17,6 +17,7 @@ Invariant files go in `.argus/invariants/` with `.yaml` extension. Each file mus
 ```yaml
 version: v0.1.0
 id: my-invariant          # lowercase letters, digits, hyphens
+order: 10                # positive integer, lower numbers run first
 description: "Optional human-readable description"
 auto: never               # when to run: always | session_start | never
 
@@ -49,6 +50,14 @@ Unique invariant identifier.
 ### `description` (optional)
 
 Human-readable description of what the invariant checks.
+
+### `order` (required)
+
+Global runtime order for valid invariants in the current scope.
+
+- Positive integer only
+- Lower numbers run first
+- Must be unique across the active invariant directory
 
 ### `auto` (optional)
 
@@ -84,6 +93,7 @@ Copy-pasteable starting point:
 ```yaml
 version: v0.1.0
 id: my-check
+order: 10
 description: "Describe what should be true"
 auto: session_start
 

@@ -24,6 +24,7 @@ jobs:
 
 const tickSessionStartInvariant = `version: v0.1.0
 id: tick-session-start-inv
+order: 20
 description: Session start invariant
 auto: session_start
 check:
@@ -34,6 +35,7 @@ prompt: "Fix the session start issue"
 
 const tickAlwaysInvariant = `version: v0.1.0
 id: tick-always-inv
+order: 10
 description: Always invariant
 auto: always
 check:
@@ -219,6 +221,7 @@ func TestTickLifecycle_PromptOnlyInvariantSuggestion(t *testing.T) {
 	writeWorkflowFixture(t, "tick-lifecycle", tickLifecycleWorkflow)
 	writeInvariantFixture(t, "tick-prompt-only-inv", `version: v0.1.0
 id: tick-prompt-only-inv
+order: 10
 description: Prompt-only invariant
 auto: always
 check:
@@ -246,6 +249,7 @@ func TestTickLifecycle_WorkflowOnlyInvariantSuggestion(t *testing.T) {
 	writeWorkflowFixture(t, "tick-lifecycle", tickLifecycleWorkflow)
 	writeInvariantFixture(t, "tick-workflow-only-inv", `version: v0.1.0
 id: tick-workflow-only-inv
+order: 10
 description: Workflow-only invariant
 auto: always
 check:
@@ -273,6 +277,7 @@ func TestTickLifecycle_WorkflowSuggestionTakesPriorityOverPrompt(t *testing.T) {
 	writeWorkflowFixture(t, "tick-lifecycle", tickLifecycleWorkflow)
 	writeInvariantFixture(t, "tick-workflow-priority-inv", `version: v0.1.0
 id: tick-workflow-priority-inv
+order: 10
 description: Workflow priority invariant
 auto: always
 check:
@@ -301,6 +306,7 @@ func TestTickLifecycle_PassingInvariantDoesNotAppendFailure(t *testing.T) {
 	writeWorkflowFixture(t, "tick-lifecycle", tickLifecycleWorkflow)
 	writeInvariantFixture(t, "tick-pass-inv", `version: v0.1.0
 id: tick-pass-inv
+order: 10
 description: Passing invariant
 auto: always
 check:
@@ -328,6 +334,7 @@ func TestTickLifecycle_ActivePipelineSkipsInvariantChecks(t *testing.T) {
 	writeWorkflowFixture(t, "tick-lifecycle", tickLifecycleWorkflow)
 	writeInvariantFixture(t, "tick-active-pipeline-inv", `version: v0.1.0
 id: tick-active-pipeline-inv
+order: 10
 description: Should be skipped while pipeline is active
 auto: always
 check:
@@ -358,6 +365,7 @@ func TestTickLifecycle_NoWorkflowAndPassingInvariantReturnsEmpty(t *testing.T) {
 	t.Chdir(t.TempDir())
 	writeInvariantFixture(t, "tick-pass-inv", `version: v0.1.0
 id: tick-pass-inv
+order: 10
 description: Passing invariant
 auto: always
 check:
@@ -402,6 +410,7 @@ func TestTickLifecycle_InvariantStatusIntegration(t *testing.T) {
 	writeWorkflowFixture(t, "tick-lifecycle", tickLifecycleWorkflow)
 	writeInvariantFixture(t, "tick-status-inv", `version: v0.1.0
 id: tick-status-inv
+order: 10
 description: Status integration invariant
 auto: always
 check:
@@ -451,4 +460,40 @@ prompt: "Fix it"
 	d0 := details[0].(map[string]any)
 	assert.Equal(t, "tick-status-inv", d0["id"])
 	assert.Equal(t, "passed", d0["status"])
+}
+
+func TestTickLifecycle_FirstTickUsesGlobalOrderAcrossAutoModes(t *testing.T) {
+	t.Chdir(t.TempDir())
+	writeWorkflowFixture(t, "tick-lifecycle", tickLifecycleWorkflow)
+	writeInvariantFixture(t, "tick-session-start-inv", `version: v0.1.0
+id: tick-session-start-inv
+order: 10
+description: Session start invariant
+auto: session_start
+check:
+  - shell: "exit 1"
+    description: "always fails for testing"
+prompt: "Fix the session start issue"
+`)
+	writeInvariantFixture(t, "tick-always-inv", `version: v0.1.0
+id: tick-always-inv
+order: 20
+description: Always invariant
+auto: always
+check:
+  - shell: "exit 1"
+    description: "always fails for testing"
+prompt: "Fix the always issue"
+`)
+	store := sessiontest.NewMemoryStore()
+
+	sessionID := sessiontest.NewSessionID(t, "tick-order-across-auto")
+	stdinJSON := fmt.Sprintf(`{"session_id":"%s"}`, sessionID)
+
+	out, err := executeTickCmd(t, store, stdinJSON, "--agent", "claude-code")
+	require.NoError(t, err)
+
+	output := string(out)
+	assert.Contains(t, output, "tick-session-start-inv")
+	assert.NotContains(t, output, "tick-always-inv")
 }

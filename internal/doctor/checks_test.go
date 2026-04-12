@@ -363,8 +363,14 @@ func writeWorkflowFile(t *testing.T, projectRoot string, fileName string, workfl
 func writeInvariantFile(t *testing.T, projectRoot string, fileName string, invariantID string, workflowID string) {
 	t.Helper()
 
+	order := "20"
+	if invariantID == "argus-project-init" {
+		order = "10"
+	}
+
 	content := "version: " + core.SchemaVersion + "\n" +
 		"id: " + invariantID + "\n" +
+		"order: " + order + "\n" +
 		"workflow: " + workflowID + "\n" +
 		"check:\n" +
 		"  - description: validate setup\n" +

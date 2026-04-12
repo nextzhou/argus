@@ -29,6 +29,7 @@ func writeInvariantFixture(t *testing.T, id, yamlContent string) {
 
 const successfulInvariantYAML = `version: v0.1.0
 id: check-pass
+order: 20
 description: Always passes
 auto: always
 check:
@@ -39,6 +40,7 @@ prompt: "Fix it"
 
 const failingInvariant = `version: v0.1.0
 id: check-fail
+order: 10
 description: Always fails
 auto: never
 check:
@@ -50,6 +52,7 @@ prompt: "Run the fix-it workflow"
 
 const failingNoDescription = `version: v0.1.0
 id: no-desc
+order: 30
 auto: session_start
 check:
   - shell: "echo hello"
@@ -84,6 +87,7 @@ func TestInvariantCheck(t *testing.T) {
 
 				r0 := results[0].(map[string]any)
 				assert.Equal(t, "check-fail", r0["id"])
+				assert.InDelta(t, 10, r0["order"], 0)
 				assert.Equal(t, "Always fails", r0["description"])
 				assert.Equal(t, "failed", r0["status"])
 				assert.Equal(t, "fix-it", r0["workflow"])
@@ -98,6 +102,7 @@ func TestInvariantCheck(t *testing.T) {
 
 				r1 := results[1].(map[string]any)
 				assert.Equal(t, "check-pass", r1["id"])
+				assert.InDelta(t, 20, r1["order"], 0)
 				assert.Equal(t, "Always passes", r1["description"])
 				assert.Equal(t, "passed", r1["status"])
 				assert.Nil(t, r1["workflow"])
@@ -122,6 +127,7 @@ func TestInvariantCheck(t *testing.T) {
 
 				r0 := results[0].(map[string]any)
 				assert.Equal(t, "check-pass", r0["id"])
+				assert.InDelta(t, 20, r0["order"], 0)
 				assert.Equal(t, "passed", r0["status"])
 			},
 		},
@@ -173,6 +179,76 @@ func TestInvariantCheck(t *testing.T) {
 				r0 := results[0].(map[string]any)
 				assert.Equal(t, "no-desc", r0["id"])
 				assert.Equal(t, "echo hello; false", r0["description"])
+			},
+		},
+		{
+			name: "check all reports invalid invariants separately",
+			setup: func(t *testing.T) {
+				writeInvariantFixture(t, "check-pass", successfulInvariantYAML)
+				writeInvariantFixture(t, "broken-order", `version: v0.1.0
+id: broken-order
+check:
+  - shell: "true"
+prompt: "Fix it"
+`)
+			},
+			wantStatus: "ok",
+			checkJSON: func(t *testing.T, data map[string]any) {
+				assert.InDelta(t, 1, data["passed"], 0)
+				assert.InDelta(t, 0, data["failed"], 0)
+				results := data["results"].([]any)
+				require.Len(t, results, 1)
+				invalid, ok := data["invalid_invariants"].([]any)
+				require.True(t, ok)
+				require.Len(t, invalid, 1)
+				issue := invalid[0].(map[string]any)
+				assert.Equal(t, "broken-order.yaml", issue["file"])
+				assert.Equal(t, "order", issue["path"])
+			},
+		},
+		{
+			name: "check single invalid target returns details",
+			args: []string{"broken-order"},
+			setup: func(t *testing.T) {
+				writeInvariantFixture(t, "broken-order", `version: v0.1.0
+id: broken-order
+check:
+  - shell: "true"
+prompt: "Fix it"
+`)
+			},
+			wantErr:    true,
+			wantStatus: "error",
+			checkJSON: func(t *testing.T, data map[string]any) {
+				msg, ok := data["message"].(string)
+				require.True(t, ok)
+				assert.Contains(t, msg, "invalid")
+				details, ok := data["details"].([]any)
+				require.True(t, ok)
+				require.Len(t, details, 1)
+				d0 := details[0].(map[string]any)
+				assert.Equal(t, "order", d0["path"])
+			},
+		},
+		{
+			name: "check single ignores unrelated invalid invariants",
+			args: []string{"check-pass"},
+			setup: func(t *testing.T) {
+				writeInvariantFixture(t, "check-pass", successfulInvariantYAML)
+				writeInvariantFixture(t, "broken-order", `version: v0.1.0
+id: broken-order
+check:
+  - shell: "true"
+prompt: "Fix it"
+`)
+			},
+			wantStatus: "ok",
+			checkJSON: func(t *testing.T, data map[string]any) {
+				results := data["results"].([]any)
+				require.Len(t, results, 1)
+				invalid, ok := data["invalid_invariants"].([]any)
+				require.True(t, ok)
+				require.Len(t, invalid, 1)
 			},
 		},
 	}

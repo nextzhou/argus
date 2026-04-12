@@ -124,6 +124,7 @@ Invariant files live in `.argus/invariants/` as YAML files. Each file must be na
 ```yaml
 version: v0.1.0
 id: my-check                   # lowercase, digits, hyphens (no argus- prefix)
+order: 10
 description: "Human-readable description"
 auto: session_start             # when to check: always | session_start | never
 
@@ -141,6 +142,7 @@ workflow: setup-env             # optional: suggest a remediation workflow
 
 - **`version`**: must be `v0.1.0`.
 - **`id`**: unique invariant identifier. See [Naming Conventions](#naming-conventions).
+- **`order`**: required positive integer. Lower numbers run first. Must be unique within the current invariant directory.
 - **`description`**: optional, human-readable.
 - **`auto`**: when to run checks automatically during `tick`:
   - `always` — every tick (use sparingly for fast checks).
@@ -190,7 +192,9 @@ argus invariant inspect                   # validate .argus/invariants/
 argus invariant inspect /path/to/dir      # validate a specific directory
 ```
 
-`invariant inspect` also verifies the `<id>.yaml` file-name contract and allows reserved `argus-*` IDs only when they belong to built-in invariants embedded in the current Argus binary.
+`invariant inspect` also verifies the `<id>.yaml` file-name contract, `order` uniqueness, and allows reserved `argus-*` IDs only when they belong to built-in invariants embedded in the current Argus binary.
+
+Runtime note: `argus tick`, `argus status`, `argus invariant list`, and `argus invariant check` continue operating on valid invariants even when some files are invalid. Their JSON success payloads include an `invalid_invariants` array describing malformed or conflicting definitions.
 
 ## Writing Skills
 

@@ -184,9 +184,9 @@ func TestSetupPrunesObsoleteBuiltinYAML(t *testing.T) {
 	projectRoot := newTestProjectRoot(t)
 
 	writeTestFile(t, filepath.Join(projectRoot, ".argus", "workflows", "argus-init.yaml"), "version: v0.1.0\nid: argus-init\njobs:\n  - id: legacy\n    prompt: legacy\n")
-	writeTestFile(t, filepath.Join(projectRoot, ".argus", "invariants", "argus-project-setup.yaml"), "version: v0.1.0\nid: argus-project-setup\ncheck:\n  - shell: test -d .argus\n")
+	writeTestFile(t, filepath.Join(projectRoot, ".argus", "invariants", "argus-project-setup.yaml"), "version: v0.1.0\nid: argus-project-setup\norder: 10\nprompt: legacy\ncheck:\n  - shell: test -d .argus\n")
 	writeTestFile(t, filepath.Join(projectRoot, ".argus", "workflows", "team-workflow.yaml"), "version: v0.1.0\nid: team-workflow\njobs:\n  - id: keep\n    prompt: keep\n")
-	writeTestFile(t, filepath.Join(projectRoot, ".argus", "invariants", "team-invariant.yaml"), "version: v0.1.0\nid: team-invariant\nprompt: keep\ncheck:\n  - shell: true\n")
+	writeTestFile(t, filepath.Join(projectRoot, ".argus", "invariants", "team-invariant.yaml"), "version: v0.1.0\nid: team-invariant\norder: 20\nprompt: keep\ncheck:\n  - shell: true\n")
 
 	_, err := SetupWithReport(projectRoot)
 	require.NoError(t, err)

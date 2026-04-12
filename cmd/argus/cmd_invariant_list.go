@@ -4,22 +4,23 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"slices"
-	"strings"
 
+	"github.com/nextzhou/argus/internal/invariant"
 	"github.com/nextzhou/argus/internal/scope"
 	"github.com/spf13/cobra"
 )
 
 type invariantListEntry struct {
 	ID          string `json:"id"`
+	Order       int    `json:"order"`
 	Description string `json:"description"`
 	Auto        string `json:"auto"`
 	Checks      int    `json:"checks"`
 }
 
 type invariantListOutput struct {
-	Invariants []invariantListEntry `json:"invariants"`
+	Invariants        []invariantListEntry `json:"invariants"`
+	InvalidInvariants []invariant.Issue    `json:"invalid_invariants"`
 }
 
 func newInvariantListCmd() *cobra.Command {
@@ -42,26 +43,26 @@ func newInvariantListCmd() *cobra.Command {
 				return fmt.Errorf("not inside an Argus project or registered workspace")
 			}
 
-			invariants, err := s.LoadInvariants()
+			catalog, err := s.LoadInvariantCatalog()
 			if err != nil {
-				return fmt.Errorf("loading invariants: %w", err)
+				return fmt.Errorf("loading invariant catalog: %w", err)
+			}
+			if catalog == nil {
+				catalog = invariant.EmptyCatalog()
 			}
 
-			result := make([]invariantListEntry, 0, len(invariants))
-			for _, inv := range invariants {
+			result := make([]invariantListEntry, 0, len(catalog.Invariants))
+			for _, inv := range catalog.Invariants {
 				result = append(result, invariantListEntry{
 					ID:          inv.ID,
+					Order:       inv.Order,
 					Description: invariantDescription(inv),
 					Auto:        inv.Auto,
 					Checks:      len(inv.Check),
 				})
 			}
 
-			slices.SortFunc(result, func(a, b invariantListEntry) int {
-				return strings.Compare(a.ID, b.ID)
-			})
-
-			return writeInvariantListOutput(cmd, result, jsonFlag)
+			return writeInvariantListOutput(cmd, result, catalog.Issues, jsonFlag)
 		},
 	}
 
@@ -69,33 +70,48 @@ func newInvariantListCmd() *cobra.Command {
 	return cmd
 }
 
-func writeInvariantListOutput(cmd *cobra.Command, invariants []invariantListEntry, jsonOutput bool) error {
+func writeInvariantListOutput(cmd *cobra.Command, invariants []invariantListEntry, invalidInvariants []invariant.Issue, jsonOutput bool) error {
 	if invariants == nil {
 		invariants = []invariantListEntry{}
 	}
-
-	if jsonOutput {
-		return writeJSONOK(cmd, invariantListOutput{Invariants: invariants})
+	if invalidInvariants == nil {
+		invalidInvariants = []invariant.Issue{}
 	}
 
-	renderInvariantListText(cmd.OutOrStdout(), invariants)
+	if jsonOutput {
+		return writeJSONOK(cmd, invariantListOutput{
+			Invariants:        invariants,
+			InvalidInvariants: invalidInvariants,
+		})
+	}
+
+	renderInvariantListText(cmd.OutOrStdout(), invariants, invalidInvariants)
 	return nil
 }
 
-func renderInvariantListText(w io.Writer, invariants []invariantListEntry) {
+func renderInvariantListText(w io.Writer, invariants []invariantListEntry, invalidInvariants []invariant.Issue) {
 	_, _ = fmt.Fprintln(w, "Argus: Invariants")
 	_, _ = fmt.Fprintln(w)
 
 	if len(invariants) == 0 {
 		_, _ = fmt.Fprintln(w, "No invariants found.")
+	} else {
+		for _, inv := range invariants {
+			_, _ = fmt.Fprintf(w, "- #%d %s", inv.Order, inv.ID)
+			if inv.Description != "" {
+				_, _ = fmt.Fprintf(w, " — %s", inv.Description)
+			}
+			_, _ = fmt.Fprintf(w, " (auto: %s, checks: %d)\n", inv.Auto, inv.Checks)
+		}
+	}
+
+	if len(invalidInvariants) == 0 {
 		return
 	}
 
-	for _, inv := range invariants {
-		_, _ = fmt.Fprintf(w, "- %s", inv.ID)
-		if inv.Description != "" {
-			_, _ = fmt.Fprintf(w, " — %s", inv.Description)
-		}
-		_, _ = fmt.Fprintf(w, " (auto: %s, checks: %d)\n", inv.Auto, inv.Checks)
+	_, _ = fmt.Fprintln(w)
+	_, _ = fmt.Fprintf(w, "Invalid invariants: %d\n", len(invalidInvariants))
+	for _, issue := range invalidInvariants {
+		_, _ = fmt.Fprintf(w, "- %s\n", issue.String())
 	}
 }

@@ -5,6 +5,7 @@ package invariant
 type Invariant struct {
 	Version     string      `yaml:"version"`
 	ID          string      `yaml:"id"`
+	Order       int         `yaml:"order"`
 	Description string      `yaml:"description,omitempty"`
 	Auto        string      `yaml:"auto,omitempty"`
 	Check       []CheckStep `yaml:"check"`
