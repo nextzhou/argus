@@ -3,8 +3,10 @@ package invariant
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
+	"github.com/nextzhou/argus/internal/core"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -21,6 +23,27 @@ func writeFile(t *testing.T, dir, name, content string) {
 	require.NoError(t, err)
 }
 
+func invariantEntryByBase(report *InspectReport, base string) *InspectEntry {
+	for i := range report.Entries {
+		if filepath.Base(report.Entries[i].Source.Raw) == base {
+			return &report.Entries[i]
+		}
+	}
+	return nil
+}
+
+func invariantFindingWithMessage(entry *InspectEntry, substr string) *core.Finding {
+	if entry == nil {
+		return nil
+	}
+	for i := range entry.Findings {
+		if strings.Contains(entry.Findings[i].Message, substr) {
+			return &entry.Findings[i]
+		}
+	}
+	return nil
+}
+
 func TestInspectDirectory(t *testing.T) {
 	t.Run("valid dir with one invariant", func(t *testing.T) {
 		dir := t.TempDir()
@@ -32,15 +55,15 @@ check:
   - shell: "test -f README.md"
 prompt: "Create a README"
 `)
-		report, err := InspectDirectory(dir, alwaysFound, nil)
+		report, err := InspectDirectory("", dir, alwaysFound, nil)
 		require.NoError(t, err)
 		assert.True(t, report.Valid)
-		assert.Len(t, report.Files, 1)
-		fr := report.Files["my-check.yaml"]
-		require.NotNil(t, fr)
-		assert.True(t, fr.Valid)
-		assert.Equal(t, "my-check", fr.ID)
-		assert.Empty(t, fr.Errors)
+		assert.Len(t, report.Entries, 1)
+		entry := invariantEntryByBase(report, "my-check.yaml")
+		require.NotNil(t, entry)
+		assert.True(t, entry.Valid)
+		assert.Equal(t, "my-check", entry.ID)
+		assert.Empty(t, entry.Findings)
 	})
 
 	t.Run("invalid YAML file", func(t *testing.T) {
@@ -48,13 +71,13 @@ prompt: "Create a README"
 		writeFile(t, dir, "bad.yaml", `
 this is: [not valid yaml
 `)
-		report, err := InspectDirectory(dir, alwaysFound, nil)
+		report, err := InspectDirectory("", dir, alwaysFound, nil)
 		require.NoError(t, err)
 		assert.False(t, report.Valid)
-		fr := report.Files["bad.yaml"]
-		require.NotNil(t, fr)
-		assert.False(t, fr.Valid)
-		assert.NotEmpty(t, fr.Errors)
+		entry := invariantEntryByBase(report, "bad.yaml")
+		require.NotNil(t, entry)
+		assert.False(t, entry.Valid)
+		assert.NotEmpty(t, entry.Findings)
 	})
 
 	t.Run("duplicate IDs across two files", func(t *testing.T) {
@@ -75,22 +98,17 @@ check:
   - shell: "test -f LICENSE"
 prompt: "Fix it"
 `)
-		report, err := InspectDirectory(dir, alwaysFound, nil)
+		report, err := InspectDirectory("", dir, alwaysFound, nil)
 		require.NoError(t, err)
 		assert.False(t, report.Valid)
-		assert.False(t, report.Files["a.yaml"].Valid)
-		assert.False(t, report.Files["b.yaml"].Valid)
-
-		hasMsg := func(fr *FileResult, substr string) bool {
-			for _, fe := range fr.Errors {
-				if assert.ObjectsAreEqual(true, contains(fe.Message, substr)) {
-					return true
-				}
-			}
-			return false
-		}
-		assert.True(t, hasMsg(report.Files["a.yaml"], "duplicate"))
-		assert.True(t, hasMsg(report.Files["b.yaml"], "duplicate"))
+		aEntry := invariantEntryByBase(report, "a.yaml")
+		bEntry := invariantEntryByBase(report, "b.yaml")
+		require.NotNil(t, aEntry)
+		require.NotNil(t, bEntry)
+		assert.False(t, aEntry.Valid)
+		assert.False(t, bEntry.Valid)
+		assert.NotNil(t, invariantFindingWithMessage(aEntry, "duplicate"))
+		assert.NotNil(t, invariantFindingWithMessage(bEntry, "duplicate"))
 	})
 
 	t.Run("argus prefix used by user", func(t *testing.T) {
@@ -103,19 +121,13 @@ check:
   - shell: "test -f README.md"
 prompt: "Fix it"
 `)
-		report, err := InspectDirectory(dir, alwaysFound, nil)
+		report, err := InspectDirectory("", dir, alwaysFound, nil)
 		require.NoError(t, err)
 		assert.False(t, report.Valid)
-		fr := report.Files["reserved.yaml"]
-		require.NotNil(t, fr)
-		assert.False(t, fr.Valid)
-		foundNs := false
-		for _, fe := range fr.Errors {
-			if contains(fe.Message, "argus-") {
-				foundNs = true
-			}
-		}
-		assert.True(t, foundNs, "expected namespace violation error")
+		entry := invariantEntryByBase(report, "reserved.yaml")
+		require.NotNil(t, entry)
+		assert.False(t, entry.Valid)
+		assert.NotNil(t, invariantFindingWithMessage(entry, "argus-"))
 	})
 
 	t.Run("built-in argus prefix allowed by allowlist", func(t *testing.T) {
@@ -128,10 +140,12 @@ check:
   - shell: "true"
 workflow: argus-project-init
 `)
-		report, err := InspectDirectory(dir, alwaysFound, func(id string) bool { return id == "argus-project-init" })
+		report, err := InspectDirectory("", dir, alwaysFound, func(id string) bool { return id == "argus-project-init" })
 		require.NoError(t, err)
 		assert.True(t, report.Valid)
-		assert.True(t, report.Files["argus-project-init.yaml"].Valid)
+		entry := invariantEntryByBase(report, "argus-project-init.yaml")
+		require.NotNil(t, entry)
+		assert.True(t, entry.Valid)
 	})
 
 	t.Run("invariant filename must match id", func(t *testing.T) {
@@ -144,19 +158,13 @@ check:
   - shell: "true"
 prompt: "Fix it"
 `)
-		report, err := InspectDirectory(dir, alwaysFound, nil)
+		report, err := InspectDirectory("", dir, alwaysFound, nil)
 		require.NoError(t, err)
 		assert.False(t, report.Valid)
-		fr := report.Files["wrong-name.yaml"]
-		require.NotNil(t, fr)
-		assert.False(t, fr.Valid)
-		found := false
-		for _, fe := range fr.Errors {
-			if contains(fe.Message, `expected "lint-clean.yaml"`) {
-				found = true
-			}
-		}
-		assert.True(t, found, "expected filename mismatch error")
+		entry := invariantEntryByBase(report, "wrong-name.yaml")
+		require.NotNil(t, entry)
+		assert.False(t, entry.Valid)
+		assert.NotNil(t, invariantFindingWithMessage(entry, `expected "lint-clean.yaml"`))
 	})
 
 	t.Run("missing workflow reference", func(t *testing.T) {
@@ -169,31 +177,25 @@ check:
   - shell: "test -f README.md"
 workflow: nonexistent-workflow
 `)
-		report, err := InspectDirectory(dir, neverFound, nil)
+		report, err := InspectDirectory("", dir, neverFound, nil)
 		require.NoError(t, err)
 		assert.False(t, report.Valid)
-		fr := report.Files["check.yaml"]
-		require.NotNil(t, fr)
-		assert.False(t, fr.Valid)
-		foundWf := false
-		for _, fe := range fr.Errors {
-			if contains(fe.Message, "workflow") {
-				foundWf = true
-			}
-		}
-		assert.True(t, foundWf, "expected workflow reference error")
+		entry := invariantEntryByBase(report, "check.yaml")
+		require.NotNil(t, entry)
+		assert.False(t, entry.Valid)
+		assert.NotNil(t, invariantFindingWithMessage(entry, "workflow"))
 	})
 
 	t.Run("empty dir", func(t *testing.T) {
 		dir := t.TempDir()
-		report, err := InspectDirectory(dir, alwaysFound, nil)
+		report, err := InspectDirectory("", dir, alwaysFound, nil)
 		require.NoError(t, err)
 		assert.True(t, report.Valid)
-		assert.Empty(t, report.Files)
+		assert.Empty(t, report.Entries)
 	})
 
 	t.Run("non-existent dir", func(t *testing.T) {
-		_, err := InspectDirectory("/nonexistent/path/to/dir", alwaysFound, nil)
+		_, err := InspectDirectory("", "/nonexistent/path/to/dir", alwaysFound, nil)
 		require.Error(t, err)
 	})
 
@@ -208,12 +210,11 @@ check:
   - shell: "test -f README.md"
 prompt: "Fix it"
 `)
-		report, err := InspectDirectory(dir, alwaysFound, nil)
+		report, err := InspectDirectory("", dir, alwaysFound, nil)
 		require.NoError(t, err)
 		assert.True(t, report.Valid)
-		assert.Len(t, report.Files, 1)
-		_, exists := report.Files["readme.txt"]
-		assert.False(t, exists)
+		assert.Len(t, report.Entries, 1)
+		assert.Nil(t, invariantEntryByBase(report, "readme.txt"))
 	})
 
 	t.Run("workflow checker only called when workflow set", func(t *testing.T) {
@@ -226,22 +227,8 @@ check:
   - shell: "test -f README.md"
 prompt: "Fix it"
 `)
-		// neverFound should not cause error since workflow is empty
-		report, err := InspectDirectory(dir, neverFound, nil)
+		report, err := InspectDirectory("", dir, neverFound, nil)
 		require.NoError(t, err)
 		assert.True(t, report.Valid)
 	})
-}
-
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && searchSubstring(s, substr)
-}
-
-func searchSubstring(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
 }

@@ -37,7 +37,7 @@ func newWorkflowCancelCmd() *cobra.Command {
 				return fmt.Errorf("not inside an Argus project or registered workspace")
 			}
 
-			actives, _, err := s.ScanActivePipelines()
+			actives, _, err := s.Artifacts().Pipelines().ScanActive()
 			if err != nil {
 				writeCommandError(cmd, jsonFlag, err.Error())
 				return fmt.Errorf("workflow cancel failed: %w", err)
@@ -54,7 +54,7 @@ func newWorkflowCancelCmd() *cobra.Command {
 
 			for _, active := range actives {
 				pipeline.CancelPipeline(active.Pipeline, now)
-				if saveErr := pipeline.SavePipeline(s.PipelinesDir(), active.InstanceID, active.Pipeline); saveErr != nil {
+				if saveErr := s.Artifacts().Pipelines().Save(active.InstanceID, active.Pipeline); saveErr != nil {
 					return fmt.Errorf("saving cancelled pipeline %q: %w", active.InstanceID, saveErr)
 				}
 				cancelled = append(cancelled, active.InstanceID)

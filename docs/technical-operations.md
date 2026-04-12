@@ -13,6 +13,7 @@ Argus follows architecture invariant #4: diagnostic tools diagnose only and neve
   - `argus doctor`: the main CLI diagnosis command
   - `argus-doctor`: an agent skill used as an alternate path, especially when the Argus binary is broken or missing. Invoked as `/argus-doctor` in Claude Code, `$argus-doctor` or `/use argus-doctor` in Codex, and through the `skill` tool in OpenCode
 - **Graceful degradation without the binary**: when the Argus binary is unavailable, `argus-doctor` should mark binary-dependent checks as **skipped** (for example `argus version`, `workflow inspect`, `invariant inspect`, and any invariant execution), while still running file-presence, directory-structure, hook-config, and `.gitignore` checks. The final report should summarize `N passed / M failed / K skipped`
+- **Structured output contract**: `argus doctor --json` returns `summary` plus `checks[]`. Each check includes `name`, `status`, `summary`, `findings[]`, optional `suggestion`, and optional structured `detail`. Findings carry `source.kind` and `source.raw`; normal filesystem-backed findings stay file-path-first, while non-file findings keep an explicit source kind such as `embedded_asset` or `synthetic`.
 
 ### 12.2 Full Checklist
 

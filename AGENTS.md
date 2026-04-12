@@ -93,6 +93,7 @@ Different Argus scopes (for example, project scope and user/workspace scope) are
 - Scope-specific policy belongs in artifacts, not in hardcoded hook branches. Setup guidance, skip/remind decisions, and remediation flows should normally be modeled as invariants plus workflows.
 - Hardcoded scope logic is acceptable only for bootstrap concerns that artifacts cannot decide by themselves, such as input parsing, sub-agent suppression, project/scope discovery, and fail-open handling when no scope applies.
 - When a shortcut would create a second mental model for `tick`, `job-done`, or other orchestration entry points, treat that shortcut as design debt even if it is simpler to ship.
+- Storage paths remain documented facts, but runtime collaboration should prefer artifact capabilities over raw directory contracts. Calling code should ask to load/save workflows, invariants, pipelines, or hook logs rather than passing `.argus/...` subdirectories across package boundaries.
 
 ## Naming Conventions
 

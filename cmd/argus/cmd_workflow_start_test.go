@@ -7,10 +7,8 @@ import (
 	"testing"
 
 	"github.com/nextzhou/argus/internal/assets"
-	"github.com/nextzhou/argus/internal/workflow"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v3"
 )
 
 // executeStartCmd runs the workflow start command and captures stdout output.
@@ -232,6 +230,35 @@ func TestWorkflowStartBuiltinProjectInitStartsWithBootstrapJob(t *testing.T) {
 	assert.Nil(t, nextJob["skill"])
 }
 
+func TestWorkflowStartResolvesSharedRefsThroughProvider(t *testing.T) {
+	t.Chdir(t.TempDir())
+	writeSharedFixture(t, `jobs:
+  build_job:
+    id: build_from_shared
+    prompt: "Build from shared"
+    skill: "argus-build"
+`)
+	writeWorkflowFixture(t, "shared-ref", `version: v0.1.0
+id: shared-ref
+jobs:
+  - ref: build_job
+`)
+
+	output, cmdErr := executeStartCmd(t, "shared-ref")
+	require.NoError(t, cmdErr)
+
+	var payload map[string]any
+	require.NoError(t, json.Unmarshal(output, &payload))
+	assert.Equal(t, "ok", payload["status"])
+	assert.Equal(t, "running", payload["pipeline_status"])
+
+	nextJob, ok := payload["next_job"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "build_job", nextJob["id"])
+	assert.Equal(t, "Build from shared", nextJob["prompt"])
+	assert.Equal(t, "argus-build", nextJob["skill"])
+}
+
 func writeSharedFixture(t *testing.T, yamlContent string) {
 	t.Helper()
 	workflowsDir := filepath.Join(".argus", "workflows")
@@ -240,229 +267,4 @@ func writeSharedFixture(t *testing.T, yamlContent string) {
 		filepath.Join(workflowsDir, "_shared.yaml"),
 		[]byte(yamlContent), 0o600,
 	))
-}
-
-func TestResolveRefs(t *testing.T) {
-	tests := []struct {
-		name         string
-		workflowYAML string
-		sharedYAML   string
-		wantErr      bool
-		wantErrMsg   string
-		checkJobs    func(t *testing.T, jobs []workflow.Job)
-	}{
-		{
-			name: "workflow with no refs returns unchanged",
-			workflowYAML: `version: v0.1.0
-id: no-refs
-jobs:
-  - id: build
-    prompt: "Build the project"
-  - id: test
-    prompt: "Run tests"
-`,
-			wantErr: false,
-			checkJobs: func(t *testing.T, jobs []workflow.Job) {
-				require.Len(t, jobs, 2)
-				assert.Equal(t, "build", jobs[0].ID)
-				assert.Equal(t, "Build the project", jobs[0].Prompt)
-				assert.Empty(t, jobs[0].Ref)
-				assert.Equal(t, "test", jobs[1].ID)
-				assert.Equal(t, "Run tests", jobs[1].Prompt)
-				assert.Empty(t, jobs[1].Ref)
-			},
-		},
-		{
-			name: "workflow with valid ref resolves successfully",
-			workflowYAML: `version: v0.1.0
-id: with-refs
-jobs:
-  - ref: build_job
-  - id: custom_test
-    ref: test_job
-    prompt: "Custom test prompt"
-`,
-			sharedYAML: `jobs:
-  build_job:
-    id: build_job
-    prompt: "Build from shared"
-    skill: "argus-build"
-  test_job:
-    id: test_job
-    prompt: "Test from shared"
-    skill: "argus-test"
-`,
-			wantErr: false,
-			checkJobs: func(t *testing.T, jobs []workflow.Job) {
-				require.Len(t, jobs, 2)
-				assert.Equal(t, "build_job", jobs[0].ID)
-				assert.Equal(t, "Build from shared", jobs[0].Prompt)
-				assert.Equal(t, "argus-build", jobs[0].Skill)
-				assert.Equal(t, "build_job", jobs[0].Ref)
-				assert.Equal(t, "custom_test", jobs[1].ID)
-				assert.Equal(t, "Custom test prompt", jobs[1].Prompt)
-				assert.Equal(t, "argus-test", jobs[1].Skill)
-				assert.Equal(t, "test_job", jobs[1].Ref)
-			},
-		},
-		{
-			name: "missing _shared.yaml returns error",
-			workflowYAML: `version: v0.1.0
-id: missing-shared
-jobs:
-  - ref: some_job
-`,
-			wantErr:    true,
-			wantErrMsg: "loading shared definitions",
-		},
-		{
-			name: "ref ID not found in _shared.yaml returns error",
-			workflowYAML: `version: v0.1.0
-id: ref-not-found
-jobs:
-  - ref: nonexistent_job
-`,
-			sharedYAML: `jobs:
-  existing_job:
-    id: existing_job
-    prompt: "Exists"
-`,
-			wantErr:    true,
-			wantErrMsg: "resolving ref for job",
-		},
-		{
-			name: "mixed ref and non-ref jobs resolved correctly",
-			workflowYAML: `version: v0.1.0
-id: mixed-jobs
-jobs:
-  - id: direct_job
-    prompt: "Direct prompt"
-  - ref: shared_job
-  - id: another_direct
-    prompt: "Another direct"
-`,
-			sharedYAML: `jobs:
-  shared_job:
-    id: shared_job
-    prompt: "Shared prompt"
-    skill: "argus-shared"
-`,
-			wantErr: false,
-			checkJobs: func(t *testing.T, jobs []workflow.Job) {
-				require.Len(t, jobs, 3)
-				assert.Equal(t, "direct_job", jobs[0].ID)
-				assert.Equal(t, "Direct prompt", jobs[0].Prompt)
-				assert.Empty(t, jobs[0].Ref)
-				assert.Equal(t, "shared_job", jobs[1].ID)
-				assert.Equal(t, "Shared prompt", jobs[1].Prompt)
-				assert.Equal(t, "argus-shared", jobs[1].Skill)
-				assert.Equal(t, "shared_job", jobs[1].Ref)
-				assert.Equal(t, "another_direct", jobs[2].ID)
-				assert.Equal(t, "Another direct", jobs[2].Prompt)
-				assert.Empty(t, jobs[2].Ref)
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Chdir(t.TempDir())
-			writeWorkflowFixture(t, "test-wf", tt.workflowYAML)
-			if tt.sharedYAML != "" {
-				writeSharedFixture(t, tt.sharedYAML)
-			}
-
-			var w workflow.Workflow
-			data, err := os.ReadFile(filepath.Join(".argus", "workflows", "test-wf.yaml"))
-			require.NoError(t, err)
-			require.NoError(t, yaml.Unmarshal(data, &w))
-
-			workflowsDir := filepath.Join(".argus", "workflows")
-			workflowPath := filepath.Join(workflowsDir, "test-wf.yaml")
-			err = resolveRefs(workflowsDir, workflowPath, &w)
-
-			if tt.wantErr {
-				require.Error(t, err)
-				if tt.wantErrMsg != "" {
-					assert.Contains(t, err.Error(), tt.wantErrMsg)
-				}
-			} else {
-				require.NoError(t, err)
-				if tt.checkJobs != nil {
-					tt.checkJobs(t, w.Jobs)
-				}
-			}
-		})
-	}
-}
-
-func TestFindJobNodes(t *testing.T) {
-	tests := []struct {
-		name      string
-		yamlInput string
-		wantCount int
-		wantNil   bool
-	}{
-		{
-			name: "valid YAML document with jobs sequence",
-			yamlInput: `version: v0.1.0
-id: test-wf
-jobs:
-  - id: job1
-    prompt: "First job"
-  - id: job2
-    prompt: "Second job"
-  - id: job3
-    prompt: "Third job"
-`,
-			wantCount: 3,
-			wantNil:   false,
-		},
-		{
-			name: "missing jobs key returns nil",
-			yamlInput: `version: v0.1.0
-id: test-wf
-description: "No jobs here"
-`,
-			wantCount: 0,
-			wantNil:   true,
-		},
-		{
-			name: "empty jobs sequence returns empty slice",
-			yamlInput: `version: v0.1.0
-id: test-wf
-jobs: []
-`,
-			wantCount: 0,
-			wantNil:   true,
-		},
-		{
-			name: "single job in sequence",
-			yamlInput: `version: v0.1.0
-id: test-wf
-jobs:
-  - id: only_job
-    prompt: "Only one"
-`,
-			wantCount: 1,
-			wantNil:   false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			var doc yaml.Node
-			err := yaml.Unmarshal([]byte(tt.yamlInput), &doc)
-			require.NoError(t, err)
-
-			result := findJobNodes(&doc)
-
-			if tt.wantNil {
-				assert.Nil(t, result)
-			} else {
-				require.NotNil(t, result)
-				assert.Len(t, result, tt.wantCount)
-			}
-		})
-	}
 }

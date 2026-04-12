@@ -42,7 +42,7 @@ func newWorkflowSnoozeCmdWithSessionStore(store session.Store) *cobra.Command {
 				return fmt.Errorf("not inside an Argus project or registered workspace")
 			}
 
-			actives, _, err := sc.ScanActivePipelines()
+			actives, _, err := sc.Artifacts().Pipelines().ScanActive()
 			if err != nil {
 				writeCommandError(cmd, jsonFlag, err.Error())
 				return fmt.Errorf("workflow snooze failed: %w", err)

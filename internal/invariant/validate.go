@@ -2,83 +2,90 @@ package invariant
 
 import (
 	"fmt"
+	"path/filepath"
+	"slices"
 
 	"github.com/nextzhou/argus/internal/core"
 )
 
-// FieldError represents a single validation error in a file.
-type FieldError struct {
-	Path    string `json:"path"`
-	Message string `json:"message"`
-}
-
-// FileResult represents inspection results for a single invariant file.
-type FileResult struct {
-	Valid  bool         `json:"valid"`
-	Errors []FieldError `json:"errors,omitempty"`
-	ID     string       `json:"id,omitempty"`
+// InspectEntry is one source-aware invariant inspection entry.
+type InspectEntry struct {
+	Source   core.SourceRef `json:"source"`
+	Valid    bool           `json:"valid"`
+	Findings []core.Finding `json:"findings,omitempty"`
+	ID       string         `json:"id,omitempty"`
 }
 
 // InspectReport is the result of inspecting an invariant directory.
 type InspectReport struct {
-	Valid bool                   `json:"valid"`
-	Files map[string]*FileResult `json:"files"`
+	Valid   bool           `json:"valid"`
+	Entries []InspectEntry `json:"entries"`
 }
 
 // InspectDirectory validates all *.yaml files in dir and returns an InspectReport.
 // workflowChecker is called for each invariant that references a workflow to verify it exists.
-func InspectDirectory(dir string, workflowChecker func(id string) bool, allowReservedID func(id string) bool) (*InspectReport, error) {
+func InspectDirectory(_ string, dir string, workflowChecker func(id string) bool, allowReservedID func(id string) bool) (*InspectReport, error) {
 	scanned, err := scanInvariantDirectory(dir, scanOptions{})
 	if err != nil {
 		return nil, err
 	}
 
 	report := &InspectReport{
-		Valid: true,
-		Files: make(map[string]*FileResult),
+		Valid:   true,
+		Entries: []InspectEntry{},
 	}
 
+	type reportEntry struct {
+		InspectEntry
+	}
+
+	entriesByName := make(map[string]*reportEntry, len(scanned.entries))
+
 	for _, entry := range scanned.entries {
-		fr := &FileResult{Valid: true}
+		source := invariantSourceRef(dir, entry.file)
+		reportEntry := &reportEntry{InspectEntry: InspectEntry{Source: source, Valid: true}}
 		if entry.inv != nil {
-			fr.ID = entry.inv.ID
+			reportEntry.ID = entry.inv.ID
 		}
-		report.Files[entry.file] = fr
+		entriesByName[entry.file] = reportEntry
 
 		for _, issue := range entry.issues {
-			fr.Valid = false
-			fr.Errors = append(fr.Errors, FieldError{
-				Path:    issue.Path,
-				Message: issue.Message,
-			})
+			reportEntry.Valid = false
+			appendInspectFinding(&reportEntry.Findings, source, issue.Kind, issue.Path, issue.Message)
 		}
 
 		if entry.inv == nil {
-			if !fr.Valid {
+			if !reportEntry.Valid {
 				report.Valid = false
 			}
 			continue
 		}
 
 		if core.IsArgusReserved(entry.inv.ID) && !reservedIDAllowed(allowReservedID, entry.inv.ID) {
-			fr.Valid = false
-			fr.Errors = append(fr.Errors, FieldError{
-				Path:    "id",
-				Message: fmt.Sprintf("invariant ID %q uses reserved argus- prefix", entry.inv.ID),
-			})
+			reportEntry.Valid = false
+			appendInspectFinding(&reportEntry.Findings, source, "reserved_id", "id", fmt.Sprintf("invariant ID %q uses reserved argus- prefix", entry.inv.ID))
 		}
 
 		if entry.inv.Workflow != "" && !workflowChecker(entry.inv.Workflow) {
-			fr.Valid = false
-			fr.Errors = append(fr.Errors, FieldError{
-				Path:    "workflow",
-				Message: fmt.Sprintf("referenced workflow %q not found", entry.inv.Workflow),
-			})
+			reportEntry.Valid = false
+			appendInspectFinding(&reportEntry.Findings, source, "missing_workflow", "workflow", fmt.Sprintf("referenced workflow %q not found", entry.inv.Workflow))
 		}
 
-		if !fr.Valid {
+		if !reportEntry.Valid {
 			report.Valid = false
 		}
+	}
+
+	fileNames := make([]string, 0, len(entriesByName))
+	for name := range entriesByName {
+		fileNames = append(fileNames, name)
+	}
+	slices.Sort(fileNames)
+	for _, name := range fileNames {
+		entry := entriesByName[name]
+		entryCopy := entry.InspectEntry
+		entryCopy.Findings = append([]core.Finding(nil), entry.Findings...)
+		report.Entries = append(report.Entries, entryCopy)
 	}
 
 	return report, nil
@@ -86,4 +93,24 @@ func InspectDirectory(dir string, workflowChecker func(id string) bool, allowRes
 
 func reservedIDAllowed(allowReservedID func(id string) bool, id string) bool {
 	return allowReservedID != nil && allowReservedID(id)
+}
+
+func appendInspectFinding(findings *[]core.Finding, source core.SourceRef, code, fieldPath, message string) {
+	*findings = append(*findings, core.Finding{
+		Code:      code,
+		Message:   message,
+		Source:    source,
+		FieldPath: fieldPath,
+	})
+}
+
+func invariantSourceRef(dir, file string) core.SourceRef {
+	absPath, err := filepath.Abs(filepath.Join(dir, file))
+	if err != nil {
+		absPath = filepath.Clean(filepath.Join(dir, file))
+	}
+	return core.SourceRef{
+		Kind: core.SourceFile,
+		Raw:  absPath,
+	}
 }

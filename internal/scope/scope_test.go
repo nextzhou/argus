@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/nextzhou/argus/internal/artifact"
 	"github.com/nextzhou/argus/internal/core"
 	"github.com/nextzhou/argus/internal/pipeline"
 	"github.com/stretchr/testify/assert"
@@ -14,42 +15,33 @@ import (
 func TestNewProjectScope(t *testing.T) {
 	projectRoot := t.TempDir()
 
-	artifactScope := NewProjectScope(projectRoot)
-	require.Implements(t, (*Scope)(nil), artifactScope)
+	resolved := NewProjectScope(projectRoot)
+	require.NotNil(t, resolved)
+	assert.Equal(t, KindProject, resolved.Kind())
+	assert.Equal(t, projectRoot, resolved.ProjectRoot())
 
-	impl, ok := artifactScope.(*fsScope)
-	require.True(t, ok)
-
-	root := filepath.Join(projectRoot, ".argus")
-	assert.Equal(t, root, impl.root)
-	assert.Equal(t, projectRoot, artifactScope.ProjectRoot())
-	assert.Equal(t, filepath.Join(root, "pipelines"), artifactScope.PipelinesDir())
-	assert.Equal(t, filepath.Join(root, "workflows"), artifactScope.WorkflowsDir())
-	assert.Equal(t, filepath.Join(root, "logs"), artifactScope.LogsDir())
+	artifacts := resolved.Artifacts()
+	require.NotNil(t, artifacts)
+	assert.IsType(t, &artifact.Set{}, artifacts)
 }
 
 func TestNewGlobalScope(t *testing.T) {
 	globalRoot := t.TempDir()
 	projectRoot := filepath.Join(t.TempDir(), "project")
 
-	artifactScope := NewGlobalScope(globalRoot, projectRoot)
-	require.Implements(t, (*Scope)(nil), artifactScope)
+	resolved := NewGlobalScope(globalRoot, projectRoot)
+	require.NotNil(t, resolved)
+	assert.Equal(t, KindGlobal, resolved.Kind())
+	assert.Equal(t, projectRoot, resolved.ProjectRoot())
 
-	impl, ok := artifactScope.(*fsScope)
-	require.True(t, ok)
-
-	safeID := core.ProjectPathToSafeID(projectRoot)
-	assert.Equal(t, globalRoot, impl.root)
-	assert.Equal(t, projectRoot, artifactScope.ProjectRoot())
-	assert.Equal(t, filepath.Join(globalRoot, "pipelines", safeID), artifactScope.PipelinesDir())
-	assert.Contains(t, artifactScope.PipelinesDir(), safeID)
-	assert.Equal(t, filepath.Join(globalRoot, "workflows"), artifactScope.WorkflowsDir())
-	assert.Equal(t, filepath.Join(globalRoot, "logs"), artifactScope.LogsDir())
+	artifacts := resolved.Artifacts()
+	require.NotNil(t, artifacts)
+	assert.IsType(t, &artifact.Set{}, artifacts)
 }
 
-func TestLoadInvariantCatalog(t *testing.T) {
+func TestArtifactsInvariantCatalog(t *testing.T) {
 	projectRoot := t.TempDir()
-	artifactScope := NewProjectScope(projectRoot)
+	resolved := NewProjectScope(projectRoot)
 	invariantsDir := filepath.Join(projectRoot, ".argus", "invariants")
 
 	writeScopeTestFile(t, filepath.Join(invariantsDir, "lint-clean.yaml"), `version: v0.1.0
@@ -76,49 +68,23 @@ check:
   - shell: "true"
 prompt: "ignored"
 `)
-	writeScopeTestFile(t, filepath.Join(invariantsDir, "notes.txt"), "not yaml")
 
-	catalog, err := artifactScope.LoadInvariantCatalog()
+	catalog, err := resolved.Artifacts().Invariants().Catalog(true)
 	require.NoError(t, err)
 	require.Len(t, catalog.Invariants, 1)
 	require.Len(t, catalog.Issues, 2)
 
 	assert.Equal(t, "lint-clean", catalog.Invariants[0].ID)
-	assert.Equal(t, 20, catalog.Invariants[0].Order)
-	assert.Equal(t, "lint must stay green", catalog.Invariants[0].Description)
-	assert.Equal(t, "always", catalog.Invariants[0].Auto)
 	assert.Equal(t, "broken.yaml", catalog.Issues[0].File)
 	assert.Equal(t, "wrong-name.yaml", catalog.Issues[1].File)
 }
 
-func TestLoadInvariantCatalog_MissingDir(t *testing.T) {
+func TestArtifactsPipelineStore(t *testing.T) {
 	projectRoot := t.TempDir()
-	artifactScope := NewProjectScope(projectRoot)
-
-	catalog, err := artifactScope.LoadInvariantCatalog()
-	require.NoError(t, err)
-	require.NotNil(t, catalog)
-	assert.Empty(t, catalog.Invariants)
-	assert.Empty(t, catalog.Issues)
-}
-
-func TestLoadInvariantCatalog_ReadDirError(t *testing.T) {
-	projectRoot := t.TempDir()
-	artifactScope := NewProjectScope(projectRoot)
-	writeScopeTestFile(t, filepath.Join(projectRoot, ".argus", "invariants"), "not a directory")
-
-	catalog, err := artifactScope.LoadInvariantCatalog()
-	require.Error(t, err)
-	assert.Nil(t, catalog)
-	assert.ErrorContains(t, err, "loading invariant catalog")
-}
-
-func TestScanActivePipelines(t *testing.T) {
-	projectRoot := t.TempDir()
-	artifactScope := NewProjectScope(projectRoot)
+	resolved := NewProjectScope(projectRoot)
 
 	runningJob := "run_tests"
-	require.NoError(t, pipeline.SavePipeline(artifactScope.PipelinesDir(), "release-20240115T103000Z", &pipeline.Pipeline{
+	require.NoError(t, resolved.Artifacts().Pipelines().Save("release-20240115T103000Z", &pipeline.Pipeline{
 		Version:    "v0.1.0",
 		WorkflowID: "release",
 		Status:     "running",
@@ -128,7 +94,7 @@ func TestScanActivePipelines(t *testing.T) {
 	}))
 
 	endedAt := "20240115T110000Z"
-	require.NoError(t, pipeline.SavePipeline(artifactScope.PipelinesDir(), "build-20240115T100000Z", &pipeline.Pipeline{
+	require.NoError(t, resolved.Artifacts().Pipelines().Save("build-20240115T100000Z", &pipeline.Pipeline{
 		Version:    "v0.1.0",
 		WorkflowID: "build",
 		Status:     "completed",
@@ -138,18 +104,17 @@ func TestScanActivePipelines(t *testing.T) {
 		Jobs:       map[string]*pipeline.JobData{},
 	}))
 
-	actives, warnings, err := artifactScope.ScanActivePipelines()
+	actives, warnings, err := resolved.Artifacts().Pipelines().ScanActive()
 	require.NoError(t, err)
 	assert.Empty(t, warnings)
 	require.Len(t, actives, 1)
 	assert.Equal(t, "release-20240115T103000Z", actives[0].InstanceID)
-	assert.Equal(t, "running", actives[0].Pipeline.Status)
 	assert.Equal(t, "release", actives[0].Pipeline.WorkflowID)
 }
 
-func TestLoadWorkflow(t *testing.T) {
+func TestArtifactsWorkflowProvider(t *testing.T) {
 	projectRoot := t.TempDir()
-	artifactScope := NewProjectScope(projectRoot)
+	resolved := NewProjectScope(projectRoot)
 	workflowsDir := filepath.Join(projectRoot, ".argus", "workflows")
 
 	writeScopeTestFile(t, filepath.Join(workflowsDir, "_shared.yaml"), `jobs:
@@ -166,115 +131,38 @@ jobs:
     prompt: "Run go test ./..."
 `)
 
-	wf, err := artifactScope.LoadWorkflow("release")
+	wf, err := resolved.Artifacts().Workflows().Load("release")
 	require.NoError(t, err)
 	require.Len(t, wf.Jobs, 2)
-
 	assert.Equal(t, "release", wf.ID)
 	assert.Equal(t, "lint", wf.Jobs[0].ID)
-	assert.Equal(t, "Run lint checks", wf.Jobs[0].Prompt)
-	assert.Equal(t, "argus-run-lint", wf.Jobs[0].Skill)
-	assert.Equal(t, "lint", wf.Jobs[0].Ref)
-	assert.Equal(t, "run_tests", wf.Jobs[1].ID)
-	assert.Equal(t, "Run go test ./...", wf.Jobs[1].Prompt)
-}
 
-func TestLoadWorkflowSummaries(t *testing.T) {
-	projectRoot := t.TempDir()
-	artifactScope := NewProjectScope(projectRoot)
-	workflowsDir := filepath.Join(projectRoot, ".argus", "workflows")
-
-	writeScopeTestFile(t, filepath.Join(workflowsDir, "release.yaml"), `version: v0.1.0
-id: release
-description: "Release workflow"
-jobs:
-  - id: lint
-    prompt: "Run lint"
-  - id: test
-    prompt: "Run tests"
-`)
-	writeScopeTestFile(t, filepath.Join(workflowsDir, "build.yaml"), `version: v0.1.0
-id: build
-description: "Build workflow"
-jobs:
-  - id: compile
-    prompt: "Build the binary"
-`)
-	writeScopeTestFile(t, filepath.Join(workflowsDir, "broken.yaml"), "{{invalid yaml")
-	writeScopeTestFile(t, filepath.Join(workflowsDir, "wrong-name.yaml"), `version: v0.1.0
-id: wrong-id
-description: "Wrongly named workflow"
-jobs:
-  - id: lint
-    prompt: "Run lint"
-`)
-	writeScopeTestFile(t, filepath.Join(workflowsDir, "_shared.yaml"), `jobs:
-  lint:
-    prompt: "Run lint"
-`)
-	writeScopeTestFile(t, filepath.Join(workflowsDir, "README.txt"), "ignore")
-
-	summaries, err := artifactScope.LoadWorkflowSummaries()
+	summaries, err := resolved.Artifacts().Workflows().Summaries()
 	require.NoError(t, err)
-	require.Len(t, summaries, 2)
-
-	summaryByID := make(map[string]WorkflowSummary, len(summaries))
-	for _, summary := range summaries {
-		summaryByID[summary.ID] = summary
-	}
-
-	assert.Equal(t, WorkflowSummary{ID: "build", Description: "Build workflow", Jobs: 1}, summaryByID["build"])
-	assert.Equal(t, WorkflowSummary{ID: "release", Description: "Release workflow", Jobs: 2}, summaryByID["release"])
-	assert.NotContains(t, summaryByID, "wrong-id")
+	require.Len(t, summaries, 1)
+	assert.Equal(t, artifact.WorkflowSummary{ID: "release", Description: "Release workflow", Jobs: 2}, summaries[0])
 }
 
-func TestLoadWorkflowSummaries_MissingDir(t *testing.T) {
-	projectRoot := t.TempDir()
-	artifactScope := NewProjectScope(projectRoot)
+func TestGlobalScopePipelineNamespaceIsolation(t *testing.T) {
+	homeDir := t.TempDir()
+	projectRoot := filepath.Join(homeDir, "work", "argus")
+	globalRoot := filepath.Join(homeDir, ".config", "argus")
+	resolved := NewGlobalScope(globalRoot, projectRoot)
 
-	summaries, err := artifactScope.LoadWorkflowSummaries()
+	runningJob := "run_tests"
+	require.NoError(t, resolved.Artifacts().Pipelines().Save("release-20240115T103000Z", &pipeline.Pipeline{
+		Version:    core.SchemaVersion,
+		WorkflowID: "release",
+		Status:     "running",
+		CurrentJob: &runningJob,
+		StartedAt:  "20240115T103000Z",
+		Jobs:       map[string]*pipeline.JobData{},
+	}))
+
+	expectedFile := filepath.Join(globalRoot, "pipelines", core.ProjectPathToSafeID(projectRoot), "release-20240115T103000Z.yaml")
+	info, err := os.Stat(expectedFile)
 	require.NoError(t, err)
-	assert.Nil(t, summaries)
-}
-
-func TestLoadWorkflowSummaries_ReadDirError(t *testing.T) {
-	projectRoot := t.TempDir()
-	artifactScope := NewProjectScope(projectRoot)
-	writeScopeTestFile(t, filepath.Join(projectRoot, ".argus", "workflows"), "not a directory")
-
-	summaries, err := artifactScope.LoadWorkflowSummaries()
-	require.Error(t, err)
-	assert.Nil(t, summaries)
-	assert.ErrorContains(t, err, "reading workflows directory")
-}
-
-func TestInterfaceSatisfaction(t *testing.T) {
-	tests := []struct {
-		name     string
-		newScope func() Scope
-	}{
-		{
-			name: "project scope",
-			newScope: func() Scope {
-				return NewProjectScope(t.TempDir())
-			},
-		},
-		{
-			name: "global scope",
-			newScope: func() Scope {
-				return NewGlobalScope(t.TempDir(), filepath.Join(t.TempDir(), "project"))
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			artifactScope := tt.newScope()
-			require.Implements(t, (*Scope)(nil), artifactScope)
-			_, ok := artifactScope.(*fsScope)
-			assert.True(t, ok)
-		})
-	}
+	assert.False(t, info.IsDir())
 }
 
 func writeScopeTestFile(t *testing.T, path string, content string) {

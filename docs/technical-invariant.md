@@ -275,6 +275,39 @@ Validation includes:
 11. invariant ID format validation (`^[a-z0-9]+(-[a-z0-9]+)*$`)
 12. `check` non-empty validation
 
+### JSON Output
+
+`invariant inspect --json` returns an explicit `entries[]` array rather than a filename-keyed map. Each entry carries:
+
+- `source`: `{kind, raw}` metadata for the inspected source
+- `valid`: whether that source passed validation
+- `findings[]`: structured validation problems with `code`, `message`, `source`, and optional `field_path`
+- `id`: the parsed invariant ID when available
+
+Example:
+
+```json
+{
+  "status": "ok",
+  "valid": false,
+  "entries": [
+    {
+      "source": {"kind": "file", "raw": "/repo/.argus/invariants/release-check.yaml"},
+      "valid": false,
+      "id": "release-check",
+      "findings": [
+        {
+          "code": "missing_workflow",
+          "message": "referenced workflow \"release\" not found",
+          "source": {"kind": "file", "raw": "/repo/.argus/invariants/release-check.yaml"},
+          "field_path": "workflow"
+        }
+      ]
+    }
+  ]
+}
+```
+
 ## 4.8 Deep Dive: `argus-project-init`
 
 ### Invariant Definition

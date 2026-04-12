@@ -146,6 +146,8 @@ Usage rules:
 
 Commands such as `tick`, `job-done`, and `status` keep the same semantics across scopes. Scope resolution changes where Argus loads artifacts from and where it writes runtime state, but it does not introduce a different orchestration model.
 
+Storage layout such as `.argus/workflows/`, `.argus/pipelines/`, and `~/.config/argus/logs/` remains a documented implementation fact, but it is not the preferred runtime collaboration contract between packages. Runtime code should collaborate through artifact-oriented capabilities such as "load workflow", "scan active pipelines", or "append hook log" rather than passing raw directory paths across package boundaries.
+
 ### 3.4 Setup Layers
 
 1. Install the Argus binary globally.

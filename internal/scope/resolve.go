@@ -13,7 +13,7 @@ import (
 // ResolveScopeForTick resolves the artifact scope for tick after the caller has
 // already identified the project root and whether the hook came from a global
 // setup.
-func ResolveScopeForTick(root *workspace.ProjectRoot, global bool) (Scope, error) {
+func ResolveScopeForTick(root *workspace.ProjectRoot, global bool) (*Resolved, error) {
 	if root == nil {
 		return nil, nil
 	}
@@ -35,7 +35,7 @@ func ResolveScopeForTick(root *workspace.ProjectRoot, global bool) (Scope, error
 // ResolveScope resolves the effective scope for CLI commands by discovering the
 // nearest project root from cwd and then applying project-first, workspace-
 // fallback rules.
-func ResolveScope(cwd string) (Scope, error) {
+func ResolveScope(cwd string) (*Resolved, error) {
 	root, err := workspace.FindProjectRoot(cwd)
 	if err != nil {
 		return nil, fmt.Errorf("finding project root: %w", err)
@@ -50,7 +50,7 @@ func ResolveScope(cwd string) (Scope, error) {
 	return resolveWorkspaceGlobalScope(root.Path)
 }
 
-func resolveWorkspaceGlobalScope(projectRoot string) (Scope, error) {
+func resolveWorkspaceGlobalScope(projectRoot string) (*Resolved, error) {
 	configPath := globalConfigPath()
 	if configPath == "" {
 		return nil, nil

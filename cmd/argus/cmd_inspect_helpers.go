@@ -3,8 +3,8 @@ package main
 import (
 	"fmt"
 
+	"github.com/nextzhou/argus/internal/artifact"
 	"github.com/nextzhou/argus/internal/assets"
-	"github.com/nextzhou/argus/internal/workflow"
 )
 
 func builtinWorkflowAllowReservedID() (func(string) bool, error) {
@@ -30,8 +30,9 @@ func allowReservedIDs(ids map[string]struct{}) func(string) bool {
 	}
 }
 
-func buildWorkflowChecker(workflowsDir string) func(id string) bool {
+func buildWorkflowChecker(projectRoot, workflowsDir string) func(id string) bool {
+	provider := artifact.NewWorkflowProvider(projectRoot, workflowsDir)
 	return func(id string) bool {
-		return workflow.ExistsAtExpectedPath(workflowsDir, id)
+		return provider.Exists(id)
 	}
 }

@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/nextzhou/argus/internal/artifact"
 	"github.com/nextzhou/argus/internal/invariant"
 	"github.com/nextzhou/argus/internal/pipeline"
 	"github.com/nextzhou/argus/internal/scope"
@@ -57,19 +58,25 @@ func HandleTickWithSessionStore(agent string, global bool, stdin io.Reader, stdo
 	s, err := scope.ResolveScopeForTick(root, global)
 	if err != nil {
 		writeTickWarning(stdout, "scope resolution error: %v", err)
-		_ = LogHookExecution("", "tick", false, "scope: "+err.Error())
+		logStore, logErr := artifact.NewFallbackHookLogStore()
+		if logErr == nil {
+			_ = logStore.Append("tick", false, "scope: "+err.Error())
+		}
 		return nil
 	}
 	if s == nil {
 		if !global {
 			writeTickWarning(stdout, "not inside an Argus project")
 		} else {
-			_ = LogHookExecution("", "tick", true, "no-scope")
+			logStore, logErr := artifact.NewFallbackHookLogStore()
+			if logErr == nil {
+				_ = logStore.Append("tick", true, "no-scope")
+			}
 		}
 		return nil
 	}
 
-	activePipelines, scanWarnings, err := s.ScanActivePipelines()
+	activePipelines, scanWarnings, err := s.Artifacts().Pipelines().ScanActive()
 	if err != nil {
 		writeTickWarning(stdout, "could not scan active pipelines: %v", err)
 		return nil
@@ -114,7 +121,7 @@ func HandleTickWithSessionStore(agent string, global bool, stdin io.Reader, stdo
 		return nil
 	}
 
-	if err := LogHookExecution(s.LogsDir(), "tick", true, logDetails); err != nil {
+	if err := s.Artifacts().HookLog().Append("tick", true, logDetails); err != nil {
 		output = appendTickWarningText(output, fmt.Sprintf("could not write hook log: %v", err))
 	}
 
@@ -126,7 +133,7 @@ func HandleTickWithSessionStore(agent string, global bool, stdin io.Reader, stdo
 }
 
 func buildActivePipelineOutput(
-	s scope.Scope,
+	s *scope.Resolved,
 	sessionID string,
 	sess *session.Session,
 	activePipelines []pipeline.ActivePipeline,
@@ -163,7 +170,7 @@ func buildActivePipelineOutput(
 	snapshotPipelineID = active.InstanceID
 	snapshotJobID = currentJobID
 
-	wf, err := s.LoadWorkflow(active.Pipeline.WorkflowID)
+	wf, err := s.Artifacts().Workflows().Load(active.Pipeline.WorkflowID)
 	if err != nil {
 		warning := fmt.Sprintf("could not load workflow %s: %v", active.Pipeline.WorkflowID, err)
 		workflows := loadTickWorkflowSummaries(s)
@@ -208,7 +215,7 @@ type tickInvariantRun struct {
 	RanChecks int
 }
 
-func buildNoActivePipelineOutput(s scope.Scope, sess *session.Session, firstTick bool) (output string, logDetails string) {
+func buildNoActivePipelineOutput(s *scope.Resolved, sess *session.Session, firstTick bool) (output string, logDetails string) {
 	logDetails = "active=0 warnings=0"
 	catalog, warning := loadTickInvariantCatalog(s)
 	if catalog != nil && len(catalog.Issues) > 0 {
@@ -254,12 +261,12 @@ func buildNoActivePipelineOutput(s scope.Scope, sess *session.Session, firstTick
 	return output, logDetails + " scenario=no-pipeline"
 }
 
-func loadTickWorkflowSummaries(s scope.Scope) []WorkflowSummary {
+func loadTickWorkflowSummaries(s *scope.Resolved) []WorkflowSummary {
 	if s == nil {
 		return nil
 	}
 
-	summaries, err := s.LoadWorkflowSummaries()
+	summaries, err := s.Artifacts().Workflows().Summaries()
 	if err != nil {
 		slog.Debug("tick: could not load workflow summaries", "error", err)
 		return nil
@@ -267,7 +274,7 @@ func loadTickWorkflowSummaries(s scope.Scope) []WorkflowSummary {
 	return toHookWorkflowSummaries(summaries)
 }
 
-func toHookWorkflowSummaries(scopeSummaries []scope.WorkflowSummary) []WorkflowSummary {
+func toHookWorkflowSummaries(scopeSummaries []artifact.WorkflowSummary) []WorkflowSummary {
 	if len(scopeSummaries) == 0 {
 		return nil
 	}
@@ -317,12 +324,12 @@ func buildPipelineJobDataMap(p *pipeline.Pipeline) map[string]*workflow.Pipeline
 	return templateJobs
 }
 
-func loadTickInvariantCatalog(s scope.Scope) (*invariant.Catalog, string) {
+func loadTickInvariantCatalog(s *scope.Resolved) (*invariant.Catalog, string) {
 	if s == nil {
 		return invariant.EmptyCatalog(), ""
 	}
 
-	catalog, err := s.LoadInvariantCatalog()
+	catalog, err := s.Artifacts().Invariants().Catalog(true)
 	if err != nil {
 		slog.Debug("tick: could not load invariants", "error", err)
 		return invariant.EmptyCatalog(), fmt.Sprintf("could not load invariants: %v", err)

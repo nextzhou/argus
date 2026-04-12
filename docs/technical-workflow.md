@@ -138,6 +138,7 @@ jobs:
 - use `ref` to reference a shared job
 - optionally provide `id` to rename the instance
 - any explicitly written field overrides the shared definition
+- if the concrete job omits `id`, the resolved job ID defaults to the `ref` key itself, not to any `id` field that may be written inside the shared job body
 
 Example:
 
@@ -170,6 +171,15 @@ Ref resolution uses a **shallow merge**:
 | Field absent on the concrete job | Keep inherited value |
 | Field explicitly set on the concrete job | Override inherited value |
 | Field set to `null` or empty string | Explicitly clear the inherited value |
+
+The `id` field has one extra rule because it participates in template lookup and pipeline state:
+
+| Concrete job shape | Resolved job ID |
+|------|----------|
+| `ref: lint` | `lint` |
+| `ref: lint` plus `id: strict_lint` | `strict_lint` |
+
+Argus does not inherit `id` from the shared job body when the concrete job omits it. This keeps the instance identity stable and obvious from the workflow file itself.
 
 Example:
 
@@ -277,16 +287,31 @@ argus workflow inspect [dir] [--json]
 
 ### 7.3 JSON Output
 
+`workflow inspect --json` returns an explicit `entries[]` array rather than a filename-keyed map. Each entry carries:
+
+- `source`: `{kind, raw}` metadata for the inspected source
+- `valid`: whether that source passed validation
+- `findings[]`: structured validation problems with `code`, `message`, `source`, and optional `field_path`
+- `workflow` or `shared`: metadata for valid workflow files or `_shared.yaml`
+
 **Valid case**
 
 ```json
 {
   "status": "ok",
   "valid": true,
-  "files": {
-    "_shared.yaml": {"valid": true, "jobs": ["lint", "code_review"]},
-    "release.yaml": {"valid": true, "workflow": {"id": "release", "jobs": 4}}
-  }
+  "entries": [
+    {
+      "source": {"kind": "file", "raw": "/repo/.argus/workflows/_shared.yaml"},
+      "valid": true,
+      "shared": {"jobs": ["lint", "code_review"]}
+    },
+    {
+      "source": {"kind": "file", "raw": "/repo/.argus/workflows/release.yaml"},
+      "valid": true,
+      "workflow": {"id": "release", "jobs": 4}
+    }
+  ]
 }
 ```
 
@@ -296,15 +321,26 @@ argus workflow inspect [dir] [--json]
 {
   "status": "ok",
   "valid": false,
-  "files": {
-    "release.yaml": {
+  "entries": [
+    {
+      "source": {"kind": "file", "raw": "/repo/.argus/workflows/release.yaml"},
       "valid": false,
-      "errors": [
-        {"path": "jobs[2]", "message": "prompt and skill are both empty"},
-        {"path": "jobs[3].ref", "message": "ref 'nonexistent' not found in _shared.yaml"}
+      "findings": [
+        {
+          "code": "invalid_template",
+          "message": "invalid template syntax: template: :1: unclosed action",
+          "source": {"kind": "file", "raw": "/repo/.argus/workflows/release.yaml"},
+          "field_path": "jobs[2].prompt"
+        },
+        {
+          "code": "missing_ref",
+          "message": "ref 'nonexistent' not found in _shared.yaml",
+          "source": {"kind": "file", "raw": "/repo/.argus/workflows/release.yaml"},
+          "field_path": "jobs[3].ref"
+        }
       ]
     }
-  }
+  ]
 }
 ```
 

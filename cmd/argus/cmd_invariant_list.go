@@ -43,7 +43,7 @@ func newInvariantListCmd() *cobra.Command {
 				return fmt.Errorf("not inside an Argus project or registered workspace")
 			}
 
-			catalog, err := s.LoadInvariantCatalog()
+			catalog, err := s.Artifacts().Invariants().Catalog(true)
 			if err != nil {
 				return fmt.Errorf("loading invariant catalog: %w", err)
 			}

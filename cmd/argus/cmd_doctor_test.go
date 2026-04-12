@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/nextzhou/argus/internal/core"
 	"github.com/nextzhou/argus/internal/doctor"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -30,13 +31,42 @@ func executeDoctorCmd(t *testing.T, args ...string) (string, error) {
 
 func TestWriteDoctorReport_TextOutput(t *testing.T) {
 	results := []doctor.CheckResult{
-		{Name: "setup-integrity", Status: "pass"},
-		{Name: "workflow-files", Status: "fail", Message: "workflow directory missing", Suggestion: "re-run `argus setup`"},
-		{Name: "workspace-config", Status: "skip", Message: "no workspace config found"},
+		{Name: "setup-integrity", Status: "pass", Summary: "project-level Argus setup is complete", Findings: []core.Finding{}},
+		{
+			Name:       "workflow-files",
+			Status:     "fail",
+			Summary:    "workflow directory missing",
+			Suggestion: "re-run `argus setup`",
+			Findings: []core.Finding{
+				{
+					Code:    "missing_path",
+					Message: ".argus/workflows missing",
+					Source: core.SourceRef{
+						Kind: core.SourceFile,
+						Raw:  filepath.Join(t.TempDir(), ".argus", "workflows"),
+					},
+				},
+			},
+		},
+		{
+			Name:    "workspace-config",
+			Status:  "skip",
+			Summary: "no workspace config found",
+			Findings: []core.Finding{
+				{
+					Code:    "check_skipped",
+					Message: "no workspace config found",
+					Source: core.SourceRef{
+						Kind: core.SourceSynthetic,
+						Raw:  "workspace-config",
+					},
+				},
+			},
+		},
 	}
 
 	var out bytes.Buffer
-	failed := writeDoctorReport(&out, results)
+	failed := writeDoctorReport(&out, "", results)
 	output := out.String()
 
 	assert.Equal(t, 1, failed)
@@ -44,6 +74,8 @@ func TestWriteDoctorReport_TextOutput(t *testing.T) {
 	assert.Contains(t, output, "[PASS]", "output should contain [PASS] markers")
 	assert.Contains(t, output, "[FAIL]", "output should contain [FAIL] markers")
 	assert.Contains(t, output, "[SKIP]", "output should contain [SKIP] markers")
+	assert.Contains(t, output, ".argus/workflows", "file findings should render file paths")
+	assert.Contains(t, output, "synthetic: workspace-config", "non-file findings should render with a prefix")
 	assert.Contains(t, output, "  → re-run `argus setup`", "failed checks should include suggestions")
 
 	assert.Regexp(t, `\d+ checks: \d+ passed, \d+ failed, \d+ skipped`, output,
@@ -130,13 +162,13 @@ prompt: "Fix it"
 
 func TestWriteDoctorReport_OutputFormat(t *testing.T) {
 	results := []doctor.CheckResult{
-		{Name: "setup-integrity", Status: "pass"},
-		{Name: "workflow-files", Status: "fail", Message: "workflow directory missing"},
-		{Name: "workspace-config", Status: "skip", Message: "no workspace config found"},
+		{Name: "setup-integrity", Status: "pass", Summary: "project-level Argus setup is complete", Findings: []core.Finding{}},
+		{Name: "workflow-files", Status: "fail", Summary: "workflow directory missing", Findings: []core.Finding{}},
+		{Name: "workspace-config", Status: "skip", Summary: "no workspace config found", Findings: []core.Finding{}},
 	}
 
 	var out bytes.Buffer
-	writeDoctorReport(&out, results)
+	writeDoctorReport(&out, "", results)
 	output := out.String()
 
 	lines := strings.Split(strings.TrimSpace(output), "\n")

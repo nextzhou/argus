@@ -91,15 +91,16 @@ type InvariantStepTiming struct {
 
 // CheckResult reports one doctor check outcome.
 type CheckResult struct {
-	Name       string       `json:"name"`
-	Status     string       `json:"status"`
-	Message    string       `json:"message"`
-	Suggestion string       `json:"suggestion,omitempty"`
-	Detail     *CheckDetail `json:"detail,omitempty"`
+	Name       string         `json:"name"`
+	Status     string         `json:"status"`
+	Summary    string         `json:"summary"`
+	Suggestion string         `json:"suggestion,omitempty"`
+	Findings   []core.Finding `json:"findings"`
+	Detail     *CheckDetail   `json:"detail,omitempty"`
 }
 
 // RunAllChecks executes the full doctor check suite.
-func RunAllChecks(projectRoot string, currentScope scope.Scope, options RunOptions) []CheckResult {
+func RunAllChecks(projectRoot string, currentScope *scope.Resolved, options RunOptions) []CheckResult {
 	results := make([]CheckResult, 0, 14)
 	if projectRoot == "" {
 		results = append(results,
@@ -159,10 +160,20 @@ func CheckSetupIntegrity(projectRoot string) CheckResult {
 
 	if len(missing) > 0 {
 		slices.Sort(missing)
-		return failResult(
+		findings := make([]core.Finding, 0, len(missing))
+		for _, item := range missing {
+			trimmed := strings.TrimSuffix(item, string(filepath.Separator))
+			if trimmed == "argus binary in PATH" {
+				findings = append(findings, syntheticFinding(checkSetupIntegrity, "missing_argus_binary", item))
+				continue
+			}
+			findings = append(findings, fileFinding(filepath.Join(projectRoot, trimmed), "missing_path", item))
+		}
+		return failResultWithFindings(
 			checkSetupIntegrity,
 			fmt.Sprintf("missing setup components: %s", strings.Join(missing, ", ")),
 			"re-run `argus setup` and ensure the argus binary is available in PATH",
+			findings,
 		)
 	}
 
@@ -206,6 +217,7 @@ func CheckHookConfig(projectRoot string) CheckResult {
 
 	validatedAgents := make([]string, 0, len(configs))
 	issues := make([]string, 0)
+	findings := make([]core.Finding, 0)
 	for _, cfg := range configs {
 		if !isExistingFile(cfg.path) {
 			continue
@@ -214,23 +226,31 @@ func CheckHookConfig(projectRoot string) CheckResult {
 		if cfg.contentCheck {
 			data, err := os.ReadFile(cfg.path)
 			if err != nil {
-				issues = append(issues, fmt.Sprintf("%s: reading %s: %v", cfg.agent, filepath.Base(cfg.path), err))
+				message := fmt.Sprintf("%s: reading %s: %v", cfg.agent, filepath.Base(cfg.path), err)
+				issues = append(issues, message)
+				findings = append(findings, fileFinding(cfg.path, "hook_config_read_error", message))
 				continue
 			}
 			if !strings.Contains(string(data), cfg.tickCommand) {
-				issues = append(issues, fmt.Sprintf("%s: missing argus tick entry", cfg.agent))
+				message := fmt.Sprintf("%s: missing argus tick entry", cfg.agent)
+				issues = append(issues, message)
+				findings = append(findings, fileFinding(cfg.path, "missing_tick_command", message))
 				continue
 			}
 		} else {
 			commands, err := readCommandFields(cfg.path)
 			if err != nil {
-				issues = append(issues, fmt.Sprintf("%s: %v", cfg.agent, err))
+				message := fmt.Sprintf("%s: %v", cfg.agent, err)
+				issues = append(issues, message)
+				findings = append(findings, fileFinding(cfg.path, "hook_config_parse_error", message))
 				continue
 			}
 			if !slices.ContainsFunc(commands, func(command string) bool {
 				return strings.Contains(command, cfg.tickCommand)
 			}) {
-				issues = append(issues, fmt.Sprintf("%s: missing argus tick entry", cfg.agent))
+				message := fmt.Sprintf("%s: missing argus tick entry", cfg.agent)
+				issues = append(issues, message)
+				findings = append(findings, fileFinding(cfg.path, "missing_tick_command", message))
 				continue
 			}
 		}
@@ -240,7 +260,12 @@ func CheckHookConfig(projectRoot string) CheckResult {
 
 	if len(issues) > 0 {
 		slices.Sort(issues)
-		return failResult(checkHookConfig, strings.Join(issues, "; "), "re-run `argus setup` to restore missing hook entries")
+		return failResultWithFindings(
+			checkHookConfig,
+			strings.Join(issues, "; "),
+			"re-run `argus setup` to restore missing hook entries",
+			findings,
+		)
 	}
 	if len(validatedAgents) == 0 {
 		return passResult(checkHookConfig, "no project-level agent hook configs found")
@@ -261,14 +286,19 @@ func CheckWorkflowFiles(projectRoot string) CheckResult {
 		return failResult(checkWorkflowFiles, err.Error(), "repair the embedded built-in workflow metadata before re-running doctor")
 	}
 
-	report, err := workflow.InspectDirectory(filepath.Join(projectRoot, ".argus", "workflows"), allowReservedID)
+	report, err := workflow.InspectDirectory(projectRoot, filepath.Join(projectRoot, ".argus", "workflows"), allowReservedID)
 	if err != nil {
 		return failResult(checkWorkflowFiles, fmt.Sprintf("inspecting workflows: %v", err), "fix workflow directory access or restore workflow files")
 	}
 
-	issues := workflowInspectIssues(report)
-	if len(issues) > 0 {
-		return failResult(checkWorkflowFiles, strings.Join(issues, "; "), "fix invalid workflow files or cross-file references")
+	findings := workflowInspectFindings(report)
+	if len(findings) > 0 {
+		return failResultWithFindings(
+			checkWorkflowFiles,
+			fmt.Sprintf("found %d workflow validation issues", len(findings)),
+			"fix invalid workflow files or cross-file references",
+			findings,
+		)
 	}
 
 	return passResult(checkWorkflowFiles, "workflow files are valid")
@@ -286,16 +316,21 @@ func CheckInvariantFiles(projectRoot string) CheckResult {
 		return failResult(checkInvariantFiles, err.Error(), "repair the embedded built-in invariant metadata before re-running doctor")
 	}
 
-	report, err := invariant.InspectDirectory(filepath.Join(projectRoot, ".argus", "invariants"), func(id string) bool {
+	report, err := invariant.InspectDirectory(projectRoot, filepath.Join(projectRoot, ".argus", "invariants"), func(id string) bool {
 		return workflow.ExistsAtExpectedPath(workflowDir, id)
 	}, allowReservedID)
 	if err != nil {
 		return failResult(checkInvariantFiles, fmt.Sprintf("inspecting invariants: %v", err), "fix invariant directory access or restore invariant files")
 	}
 
-	issues := invariantInspectIssues(report)
-	if len(issues) > 0 {
-		return failResult(checkInvariantFiles, strings.Join(issues, "; "), "fix invalid invariant files or missing workflow references")
+	findings := invariantInspectFindings(report)
+	if len(findings) > 0 {
+		return failResultWithFindings(
+			checkInvariantFiles,
+			fmt.Sprintf("found %d invariant validation issues", len(findings)),
+			"fix invalid invariant files or missing workflow references",
+			findings,
+		)
 	}
 
 	return passResult(checkInvariantFiles, "invariant files are valid")
@@ -309,7 +344,14 @@ func CheckBuiltinInvariants(projectRoot string) CheckResult {
 
 	builtinIDs, err := assets.BuiltinInvariantIDs()
 	if err != nil {
-		return failResult(checkBuiltinChecks, fmt.Sprintf("loading built-in invariants: %v", err), "repair the embedded built-in invariant metadata before re-running doctor")
+		return failResultWithFindings(
+			checkBuiltinChecks,
+			fmt.Sprintf("loading built-in invariants: %v", err),
+			"repair the embedded built-in invariant metadata before re-running doctor",
+			[]core.Finding{
+				embeddedAssetFinding("invariants", "builtin_invariants_load_error", fmt.Sprintf("loading built-in invariants: %v", err)),
+			},
+		)
 	}
 
 	entries, err := os.ReadDir(filepath.Join(projectRoot, ".argus", "invariants"))
@@ -345,23 +387,36 @@ func CheckBuiltinInvariants(projectRoot string) CheckResult {
 	defer cancel()
 
 	issues := make([]string, 0)
+	findings := make([]core.Finding, 0)
 	for _, name := range files {
-		inv, parseErr := invariant.ParseInvariantFile(filepath.Join(projectRoot, ".argus", "invariants", name))
+		path := filepath.Join(projectRoot, ".argus", "invariants", name)
+		inv, parseErr := invariant.ParseInvariantFile(path)
 		if parseErr != nil {
-			issues = append(issues, fmt.Sprintf("%s: %v", name, parseErr))
+			message := fmt.Sprintf("%s: %v", name, parseErr)
+			issues = append(issues, message)
+			findings = append(findings, fileFinding(path, "parse_error", message))
 			continue
 		}
 
 		check := invariant.RunCheck(ctx, inv, projectRoot)
 		if !check.Passed {
-			issues = append(issues, describeInvariantFailure(inv.ID, check))
+			message := describeInvariantFailure(inv.ID, check)
+			issues = append(issues, message)
+			findings = append(findings, fileFinding(path, "builtin_invariant_failed", message))
 		}
 	}
 	if ctx.Err() != nil {
-		issues = append(issues, fmt.Sprintf("built-in invariant checks timed out: %v", ctx.Err()))
+		message := fmt.Sprintf("built-in invariant checks timed out: %v", ctx.Err())
+		issues = append(issues, message)
+		findings = append(findings, syntheticFinding(checkBuiltinChecks, "builtin_invariants_timeout", message))
 	}
 	if len(issues) > 0 {
-		return failResult(checkBuiltinChecks, strings.Join(issues, "; "), "inspect the failing built-in invariant output and repair the underlying project state")
+		return failResultWithFindings(
+			checkBuiltinChecks,
+			strings.Join(issues, "; "),
+			"inspect the failing built-in invariant output and repair the underlying project state",
+			findings,
+		)
 	}
 
 	return passResult(checkBuiltinChecks, "all built-in invariants passed")
@@ -376,13 +431,20 @@ func checkBuiltinDiagnostics(projectRoot string, options RunOptions) CheckResult
 }
 
 // CheckAutomaticInvariantDiagnostics profiles automatic invariant execution.
-func CheckAutomaticInvariantDiagnostics(currentScope scope.Scope, options RunOptions) CheckResult {
+func CheckAutomaticInvariantDiagnostics(currentScope *scope.Resolved, options RunOptions) CheckResult {
 	if !options.CheckInvariants {
 		return CheckResult{
 			Name:       checkAutomaticInvariantDiagnostics,
 			Status:     statusSkip,
-			Message:    "automatic invariant deep diagnostics are disabled by default because they execute project-defined shell checks",
+			Summary:    "automatic invariant deep diagnostics are disabled by default because they execute project-defined shell checks",
 			Suggestion: "use the `argus-doctor` skill to assess invariant risk, then re-run `argus doctor --check-invariants` if safe",
+			Findings: []core.Finding{
+				syntheticFinding(
+					checkAutomaticInvariantDiagnostics,
+					"check_skipped",
+					"automatic invariant deep diagnostics are disabled by default because they execute project-defined shell checks",
+				),
+			},
 			Detail: &CheckDetail{
 				AutomaticInvariantDiagnostics: &AutomaticInvariantDiagnostics{
 					Enabled: false,
@@ -396,12 +458,15 @@ func CheckAutomaticInvariantDiagnostics(currentScope scope.Scope, options RunOpt
 		return skipResult(checkAutomaticInvariantDiagnostics, "current Argus scope not found")
 	}
 
-	catalog, err := currentScope.LoadInvariantCatalog()
+	catalog, err := currentScope.Artifacts().Invariants().Catalog(true)
 	if err != nil {
-		return failResult(
+		return failResultWithFindings(
 			checkAutomaticInvariantDiagnostics,
 			fmt.Sprintf("loading invariant catalog: %v", err),
 			"repair the invariant catalog before re-running `argus doctor --check-invariants`",
+			[]core.Finding{
+				syntheticFinding(checkAutomaticInvariantDiagnostics, "catalog_load_error", fmt.Sprintf("loading invariant catalog: %v", err)),
+			},
 		)
 	}
 
@@ -473,11 +538,14 @@ func CheckAutomaticInvariantDiagnostics(currentScope scope.Scope, options RunOpt
 		len(detail.Invariants),
 	)
 	if total > invariant.SlowCheckThreshold {
-		return failResultWithDetail(
+		return failResultWithDetailAndFindings(
 			checkAutomaticInvariantDiagnostics,
 			message,
 			"optimize the slowest automatic invariants or narrow their auto policy",
 			&CheckDetail{AutomaticInvariantDiagnostics: detail},
+			[]core.Finding{
+				syntheticFinding(checkAutomaticInvariantDiagnostics, "slow_invariant_checks", message),
+			},
 		)
 	}
 
@@ -502,7 +570,16 @@ func CheckSkillIntegrity(projectRoot string) CheckResult {
 	}
 	if len(missing) > 0 {
 		slices.Sort(missing)
-		return failResult(checkSkillIntegrity, fmt.Sprintf("missing Argus skills under: %s", strings.Join(missing, ", ")), "re-run `argus setup` to restore project skill files")
+		findings := make([]core.Finding, 0, len(missing))
+		for _, relPath := range missing {
+			findings = append(findings, fileFinding(filepath.Join(projectRoot, relPath), "missing_skill_file", relPath))
+		}
+		return failResultWithFindings(
+			checkSkillIntegrity,
+			fmt.Sprintf("missing Argus skills under: %s", strings.Join(missing, ", ")),
+			"re-run `argus setup` to restore project skill files",
+			findings,
+		)
 	}
 
 	return passResult(checkSkillIntegrity, "Argus project skill files are present in both managed directories")
@@ -516,7 +593,14 @@ func CheckGitignore(projectRoot string) CheckResult {
 
 	data, err := readProjectFile(projectRoot, ".gitignore")
 	if err != nil {
-		return failResult(checkGitignore, fmt.Sprintf("reading .gitignore: %v", err), "add the required Argus local-only paths to .gitignore")
+		return failResultWithFindings(
+			checkGitignore,
+			fmt.Sprintf("reading .gitignore: %v", err),
+			"add the required Argus local-only paths to .gitignore",
+			[]core.Finding{
+				fileFinding(filepath.Join(projectRoot, ".gitignore"), "gitignore_read_error", fmt.Sprintf("reading .gitignore: %v", err)),
+			},
+		)
 	}
 
 	missing := make([]string, 0, 3)
@@ -527,7 +611,16 @@ func CheckGitignore(projectRoot string) CheckResult {
 		}
 	}
 	if len(missing) > 0 {
-		return failResult(checkGitignore, fmt.Sprintf("missing .gitignore entries: %s", strings.Join(missing, ", ")), "add the missing Argus local-only directories to .gitignore")
+		findings := make([]core.Finding, 0, len(missing))
+		for _, entry := range missing {
+			findings = append(findings, fileFinding(filepath.Join(projectRoot, ".gitignore"), "missing_gitignore_entry", entry))
+		}
+		return failResultWithFindings(
+			checkGitignore,
+			fmt.Sprintf("missing .gitignore entries: %s", strings.Join(missing, ", ")),
+			"add the missing Argus local-only directories to .gitignore",
+			findings,
+		)
 	}
 
 	return passResult(checkGitignore, ".gitignore contains all required Argus local-only entries")
@@ -540,7 +633,14 @@ func CheckLogHealth(projectRoot string) CheckResult {
 		if errors.Is(err, os.ErrNotExist) {
 			return skipResult(checkLogHealth, "no log file found")
 		}
-		return failResult(checkLogHealth, fmt.Sprintf("reading hook log: %v", err), "verify log directory permissions and retry the diagnostic")
+		return failResultWithFindings(
+			checkLogHealth,
+			fmt.Sprintf("reading hook log: %v", err),
+			"verify log directory permissions and retry the diagnostic",
+			[]core.Finding{
+				syntheticFinding(checkLogHealth, "hook_log_read_error", fmt.Sprintf("reading hook log: %v", err)),
+			},
+		)
 	}
 
 	errorCount := 0
@@ -550,7 +650,14 @@ func CheckLogHealth(projectRoot string) CheckResult {
 		}
 	}
 	if errorCount > 0 {
-		return failResult(checkLogHealth, fmt.Sprintf("hook log contains %d error entries (%s)", errorCount, logPath), "inspect the hook log and address the recorded failures")
+		return failResultWithFindings(
+			checkLogHealth,
+			fmt.Sprintf("hook log contains %d error entries (%s)", errorCount, logPath),
+			"inspect the hook log and address the recorded failures",
+			[]core.Finding{
+				fileFinding(logPath, "hook_log_errors", fmt.Sprintf("hook log contains %d error entries", errorCount)),
+			},
+		)
 	}
 
 	return passResult(checkLogHealth, fmt.Sprintf("hook log contains no errors (%s)", logPath))
@@ -564,22 +671,39 @@ func CheckVersionCompat(projectRoot string) CheckResult {
 
 	files, err := collectVersionedFiles(projectRoot)
 	if err != nil {
-		return failResult(checkVersionCompat, fmt.Sprintf("collecting versioned files: %v", err), "restore the expected Argus directories and retry doctor")
+		return failResultWithFindings(
+			checkVersionCompat,
+			fmt.Sprintf("collecting versioned files: %v", err),
+			"restore the expected Argus directories and retry doctor",
+			[]core.Finding{
+				syntheticFinding(checkVersionCompat, "collect_versioned_files_error", fmt.Sprintf("collecting versioned files: %v", err)),
+			},
+		)
 	}
 
 	incompatible := make([]string, 0)
+	findings := make([]core.Finding, 0)
 	for _, file := range files {
 		version, readErr := readVersionField(file)
 		if readErr != nil {
-			incompatible = append(incompatible, fmt.Sprintf("%s: %v", relativeToProject(projectRoot, file), readErr))
+			message := fmt.Sprintf("%s: %v", relativeToProject(projectRoot, file), readErr)
+			incompatible = append(incompatible, message)
+			findings = append(findings, fileFinding(file, "version_read_error", message))
 			continue
 		}
 		if compatErr := core.CheckCompatibility(version); compatErr != nil {
-			incompatible = append(incompatible, fmt.Sprintf("%s: %v", relativeToProject(projectRoot, file), compatErr))
+			message := fmt.Sprintf("%s: %v", relativeToProject(projectRoot, file), compatErr)
+			incompatible = append(incompatible, message)
+			findings = append(findings, fileFinding(file, "incompatible_version", message))
 		}
 	}
 	if len(incompatible) > 0 {
-		return failResult(checkVersionCompat, strings.Join(incompatible, "; "), "regenerate incompatible Argus files with the current schema version")
+		return failResultWithFindings(
+			checkVersionCompat,
+			strings.Join(incompatible, "; "),
+			"regenerate incompatible Argus files with the current schema version",
+			findings,
+		)
 	}
 
 	return passResult(checkVersionCompat, "all versioned Argus files are schema-compatible")
@@ -588,25 +712,60 @@ func CheckVersionCompat(projectRoot string) CheckResult {
 // CheckTmpPermissions verifies /tmp/argus can be written.
 func CheckTmpPermissions() CheckResult {
 	if err := os.MkdirAll(tmpArgusDir, 0o700); err != nil {
-		return failResult(checkTmpPermissions, fmt.Sprintf("creating %s: %v", tmpArgusDir, err), "fix the temporary directory permissions for /tmp/argus")
+		return failResultWithFindings(
+			checkTmpPermissions,
+			fmt.Sprintf("creating %s: %v", tmpArgusDir, err),
+			"fix the temporary directory permissions for /tmp/argus",
+			[]core.Finding{
+				fileFinding(tmpArgusDir, "tmp_dir_create_error", fmt.Sprintf("creating %s: %v", tmpArgusDir, err)),
+			},
+		)
 	}
 
 	f, err := os.CreateTemp(tmpArgusDir, "doctor-*.tmp")
 	if err != nil {
-		return failResult(checkTmpPermissions, fmt.Sprintf("creating temp file in %s: %v", tmpArgusDir, err), "fix the temporary directory permissions for /tmp/argus")
+		return failResultWithFindings(
+			checkTmpPermissions,
+			fmt.Sprintf("creating temp file in %s: %v", tmpArgusDir, err),
+			"fix the temporary directory permissions for /tmp/argus",
+			[]core.Finding{
+				fileFinding(tmpArgusDir, "tmp_file_create_error", fmt.Sprintf("creating temp file in %s: %v", tmpArgusDir, err)),
+			},
+		)
 	}
 	path := f.Name()
 	if _, writeErr := f.WriteString("argus doctor\n"); writeErr != nil {
 		_ = f.Close()
 		_ = os.Remove(path)
-		return failResult(checkTmpPermissions, fmt.Sprintf("writing temp file in %s: %v", tmpArgusDir, writeErr), "fix the temporary directory permissions for /tmp/argus")
+		return failResultWithFindings(
+			checkTmpPermissions,
+			fmt.Sprintf("writing temp file in %s: %v", tmpArgusDir, writeErr),
+			"fix the temporary directory permissions for /tmp/argus",
+			[]core.Finding{
+				fileFinding(path, "tmp_file_write_error", fmt.Sprintf("writing temp file in %s: %v", tmpArgusDir, writeErr)),
+			},
+		)
 	}
 	if closeErr := f.Close(); closeErr != nil {
 		_ = os.Remove(path)
-		return failResult(checkTmpPermissions, fmt.Sprintf("closing temp file in %s: %v", tmpArgusDir, closeErr), "fix the temporary directory permissions for /tmp/argus")
+		return failResultWithFindings(
+			checkTmpPermissions,
+			fmt.Sprintf("closing temp file in %s: %v", tmpArgusDir, closeErr),
+			"fix the temporary directory permissions for /tmp/argus",
+			[]core.Finding{
+				fileFinding(path, "tmp_file_close_error", fmt.Sprintf("closing temp file in %s: %v", tmpArgusDir, closeErr)),
+			},
+		)
 	}
 	if removeErr := os.Remove(path); removeErr != nil {
-		return failResult(checkTmpPermissions, fmt.Sprintf("cleaning temp file in %s: %v", tmpArgusDir, removeErr), "verify that temporary files under /tmp/argus can be removed")
+		return failResultWithFindings(
+			checkTmpPermissions,
+			fmt.Sprintf("cleaning temp file in %s: %v", tmpArgusDir, removeErr),
+			"verify that temporary files under /tmp/argus can be removed",
+			[]core.Finding{
+				fileFinding(path, "tmp_file_remove_error", fmt.Sprintf("cleaning temp file in %s: %v", tmpArgusDir, removeErr)),
+			},
+		)
 	}
 
 	return passResult(checkTmpPermissions, fmt.Sprintf("temporary directory %s is writable", tmpArgusDir))
@@ -621,26 +780,46 @@ func CheckPipelineData(projectRoot string) CheckResult {
 	pipelinesDir := filepath.Join(projectRoot, ".argus", "pipelines")
 	actives, warnings, err := pipeline.ScanActivePipelines(pipelinesDir)
 	if err != nil {
-		return failResult(checkPipelineData, fmt.Sprintf("scanning pipelines: %v", err), "repair the pipeline directory and retry doctor")
+		return failResultWithFindings(
+			checkPipelineData,
+			fmt.Sprintf("scanning pipelines: %v", err),
+			"repair the pipeline directory and retry doctor",
+			[]core.Finding{
+				fileFinding(pipelinesDir, "pipeline_scan_error", fmt.Sprintf("scanning pipelines: %v", err)),
+			},
+		)
 	}
 
 	issues := make([]string, 0, len(warnings)+len(actives))
+	findings := make([]core.Finding, 0, len(warnings)+len(actives))
 	for _, warning := range warnings {
-		issues = append(issues, fmt.Sprintf("%s: %v", warning.InstanceID, warning.Err))
+		message := fmt.Sprintf("%s: %v", warning.InstanceID, warning.Err)
+		issues = append(issues, message)
+		findings = append(findings, fileFinding(filepath.Join(pipelinesDir, warning.InstanceID+".yaml"), "pipeline_parse_error", message))
 	}
 	for _, active := range actives {
+		pipelinePath := filepath.Join(pipelinesDir, active.InstanceID+".yaml")
 		if active.Pipeline == nil {
-			issues = append(issues, fmt.Sprintf("%s: missing pipeline data", active.InstanceID))
+			message := fmt.Sprintf("%s: missing pipeline data", active.InstanceID)
+			issues = append(issues, message)
+			findings = append(findings, fileFinding(pipelinePath, "missing_pipeline_data", message))
 			continue
 		}
 		workflowPath := filepath.Join(projectRoot, ".argus", "workflows", active.Pipeline.WorkflowID+".yaml")
 		if !isExistingFile(workflowPath) {
-			issues = append(issues, fmt.Sprintf("%s references missing workflow %q", active.InstanceID, active.Pipeline.WorkflowID))
+			message := fmt.Sprintf("%s references missing workflow %q", active.InstanceID, active.Pipeline.WorkflowID)
+			issues = append(issues, message)
+			findings = append(findings, fileFinding(pipelinePath, "missing_workflow", message))
 		}
 	}
 	if len(issues) > 0 {
 		slices.Sort(issues)
-		return failResult(checkPipelineData, strings.Join(issues, "; "), "remove corrupt pipeline files or restore the missing workflow definitions")
+		return failResultWithFindings(
+			checkPipelineData,
+			strings.Join(issues, "; "),
+			"remove corrupt pipeline files or restore the missing workflow definitions",
+			findings,
+		)
 	}
 	if len(actives) == 0 {
 		return passResult(checkPipelineData, "no active pipelines found")
@@ -659,8 +838,9 @@ func CheckShellEnv() CheckResult {
 	return CheckResult{
 		Name:       checkShellEnv,
 		Status:     statusPass,
-		Message:    "default shell is not bash; invariant checks use bash",
+		Summary:    "default shell is not bash; invariant checks use bash",
 		Suggestion: "ensure tools and environment variables needed by invariant checks are available in bash",
+		Findings:   []core.Finding{},
 	}
 }
 
@@ -668,7 +848,14 @@ func CheckShellEnv() CheckResult {
 func CheckWorkspaceConfig() CheckResult {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		return failResult(checkWorkspaceConfig, fmt.Sprintf("getting home directory: %v", err), "ensure HOME is set before running doctor")
+		return failResultWithFindings(
+			checkWorkspaceConfig,
+			fmt.Sprintf("getting home directory: %v", err),
+			"ensure HOME is set before running doctor",
+			[]core.Finding{
+				syntheticFinding(checkWorkspaceConfig, "home_dir_error", fmt.Sprintf("getting home directory: %v", err)),
+			},
+		)
 	}
 
 	configPath := filepath.Join(homeDir, workspaceConfigRelativePath)
@@ -678,53 +865,88 @@ func CheckWorkspaceConfig() CheckResult {
 
 	config, err := workspace.LoadConfig(configPath)
 	if err != nil {
-		return failResult(checkWorkspaceConfig, fmt.Sprintf("loading workspace config: %v", err), "repair ~/.config/argus/config.yaml and retry doctor")
+		return failResultWithFindings(
+			checkWorkspaceConfig,
+			fmt.Sprintf("loading workspace config: %v", err),
+			"repair ~/.config/argus/config.yaml and retry doctor",
+			[]core.Finding{
+				fileFinding(configPath, "workspace_config_load_error", fmt.Sprintf("loading workspace config: %v", err)),
+			},
+		)
 	}
 
 	issues := make([]string, 0, len(config.Workspaces)+3)
+	findings := make([]core.Finding, 0, len(config.Workspaces)+3)
 	for _, registered := range config.Workspaces {
 		expanded := workspace.ExpandPath(registered)
 		info, statErr := os.Stat(expanded)
 		if statErr != nil {
-			issues = append(issues, fmt.Sprintf("workspace %q: %v", registered, statErr))
+			message := fmt.Sprintf("workspace %q: %v", registered, statErr)
+			issues = append(issues, message)
+			findings = append(findings, fileFinding(configPath, "missing_workspace", message))
 			continue
 		}
 		if !info.IsDir() {
-			issues = append(issues, fmt.Sprintf("workspace %q is not a directory", registered))
+			message := fmt.Sprintf("workspace %q is not a directory", registered)
+			issues = append(issues, message)
+			findings = append(findings, fileFinding(configPath, "workspace_not_directory", message))
 		}
 	}
 
 	for _, relPath := range []string{globalClaudeSettingsPath, globalCodexHooksPath, globalOpenCodePluginPath} {
 		fullPath := filepath.Join(homeDir, relPath)
 		if !isExistingFile(fullPath) {
-			issues = append(issues, fmt.Sprintf("missing global hook config %s", fullPath))
+			message := fmt.Sprintf("missing global hook config %s", fullPath)
+			issues = append(issues, message)
+			findings = append(findings, fileFinding(fullPath, "missing_global_hook_config", message))
 		}
 	}
 
 	if len(issues) > 0 {
 		slices.Sort(issues)
-		return failResult(checkWorkspaceConfig, strings.Join(issues, "; "), "repair workspace registrations or re-run `argus setup --workspace <path>`")
+		return failResultWithFindings(
+			checkWorkspaceConfig,
+			strings.Join(issues, "; "),
+			"repair workspace registrations or re-run `argus setup --workspace <path>`",
+			findings,
+		)
 	}
 
 	return passResult(checkWorkspaceConfig, fmt.Sprintf("workspace config is valid for %d workspaces", len(config.Workspaces)))
 }
 
-func passResult(name string, message string) CheckResult {
-	return CheckResult{Name: name, Status: statusPass, Message: message}
+func passResult(name string, summary string) CheckResult {
+	return CheckResult{Name: name, Status: statusPass, Summary: summary, Findings: []core.Finding{}}
 }
 
-func failResult(name string, message string, suggestion string) CheckResult {
-	return CheckResult{Name: name, Status: statusFail, Message: message, Suggestion: suggestion}
+func failResult(name string, summary string, suggestion string) CheckResult {
+	return failResultWithFindings(name, summary, suggestion, []core.Finding{
+		syntheticFinding(name, "check_failed", summary),
+	})
 }
 
-func passResultWithDetail(name string, message string, detail *CheckDetail) CheckResult {
-	result := passResult(name, message)
+func passResultWithDetail(name string, summary string, detail *CheckDetail) CheckResult {
+	result := passResult(name, summary)
 	result.Detail = detail
 	return result
 }
 
-func failResultWithDetail(name string, message string, suggestion string, detail *CheckDetail) CheckResult {
-	result := failResult(name, message, suggestion)
+func failResultWithFindings(name string, summary string, suggestion string, findings []core.Finding) CheckResult {
+	result := CheckResult{
+		Name:       name,
+		Status:     statusFail,
+		Summary:    summary,
+		Suggestion: suggestion,
+		Findings:   cloneFindings(findings),
+	}
+	if len(result.Findings) == 0 {
+		result.Findings = []core.Finding{syntheticFinding(name, "check_failed", summary)}
+	}
+	return result
+}
+
+func failResultWithDetailAndFindings(name string, summary string, suggestion string, detail *CheckDetail, findings []core.Finding) CheckResult {
+	result := failResultWithFindings(name, summary, suggestion, findings)
 	result.Detail = detail
 	return result
 }
@@ -744,8 +966,13 @@ func readProjectFile(projectRoot string, relativePath string) ([]byte, error) {
 	return data, nil
 }
 
-func skipResult(name string, message string) CheckResult {
-	return CheckResult{Name: name, Status: statusSkip, Message: message}
+func skipResult(name string, summary string) CheckResult {
+	return CheckResult{
+		Name:     name,
+		Status:   statusSkip,
+		Summary:  summary,
+		Findings: []core.Finding{syntheticFinding(name, "check_skipped", summary)},
+	}
 }
 
 func skippedProjectCheck(name string) CheckResult {
@@ -756,8 +983,59 @@ func skippedInvariantExecutionCheck(name string) CheckResult {
 	return CheckResult{
 		Name:       name,
 		Status:     statusSkip,
-		Message:    "invariant shell checks are disabled by default because they execute shell commands",
+		Summary:    "invariant shell checks are disabled by default because they execute shell commands",
 		Suggestion: "use the `argus-doctor` skill to assess invariant risk, then re-run `argus doctor --check-invariants` if safe",
+		Findings: []core.Finding{
+			syntheticFinding(name, "check_skipped", "invariant shell checks are disabled by default because they execute shell commands"),
+		},
+	}
+}
+
+func cloneFindings(findings []core.Finding) []core.Finding {
+	if len(findings) == 0 {
+		return []core.Finding{}
+	}
+	return append([]core.Finding(nil), findings...)
+}
+
+func syntheticFinding(label string, code string, message string) core.Finding {
+	return core.Finding{
+		Code:    code,
+		Message: message,
+		Source: core.SourceRef{
+			Kind: core.SourceSynthetic,
+			Raw:  label,
+		},
+	}
+}
+
+func embeddedAssetFinding(path string, code string, message string) core.Finding {
+	return core.Finding{
+		Code:    code,
+		Message: message,
+		Source: core.SourceRef{
+			Kind: core.SourceEmbeddedAsset,
+			Raw:  filepath.Clean(path),
+		},
+	}
+}
+
+func fileFinding(path string, code string, message string) core.Finding {
+	return core.Finding{
+		Code:    code,
+		Message: message,
+		Source:  fileSource(path),
+	}
+}
+
+func fileSource(path string) core.SourceRef {
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		absPath = filepath.Clean(path)
+	}
+	return core.SourceRef{
+		Kind: core.SourceFile,
+		Raw:  absPath,
 	}
 }
 
@@ -808,63 +1086,32 @@ func collectCommandFields(node any, commands *[]string) {
 	}
 }
 
-func workflowInspectIssues(report *workflow.InspectReport) []string {
+func workflowInspectFindings(report *workflow.InspectReport) []core.Finding {
 	if report == nil {
-		return []string{"workflow inspection returned no report"}
-	}
-
-	fileNames := make([]string, 0, len(report.Files))
-	for name := range report.Files {
-		fileNames = append(fileNames, name)
-	}
-	slices.Sort(fileNames)
-
-	issues := make([]string, 0)
-	for _, name := range fileNames {
-		fileResult := report.Files[name]
-		if fileResult == nil {
-			issues = append(issues, fmt.Sprintf("%s: missing inspection result", name))
-			continue
-		}
-		for _, fieldErr := range fileResult.Errors {
-			issues = append(issues, formatFieldError(name, fieldErr.Path, fieldErr.Message))
+		return []core.Finding{
+			syntheticFinding(checkWorkflowFiles, "missing_inspection_report", "workflow inspection returned no report"),
 		}
 	}
 
-	return issues
+	findings := make([]core.Finding, 0)
+	for _, entry := range report.Entries {
+		findings = append(findings, entry.Findings...)
+	}
+	return findings
 }
 
-func invariantInspectIssues(report *invariant.InspectReport) []string {
+func invariantInspectFindings(report *invariant.InspectReport) []core.Finding {
 	if report == nil {
-		return []string{"invariant inspection returned no report"}
-	}
-
-	fileNames := make([]string, 0, len(report.Files))
-	for name := range report.Files {
-		fileNames = append(fileNames, name)
-	}
-	slices.Sort(fileNames)
-
-	issues := make([]string, 0)
-	for _, name := range fileNames {
-		fileResult := report.Files[name]
-		if fileResult == nil {
-			issues = append(issues, fmt.Sprintf("%s: missing inspection result", name))
-			continue
-		}
-		for _, fieldErr := range fileResult.Errors {
-			issues = append(issues, formatFieldError(name, fieldErr.Path, fieldErr.Message))
+		return []core.Finding{
+			syntheticFinding(checkInvariantFiles, "missing_inspection_report", "invariant inspection returned no report"),
 		}
 	}
 
-	return issues
-}
-
-func formatFieldError(fileName string, fieldPath string, message string) string {
-	if fieldPath == "" {
-		return fmt.Sprintf("%s: %s", fileName, message)
+	findings := make([]core.Finding, 0)
+	for _, entry := range report.Entries {
+		findings = append(findings, entry.Findings...)
 	}
-	return fmt.Sprintf("%s:%s %s", fileName, fieldPath, message)
+	return findings
 }
 
 func builtinWorkflowAllowReservedID() (func(string) bool, error) {

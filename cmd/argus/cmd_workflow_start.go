@@ -4,15 +4,12 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/nextzhou/argus/internal/core"
-	"github.com/nextzhou/argus/internal/pipeline"
 	"github.com/nextzhou/argus/internal/scope"
 	"github.com/nextzhou/argus/internal/workflow"
 	"github.com/spf13/cobra"
-	"gopkg.in/yaml.v3"
 )
 
 type workflowStartOutput struct {
@@ -55,13 +52,13 @@ func newWorkflowStartCmd() *cobra.Command {
 				return fmt.Errorf("not inside an Argus project or registered workspace")
 			}
 
-			w, err := s.LoadWorkflow(workflowID)
+			w, err := s.Artifacts().Workflows().Load(workflowID)
 			if err != nil {
 				writeCommandError(cmd, jsonFlag, err.Error())
 				return fmt.Errorf("workflow start failed: %w", err)
 			}
 
-			p, instanceID, err := pipeline.CreatePipeline(s.PipelinesDir(), workflowID, w, time.Now())
+			p, instanceID, err := s.Artifacts().Pipelines().Create(workflowID, w, time.Now())
 			if err != nil {
 				msg := err.Error()
 				if errors.Is(err, core.ErrActivePipelineExists) {
@@ -97,7 +94,7 @@ func newWorkflowStartCmd() *cobra.Command {
 			}
 
 			outData := workflowStartOutput{
-				PipelineStatus: pipeline.StatusRunning,
+				PipelineStatus: "running",
 				Progress:       progress,
 				NextJob: workflowStartNextJob{
 					ID:     firstJob.ID,
@@ -128,74 +125,4 @@ func renderStartText(cmd *cobra.Command, instanceID, progress string, job workfl
 		_, _ = fmt.Fprintf(w, "Skill: %s\n", job.Skill)
 	}
 	_, _ = fmt.Fprintf(w, "\nWhen complete, run: argus job-done --message \"execution summary\"\n")
-}
-
-func resolveRefs(workflowsDir, workflowPath string, w *workflow.Workflow) error {
-	hasRefs := false
-	for _, job := range w.Jobs {
-		if job.Ref != "" {
-			hasRefs = true
-			break
-		}
-	}
-	if !hasRefs {
-		return nil
-	}
-
-	sharedPath := filepath.Join(workflowsDir, "_shared.yaml")
-	shared, err := workflow.LoadShared(sharedPath)
-	if err != nil {
-		return fmt.Errorf("loading shared definitions: %w", err)
-	}
-
-	if err := core.ValidatePath(workflowsDir, workflowPath); err != nil {
-		return fmt.Errorf("validating workflow path: %w", err)
-	}
-
-	//nolint:gosec // workflowPath is constrained to workflowsDir via ValidatePath before re-reading for ref resolution.
-	data, err := os.ReadFile(workflowPath)
-	if err != nil {
-		return fmt.Errorf("re-reading workflow for ref resolution: %w", err)
-	}
-
-	var doc yaml.Node
-	if err := yaml.Unmarshal(data, &doc); err != nil {
-		return fmt.Errorf("parsing workflow nodes: %w", err)
-	}
-
-	jobNodes := findJobNodes(&doc)
-	for i, job := range w.Jobs {
-		if job.Ref == "" || i >= len(jobNodes) {
-			continue
-		}
-		resolved, err := workflow.ResolveRef(jobNodes[i], shared)
-		if err != nil {
-			return fmt.Errorf("resolving ref for job[%d]: %w", i, err)
-		}
-		w.Jobs[i] = *resolved
-	}
-
-	return nil
-}
-
-func findJobNodes(doc *yaml.Node) []*yaml.Node {
-	if doc.Kind != yaml.DocumentNode || len(doc.Content) == 0 {
-		return nil
-	}
-	root := doc.Content[0]
-	if root.Kind != yaml.MappingNode {
-		return nil
-	}
-
-	for i := 0; i < len(root.Content)-1; i += 2 {
-		if root.Content[i].Value == "jobs" {
-			jobsNode := root.Content[i+1]
-			if jobsNode.Kind != yaml.SequenceNode {
-				return nil
-			}
-			return jobsNode.Content
-		}
-	}
-
-	return nil
 }

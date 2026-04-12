@@ -90,11 +90,7 @@ func TestInvariantInspect(t *testing.T) {
 			checkJSON: func(t *testing.T, data map[string]any) {
 				assert.Equal(t, true, data["valid"])
 
-				files, ok := data["files"].(map[string]any)
-				require.True(t, ok, "files should be an object")
-				require.Contains(t, files, "my-check.yaml")
-
-				fr := files["my-check.yaml"].(map[string]any)
+				fr := inspectEntryByBaseName(t, data, "my-check.yaml")
 				assert.Equal(t, true, fr["valid"])
 				assert.Equal(t, "my-check", fr["id"])
 			},
@@ -108,13 +104,11 @@ func TestInvariantInspect(t *testing.T) {
 			checkJSON: func(t *testing.T, data map[string]any) {
 				assert.Equal(t, false, data["valid"])
 
-				files := data["files"].(map[string]any)
-				fr := files["bad-yaml.yaml"].(map[string]any)
+				fr := inspectEntryByBaseName(t, data, "bad-yaml.yaml")
 				assert.Equal(t, false, fr["valid"])
 
-				errors, ok := fr["errors"].([]any)
-				require.True(t, ok, "errors should be an array")
-				assert.NotEmpty(t, errors)
+				findings := inspectFindings(t, fr)
+				assert.NotEmpty(t, findings)
 			},
 		},
 		{
@@ -136,15 +130,13 @@ prompt: "Fix it"
 			checkJSON: func(t *testing.T, data map[string]any) {
 				assert.Equal(t, false, data["valid"])
 
-				files := data["files"].(map[string]any)
-
-				goodFr := files["good.yaml"].(map[string]any)
+				goodFr := inspectEntryByBaseName(t, data, "good.yaml")
 				assert.Equal(t, true, goodFr["valid"])
 
-				badFr := files["bad.yaml"].(map[string]any)
+				badFr := inspectEntryByBaseName(t, data, "bad.yaml")
 				assert.Equal(t, false, badFr["valid"])
-				errors := badFr["errors"].([]any)
-				assert.NotEmpty(t, errors)
+				findings := inspectFindings(t, badFr)
+				assert.NotEmpty(t, findings)
 			},
 		},
 		{
@@ -156,8 +148,7 @@ prompt: "Fix it"
 			checkJSON: func(t *testing.T, data map[string]any) {
 				assert.Equal(t, true, data["valid"])
 
-				files := data["files"].(map[string]any)
-				assert.Empty(t, files)
+				assert.Empty(t, inspectEntries(t, data))
 			},
 		},
 		{
@@ -181,8 +172,7 @@ prompt: "Fix it"
 			checkJSON: func(t *testing.T, data map[string]any) {
 				assert.Equal(t, true, data["valid"])
 
-				files := data["files"].(map[string]any)
-				fr := files["check-with-workflow.yaml"].(map[string]any)
+				fr := inspectEntryByBaseName(t, data, "check-with-workflow.yaml")
 				assert.Equal(t, true, fr["valid"])
 			},
 		},
@@ -195,16 +185,14 @@ prompt: "Fix it"
 			checkJSON: func(t *testing.T, data map[string]any) {
 				assert.Equal(t, false, data["valid"])
 
-				files := data["files"].(map[string]any)
-				fr := files["check-missing-workflow.yaml"].(map[string]any)
+				fr := inspectEntryByBaseName(t, data, "check-missing-workflow.yaml")
 				assert.Equal(t, false, fr["valid"])
 
-				errors := fr["errors"].([]any)
-				require.NotEmpty(t, errors)
+				findings := inspectFindings(t, fr)
+				require.NotEmpty(t, findings)
 				foundWorkflowError := false
-				for _, e := range errors {
-					errMap := e.(map[string]any)
-					msg := errMap["message"].(string)
+				for _, finding := range findings {
+					msg := finding["message"].(string)
 					if msg == "referenced workflow \"nonexistent-workflow\" not found" {
 						foundWorkflowError = true
 					}
@@ -226,8 +214,7 @@ prompt: "Fix it"
 			checkJSON: func(t *testing.T, data map[string]any) {
 				assert.Equal(t, true, data["valid"])
 
-				files := data["files"].(map[string]any)
-				require.Contains(t, files, "my-check.yaml")
+				assert.NotNil(t, inspectEntryByBaseName(t, data, "my-check.yaml"))
 			},
 		},
 		{
@@ -246,8 +233,7 @@ jobs:
 			checkJSON: func(t *testing.T, data map[string]any) {
 				assert.Equal(t, true, data["valid"])
 
-				files := data["files"].(map[string]any)
-				fr := files["argus-project-init.yaml"].(map[string]any)
+				fr := inspectEntryByBaseName(t, data, "argus-project-init.yaml")
 				assert.Equal(t, true, fr["valid"])
 				assert.Equal(t, "argus-project-init", fr["id"])
 			},
@@ -265,16 +251,14 @@ jobs:
 			checkJSON: func(t *testing.T, data map[string]any) {
 				assert.Equal(t, false, data["valid"])
 
-				files := data["files"].(map[string]any)
-				fr := files["wrong-name.yaml"].(map[string]any)
+				fr := inspectEntryByBaseName(t, data, "wrong-name.yaml")
 				assert.Equal(t, false, fr["valid"])
 
-				errors := fr["errors"].([]any)
-				require.NotEmpty(t, errors)
+				findings := inspectFindings(t, fr)
+				require.NotEmpty(t, findings)
 				found := false
-				for _, e := range errors {
-					errMap := e.(map[string]any)
-					msg := errMap["message"].(string)
+				for _, finding := range findings {
+					msg := finding["message"].(string)
 					if msg == `invariant file name "wrong-name.yaml" must match invariant ID "my-check" (expected "my-check.yaml")` {
 						found = true
 					}
@@ -296,16 +280,14 @@ jobs:
 			checkJSON: func(t *testing.T, data map[string]any) {
 				assert.Equal(t, false, data["valid"])
 
-				files := data["files"].(map[string]any)
-				fr := files["check-with-workflow.yaml"].(map[string]any)
+				fr := inspectEntryByBaseName(t, data, "check-with-workflow.yaml")
 				assert.Equal(t, false, fr["valid"])
 
-				errors := fr["errors"].([]any)
-				require.NotEmpty(t, errors)
+				findings := inspectFindings(t, fr)
+				require.NotEmpty(t, findings)
 				found := false
-				for _, e := range errors {
-					errMap := e.(map[string]any)
-					msg := errMap["message"].(string)
+				for _, finding := range findings {
+					msg := finding["message"].(string)
 					if msg == `referenced workflow "my-workflow" not found` {
 						found = true
 					}
@@ -482,7 +464,7 @@ func TestBuildWorkflowChecker(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			dir := tt.setup(t)
-			checker := buildWorkflowChecker(dir)
+			checker := buildWorkflowChecker("", dir)
 
 			for id, want := range tt.checkIDs {
 				assert.Equal(t, want, checker(id), "checker(%q) should return %v", id, want)

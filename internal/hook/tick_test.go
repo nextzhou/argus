@@ -2,7 +2,6 @@ package hook
 
 import (
 	"bytes"
-	"errors"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -80,24 +79,32 @@ func TestHandleTick_NoProjectRoot(t *testing.T) {
 }
 
 func TestLoadTickWorkflowSummaries_LoadError(t *testing.T) {
+	projectRoot := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(projectRoot, ".argus"), 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(projectRoot, ".argus", "workflows"), []byte("not a dir"), 0o600))
+
 	logs := captureDebugLogs(t, func() {
-		summaries := loadTickWorkflowSummaries(errorLoadingScope{workflowErr: errors.New("boom")})
+		summaries := loadTickWorkflowSummaries(scope.NewProjectScope(projectRoot))
 		assert.Nil(t, summaries)
 	})
 
 	assert.Contains(t, logs, "tick: could not load workflow summaries")
-	assert.Contains(t, logs, "boom")
+	assert.Contains(t, logs, "reading workflows directory")
 }
 
 func TestRunTickInvariants_LoadError(t *testing.T) {
+	projectRoot := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(projectRoot, ".argus"), 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(projectRoot, ".argus", "invariants"), []byte("not a dir"), 0o600))
+
 	logs := captureDebugLogs(t, func() {
-		catalog, warning := loadTickInvariantCatalog(errorLoadingScope{invariantErr: errors.New("boom")})
+		catalog, warning := loadTickInvariantCatalog(scope.NewProjectScope(projectRoot))
 		assert.Empty(t, catalog.Invariants)
 		assert.Contains(t, warning, "could not load invariants")
 	})
 
 	assert.Contains(t, logs, "tick: could not load invariants")
-	assert.Contains(t, logs, "boom")
+	assert.Contains(t, logs, "loading invariant catalog")
 }
 
 func TestShouldRunInvariantAuto(t *testing.T) {
@@ -798,7 +805,7 @@ check:
   - shell: [not valid yaml
 `)
 
-			catalog, err := scope.NewProjectScope(projectRoot).LoadInvariantCatalog()
+			catalog, err := scope.NewProjectScope(projectRoot).Artifacts().Invariants().Catalog(true)
 			require.NoError(t, err)
 			result := runTickInvariants(catalog, projectRoot, tt.firstTick)
 			require.NotNil(t, result.Failure)
@@ -835,43 +842,6 @@ func loadTickActivePipelines(t *testing.T, projectRoot string) ([]pipeline.Activ
 	activePipelines, scanWarnings, err := pipeline.ScanActivePipelines(filepath.Join(projectRoot, ".argus", "pipelines"))
 	require.NoError(t, err)
 	return activePipelines, scanWarnings
-}
-
-type errorLoadingScope struct {
-	workflowErr  error
-	invariantErr error
-}
-
-func (s errorLoadingScope) LoadInvariantCatalog() (*invariant.Catalog, error) {
-	return nil, s.invariantErr
-}
-
-func (s errorLoadingScope) ScanActivePipelines() ([]pipeline.ActivePipeline, []pipeline.ScanWarning, error) {
-	return nil, nil, nil
-}
-
-func (s errorLoadingScope) LoadWorkflow(string) (*workflow.Workflow, error) {
-	return nil, nil
-}
-
-func (s errorLoadingScope) LoadWorkflowSummaries() ([]scope.WorkflowSummary, error) {
-	return nil, s.workflowErr
-}
-
-func (s errorLoadingScope) ProjectRoot() string {
-	return ""
-}
-
-func (s errorLoadingScope) PipelinesDir() string {
-	return ""
-}
-
-func (s errorLoadingScope) WorkflowsDir() string {
-	return ""
-}
-
-func (s errorLoadingScope) LogsDir() string {
-	return ""
 }
 
 func captureDebugLogs(t *testing.T, fn func()) string {

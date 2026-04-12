@@ -76,7 +76,7 @@ func newStatusCmd() *cobra.Command {
 				return fmt.Errorf("not inside an Argus project or registered workspace")
 			}
 
-			actives, _, err := s.ScanActivePipelines()
+			actives, _, err := s.Artifacts().Pipelines().ScanActive()
 			if err != nil {
 				writeCommandError(cmd, jsonFlag, err.Error())
 				return fmt.Errorf("status failed: %w", err)
@@ -111,7 +111,7 @@ func newStatusCmd() *cobra.Command {
 			p := active.Pipeline
 			instanceID := active.InstanceID
 
-			wf, err := s.LoadWorkflow(p.WorkflowID)
+			wf, err := s.Artifacts().Workflows().Load(p.WorkflowID)
 			if err != nil {
 				writeCommandError(cmd, jsonFlag, err.Error())
 				return fmt.Errorf("status failed: %w", err)
@@ -172,8 +172,8 @@ func buildStatusPipeline(p *pipeline.Pipeline, wf *workflow.Workflow, _ string, 
 	return sp
 }
 
-func runStatusInvariants(ctx context.Context, s scope.Scope, out *statusOutput) {
-	catalog, err := s.LoadInvariantCatalog()
+func runStatusInvariants(ctx context.Context, s *scope.Resolved, out *statusOutput) {
+	catalog, err := s.Artifacts().Invariants().Catalog(true)
 	if err != nil {
 		out.Hints = append(out.Hints, fmt.Sprintf("Could not load invariants: %v", err))
 		return

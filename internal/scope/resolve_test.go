@@ -5,7 +5,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/nextzhou/argus/internal/core"
 	"github.com/nextzhou/argus/internal/workspace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -240,7 +239,7 @@ func writeResolveRawWorkspaceConfig(t *testing.T, homeDir, content string) {
 	require.NoError(t, os.WriteFile(configPath, []byte(content), 0o600))
 }
 
-func assertResolvedScope(t *testing.T, resolved Scope, wantScope, homeDir, projectDir string) {
+func assertResolvedScope(t *testing.T, resolved *Resolved, wantScope, _ string, projectDir string) {
 	t.Helper()
 
 	switch wantScope {
@@ -248,18 +247,14 @@ func assertResolvedScope(t *testing.T, resolved Scope, wantScope, homeDir, proje
 		assert.Nil(t, resolved)
 	case "project":
 		require.NotNil(t, resolved)
+		assert.Equal(t, KindProject, resolved.Kind())
 		assert.Equal(t, projectDir, resolved.ProjectRoot())
-		assert.Equal(t, filepath.Join(projectDir, ".argus", "pipelines"), resolved.PipelinesDir())
-		assert.Equal(t, filepath.Join(projectDir, ".argus", "workflows"), resolved.WorkflowsDir())
-		assert.Equal(t, filepath.Join(projectDir, ".argus", "logs"), resolved.LogsDir())
+		require.NotNil(t, resolved.Artifacts())
 	case "global":
 		require.NotNil(t, resolved)
-		globalRoot := filepath.Join(homeDir, ".config", "argus")
-		safeID := core.ProjectPathToSafeID(projectDir)
+		assert.Equal(t, KindGlobal, resolved.Kind())
 		assert.Equal(t, projectDir, resolved.ProjectRoot())
-		assert.Equal(t, filepath.Join(globalRoot, "pipelines", safeID), resolved.PipelinesDir())
-		assert.Equal(t, filepath.Join(globalRoot, "workflows"), resolved.WorkflowsDir())
-		assert.Equal(t, filepath.Join(globalRoot, "logs"), resolved.LogsDir())
+		require.NotNil(t, resolved.Artifacts())
 	default:
 		t.Fatalf("unknown scope expectation %q", wantScope)
 	}

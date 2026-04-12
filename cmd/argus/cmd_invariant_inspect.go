@@ -2,8 +2,12 @@ package main
 
 import (
 	"fmt"
+	"os"
 
+	"github.com/nextzhou/argus/internal/artifact"
+	"github.com/nextzhou/argus/internal/core"
 	"github.com/nextzhou/argus/internal/invariant"
+	"github.com/nextzhou/argus/internal/workspace"
 	"github.com/spf13/cobra"
 )
 
@@ -20,14 +24,15 @@ func newInvariantInspectCmd() *cobra.Command {
 				dir = args[0]
 			}
 
-			workflowChecker := buildWorkflowChecker(".argus/workflows")
+			projectRoot := currentInvariantInspectProjectRoot()
+			workflowChecker := buildWorkflowChecker(projectRoot, ".argus/workflows")
 			allowReservedID, err := builtinInvariantAllowReservedID()
 			if err != nil {
 				writeCommandError(cmd, jsonFlag, err.Error())
 				return fmt.Errorf("invariant inspect failed: %w", err)
 			}
 
-			report, err := invariant.InspectDirectory(dir, workflowChecker, allowReservedID)
+			report, err := artifact.NewInvariantProvider(projectRoot, dir).Inspect(workflowChecker, allowReservedID)
 			if err != nil {
 				writeCommandError(cmd, jsonFlag, err.Error())
 				return fmt.Errorf("invariant inspect failed: %w", err)
@@ -37,7 +42,7 @@ func newInvariantInspectCmd() *cobra.Command {
 				return writeJSONOK(cmd, report)
 			}
 
-			renderInvariantInspectText(cmd, report)
+			renderInvariantInspectText(cmd, projectRoot, report)
 			return nil
 		},
 	}
@@ -46,7 +51,7 @@ func newInvariantInspectCmd() *cobra.Command {
 	return cmd
 }
 
-func renderInvariantInspectText(cmd *cobra.Command, report *invariant.InspectReport) {
+func renderInvariantInspectText(cmd *cobra.Command, projectRoot string, report *invariant.InspectReport) {
 	w := cmd.OutOrStdout()
 	if report.Valid {
 		_, _ = w.Write([]byte("# Invariant Inspect\n\nAll invariants valid.\n"))
@@ -54,11 +59,29 @@ func renderInvariantInspectText(cmd *cobra.Command, report *invariant.InspectRep
 	}
 
 	_, _ = w.Write([]byte("# Invariant Inspect\n\nValidation errors found:\n\n"))
-	for filename, fr := range report.Files {
-		if !fr.Valid {
-			for _, e := range fr.Errors {
-				_, _ = fmt.Fprintf(w, "- %s: %s\n", filename, e.Message)
+	for _, entry := range report.Entries {
+		if entry.Valid {
+			continue
+		}
+		sourceText := core.FormatSourceRef(projectRoot, entry.Source)
+		for _, finding := range entry.Findings {
+			if finding.FieldPath != "" {
+				_, _ = fmt.Fprintf(w, "- %s (%s): %s\n", sourceText, finding.FieldPath, finding.Message)
+				continue
 			}
+			_, _ = fmt.Fprintf(w, "- %s: %s\n", sourceText, finding.Message)
 		}
 	}
+}
+
+func currentInvariantInspectProjectRoot() string {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return ""
+	}
+	root, err := workspace.FindProjectRoot(cwd)
+	if err != nil || root == nil {
+		return ""
+	}
+	return root.Path
 }

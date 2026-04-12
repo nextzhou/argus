@@ -10,6 +10,12 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// FieldError represents a single schema validation error in an invariant.
+type FieldError struct {
+	Path    string `json:"path"`
+	Message string `json:"message"`
+}
+
 // ValidationError reports one or more schema validation failures in an invariant.
 type ValidationError struct {
 	Errors []FieldError

@@ -25,7 +25,7 @@ func TestCheckSetupIntegrity_SetUp(t *testing.T) {
 
 	assert.Equal(t, "setup-integrity", result.Name)
 	assert.Equal(t, "pass", result.Status)
-	assert.Contains(t, result.Message, "project-level Argus setup is complete")
+	assert.Contains(t, result.Summary, "project-level Argus setup is complete")
 }
 
 func TestCheckSetupIntegrity_MissingArgusDir(t *testing.T) {
@@ -35,7 +35,9 @@ func TestCheckSetupIntegrity_MissingArgusDir(t *testing.T) {
 	result := CheckSetupIntegrity(projectRoot)
 
 	assert.Equal(t, "fail", result.Status)
-	assert.Contains(t, result.Message, ".argus")
+	assert.Contains(t, result.Summary, ".argus")
+	require.NotEmpty(t, result.Findings)
+	assert.Equal(t, core.SourceFile, result.Findings[0].Source.Kind)
 }
 
 func TestCheckHookConfig_ValidHooks(t *testing.T) {
@@ -51,7 +53,7 @@ func TestCheckHookConfig_ValidHooks(t *testing.T) {
 
 	assert.Equal(t, "hook-config", result.Name)
 	assert.Equal(t, "pass", result.Status)
-	assert.Contains(t, result.Message, "valid")
+	assert.Contains(t, result.Summary, "valid")
 }
 
 func TestCheckHookConfig_SkipMissingAgents(t *testing.T) {
@@ -64,8 +66,8 @@ func TestCheckHookConfig_SkipMissingAgents(t *testing.T) {
 	result := CheckHookConfig(projectRoot)
 
 	assert.Equal(t, "pass", result.Status)
-	assert.Contains(t, result.Message, "claude-code")
-	assert.NotContains(t, result.Message, "codex invalid")
+	assert.Contains(t, result.Summary, "claude-code")
+	assert.NotContains(t, result.Summary, "codex invalid")
 }
 
 func TestCheckWorkflowFiles_Valid(t *testing.T) {
@@ -90,7 +92,10 @@ func TestCheckWorkflowFiles_FileNameMustMatchID(t *testing.T) {
 
 	assert.Equal(t, "workflow-files", result.Name)
 	assert.Equal(t, "fail", result.Status)
-	assert.Contains(t, result.Message, `expected "release.yaml"`)
+	assert.Contains(t, result.Summary, "workflow validation issues")
+	require.NotEmpty(t, result.Findings)
+	assert.Contains(t, findingMessages(result)[0], `expected "release.yaml"`)
+	assert.Equal(t, core.SourceFile, result.Findings[0].Source.Kind)
 }
 
 func TestCheckInvariantFiles_Valid(t *testing.T) {
@@ -117,7 +122,9 @@ func TestCheckInvariantFiles_MisnamedWorkflowTarget(t *testing.T) {
 
 	assert.Equal(t, "invariant-files", result.Name)
 	assert.Equal(t, "fail", result.Status)
-	assert.Contains(t, result.Message, `referenced workflow "release" not found`)
+	assert.Contains(t, result.Summary, "invariant validation issues")
+	require.NotEmpty(t, result.Findings)
+	assert.Contains(t, findingMessages(result)[0], `referenced workflow "release" not found`)
 }
 
 func TestCheckBuiltinInvariants_NoInvariants(t *testing.T) {
@@ -129,7 +136,7 @@ func TestCheckBuiltinInvariants_NoInvariants(t *testing.T) {
 
 	assert.Equal(t, "builtin-invariants", result.Name)
 	assert.Equal(t, "pass", result.Status)
-	assert.Contains(t, result.Message, "no built-in invariants")
+	assert.Contains(t, result.Summary, "no built-in invariants")
 }
 
 func TestCheckBuiltinInvariants_SkipsMisnamedBuiltinFile(t *testing.T) {
@@ -143,7 +150,7 @@ func TestCheckBuiltinInvariants_SkipsMisnamedBuiltinFile(t *testing.T) {
 
 	assert.Equal(t, "builtin-invariants", result.Name)
 	assert.Equal(t, "pass", result.Status)
-	assert.Contains(t, result.Message, "no built-in invariants")
+	assert.Contains(t, result.Summary, "no built-in invariants")
 }
 
 func TestCheckAutomaticInvariantDiagnostics_DefaultSkip(t *testing.T) {
@@ -156,7 +163,9 @@ func TestCheckAutomaticInvariantDiagnostics_DefaultSkip(t *testing.T) {
 
 	assert.Equal(t, checkAutomaticInvariantDiagnostics, result.Name)
 	assert.Equal(t, "skip", result.Status)
-	assert.Contains(t, result.Message, "disabled by default")
+	assert.Contains(t, result.Summary, "disabled by default")
+	require.NotEmpty(t, result.Findings)
+	assert.Equal(t, core.SourceSynthetic, result.Findings[0].Source.Kind)
 	assert.Contains(t, result.Suggestion, "argus doctor --check-invariants")
 	require.NotNil(t, result.Detail)
 	require.NotNil(t, result.Detail.AutomaticInvariantDiagnostics)
@@ -173,7 +182,9 @@ func TestCheckAutomaticInvariantDiagnostics_WithFlagReportsStepTiming(t *testing
 
 	assert.Equal(t, checkAutomaticInvariantDiagnostics, result.Name)
 	assert.Equal(t, "fail", result.Status)
-	assert.Contains(t, result.Message, "automatic invariant checks took")
+	assert.Contains(t, result.Summary, "automatic invariant checks took")
+	require.NotEmpty(t, result.Findings)
+	assert.Equal(t, core.SourceSynthetic, result.Findings[0].Source.Kind)
 	require.NotNil(t, result.Detail)
 	require.NotNil(t, result.Detail.AutomaticInvariantDiagnostics)
 	detail := result.Detail.AutomaticInvariantDiagnostics
@@ -208,8 +219,10 @@ func TestCheckSkillIntegrity_Missing(t *testing.T) {
 	result := CheckSkillIntegrity(projectRoot)
 
 	assert.Equal(t, "fail", result.Status)
-	assert.Contains(t, result.Message, ".agents/skills/argus-doctor/SKILL.md")
-	assert.Contains(t, result.Message, ".claude/skills/argus-doctor/SKILL.md")
+	assert.Contains(t, result.Summary, ".agents/skills/argus-doctor/SKILL.md")
+	assert.Contains(t, result.Summary, ".claude/skills/argus-doctor/SKILL.md")
+	require.NotEmpty(t, result.Findings)
+	assert.Equal(t, core.SourceFile, result.Findings[0].Source.Kind)
 }
 
 func TestCheckGitignore_Complete(t *testing.T) {
@@ -233,8 +246,10 @@ func TestCheckGitignore_MissingEntries(t *testing.T) {
 	result := CheckGitignore(projectRoot)
 
 	assert.Equal(t, "fail", result.Status)
-	assert.Contains(t, result.Message, ".argus/logs/")
-	assert.Contains(t, result.Message, ".argus/tmp/")
+	assert.Contains(t, result.Summary, ".argus/logs/")
+	assert.Contains(t, result.Summary, ".argus/tmp/")
+	require.NotEmpty(t, result.Findings)
+	assert.Equal(t, core.SourceFile, result.Findings[0].Source.Kind)
 }
 
 func TestCheckLogHealth_NoLog(t *testing.T) {
@@ -246,7 +261,9 @@ func TestCheckLogHealth_NoLog(t *testing.T) {
 
 	assert.Equal(t, "log-health", result.Name)
 	assert.Equal(t, "skip", result.Status)
-	assert.Contains(t, result.Message, "no log file")
+	assert.Contains(t, result.Summary, "no log file")
+	require.NotEmpty(t, result.Findings)
+	assert.Equal(t, core.SourceSynthetic, result.Findings[0].Source.Kind)
 }
 
 func TestCheckLogHealth_ErrorEntries(t *testing.T) {
@@ -257,7 +274,9 @@ func TestCheckLogHealth_ErrorEntries(t *testing.T) {
 	result := CheckLogHealth(projectRoot)
 
 	assert.Equal(t, "fail", result.Status)
-	assert.Contains(t, result.Message, "1 error")
+	assert.Contains(t, result.Summary, "1 error")
+	require.NotEmpty(t, result.Findings)
+	assert.Equal(t, core.SourceFile, result.Findings[0].Source.Kind)
 }
 
 func TestCheckLogHealth_CleanLog(t *testing.T) {
@@ -268,7 +287,7 @@ func TestCheckLogHealth_CleanLog(t *testing.T) {
 	result := CheckLogHealth(projectRoot)
 
 	assert.Equal(t, "pass", result.Status)
-	assert.Contains(t, result.Message, "no errors")
+	assert.Contains(t, result.Summary, "no errors")
 }
 
 func TestCheckVersionCompat_Compatible(t *testing.T) {
@@ -290,7 +309,7 @@ func TestCheckTmpPermissions_Writable(t *testing.T) {
 
 	assert.Equal(t, "tmp-permissions", result.Name)
 	assert.Equal(t, "pass", result.Status)
-	assert.Contains(t, result.Message, "/tmp/argus")
+	assert.Contains(t, result.Summary, "/tmp/argus")
 }
 
 func TestCheckPipelineData_NoPipelines(t *testing.T) {
@@ -301,7 +320,7 @@ func TestCheckPipelineData_NoPipelines(t *testing.T) {
 
 	assert.Equal(t, "pipeline-data", result.Name)
 	assert.Equal(t, "pass", result.Status)
-	assert.Contains(t, result.Message, "no active pipelines")
+	assert.Contains(t, result.Summary, "no active pipelines")
 }
 
 func TestCheckShellEnv_Bash(t *testing.T) {
@@ -311,7 +330,7 @@ func TestCheckShellEnv_Bash(t *testing.T) {
 
 	assert.Equal(t, "shell-env", result.Name)
 	assert.Equal(t, "pass", result.Status)
-	assert.Contains(t, result.Message, "bash")
+	assert.Contains(t, result.Summary, "bash")
 }
 
 func TestCheckWorkspaceConfig_NoConfig(t *testing.T) {
@@ -321,7 +340,9 @@ func TestCheckWorkspaceConfig_NoConfig(t *testing.T) {
 
 	assert.Equal(t, "workspace-config", result.Name)
 	assert.Equal(t, "skip", result.Status)
-	assert.Contains(t, result.Message, "no workspace config")
+	assert.Contains(t, result.Summary, "no workspace config")
+	require.NotEmpty(t, result.Findings)
+	assert.Equal(t, core.SourceSynthetic, result.Findings[0].Source.Kind)
 }
 
 func TestRunAllChecks_InstalledProject(t *testing.T) {
@@ -508,4 +529,12 @@ func mapResultsByName(results []CheckResult) map[string]CheckResult {
 		byName[result.Name] = result
 	}
 	return byName
+}
+
+func findingMessages(result CheckResult) []string {
+	messages := make([]string, 0, len(result.Findings))
+	for _, finding := range result.Findings {
+		messages = append(messages, finding.Message)
+	}
+	return messages
 }

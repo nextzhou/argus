@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 
+	"github.com/nextzhou/argus/internal/core"
 	"github.com/nextzhou/argus/internal/doctor"
 	"github.com/nextzhou/argus/internal/scope"
 	"github.com/nextzhou/argus/internal/workspace"
@@ -65,7 +66,7 @@ func newDoctorCmd() *cobra.Command {
 					return err
 				}
 			} else {
-				writeDoctorReport(cmd.OutOrStdout(), results)
+				writeDoctorReport(cmd.OutOrStdout(), projectRoot, results)
 			}
 
 			if summary.Failed > 0 {
@@ -86,21 +87,24 @@ func newDoctorCmd() *cobra.Command {
 	return cmd
 }
 
-func writeDoctorReport(out io.Writer, results []doctor.CheckResult) int {
+func writeDoctorReport(out io.Writer, projectRoot string, results []doctor.CheckResult) int {
 	summary := summarizeDoctorResults(results)
 	for _, result := range results {
 		switch result.Status {
 		case "pass":
-			_, _ = fmt.Fprintf(out, "[PASS] %s\n", result.Name)
+			writeDoctorLine(out, "PASS", result)
+			writeDoctorFindings(out, projectRoot, result)
 			writeDoctorDetail(out, result)
 		case "fail":
-			_, _ = fmt.Fprintf(out, "[FAIL] %s: %s\n", result.Name, result.Message)
+			writeDoctorLine(out, "FAIL", result)
+			writeDoctorFindings(out, projectRoot, result)
 			if result.Suggestion != "" {
 				_, _ = fmt.Fprintf(out, "  → %s\n", result.Suggestion)
 			}
 			writeDoctorDetail(out, result)
 		case "skip":
-			_, _ = fmt.Fprintf(out, "[SKIP] %s: %s\n", result.Name, result.Message)
+			writeDoctorLine(out, "SKIP", result)
+			writeDoctorFindings(out, projectRoot, result)
 			if result.Suggestion != "" {
 				_, _ = fmt.Fprintf(out, "  → %s\n", result.Suggestion)
 			}
@@ -110,6 +114,25 @@ func writeDoctorReport(out io.Writer, results []doctor.CheckResult) int {
 	_, _ = fmt.Fprintf(out, "\n%d checks: %d passed, %d failed, %d skipped\n", summary.Total, summary.Passed, summary.Failed, summary.Skipped)
 
 	return summary.Failed
+}
+
+func writeDoctorLine(out io.Writer, status string, result doctor.CheckResult) {
+	if result.Summary == "" {
+		_, _ = fmt.Fprintf(out, "[%s] %s\n", status, result.Name)
+		return
+	}
+	_, _ = fmt.Fprintf(out, "[%s] %s: %s\n", status, result.Name, result.Summary)
+}
+
+func writeDoctorFindings(out io.Writer, projectRoot string, result doctor.CheckResult) {
+	for _, finding := range result.Findings {
+		sourceText := core.FormatSourceRef(projectRoot, finding.Source)
+		if finding.FieldPath != "" {
+			_, _ = fmt.Fprintf(out, "  - %s (%s): %s\n", sourceText, finding.FieldPath, finding.Message)
+			continue
+		}
+		_, _ = fmt.Fprintf(out, "  - %s: %s\n", sourceText, finding.Message)
+	}
 }
 
 func writeDoctorDetail(out io.Writer, result doctor.CheckResult) {

@@ -41,7 +41,7 @@ func newWorkflowListCmd() *cobra.Command {
 				return fmt.Errorf("not inside an Argus project or registered workspace")
 			}
 
-			summaries, err := s.LoadWorkflowSummaries()
+			summaries, err := s.Artifacts().Workflows().Summaries()
 			if err != nil {
 				return fmt.Errorf("loading workflow summaries: %w", err)
 			}

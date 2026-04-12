@@ -68,8 +68,8 @@ func newInvariantCheckCmd() *cobra.Command {
 	return cmd
 }
 
-func runSingleCheck(cmd *cobra.Command, jsonOutput bool, id string, s scope.Scope) error {
-	catalog, err := s.LoadInvariantCatalog()
+func runSingleCheck(cmd *cobra.Command, jsonOutput bool, id string, s *scope.Resolved) error {
+	catalog, err := s.Artifacts().Invariants().Catalog(true)
 	if err != nil {
 		writeCommandError(cmd, jsonOutput, err.Error())
 		return fmt.Errorf("invariant check failed: %w", err)
@@ -95,8 +95,8 @@ func runSingleCheck(cmd *cobra.Command, jsonOutput bool, id string, s scope.Scop
 	return fmt.Errorf("invariant check failed: invariant %q not found", id)
 }
 
-func runAllChecks(cmd *cobra.Command, jsonOutput bool, s scope.Scope) error {
-	catalog, err := s.LoadInvariantCatalog()
+func runAllChecks(cmd *cobra.Command, jsonOutput bool, s *scope.Resolved) error {
+	catalog, err := s.Artifacts().Invariants().Catalog(true)
 	if err != nil {
 		return fmt.Errorf("loading invariants: %w", err)
 	}

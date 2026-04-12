@@ -42,12 +42,10 @@ jobs:
 			},
 			checkJSON: func(t *testing.T, data map[string]any) {
 				assert.True(t, data["valid"].(bool))
-				files, ok := data["files"].(map[string]any)
-				require.True(t, ok, "files should be an object")
-				require.Len(t, files, 1)
+				entries := inspectEntries(t, data)
+				require.Len(t, entries, 1)
 
-				buildFile, ok := files["build.yaml"].(map[string]any)
-				require.True(t, ok, "build.yaml should exist")
+				buildFile := inspectEntryByBaseName(t, data, "build.yaml")
 				assert.True(t, buildFile["valid"].(bool))
 
 				workflow, ok := buildFile["workflow"].(map[string]any)
@@ -71,15 +69,11 @@ jobs:
 			},
 			checkJSON: func(t *testing.T, data map[string]any) {
 				assert.False(t, data["valid"].(bool))
-				files, ok := data["files"].(map[string]any)
-				require.True(t, ok, "files should be an object")
 
-				badFile, ok := files["bad.yaml"].(map[string]any)
-				require.True(t, ok, "bad.yaml should exist")
+				badFile := inspectEntryByBaseName(t, data, "bad.yaml")
 				assert.False(t, badFile["valid"].(bool))
-				errors, ok := badFile["errors"].([]any)
-				require.True(t, ok, "errors should be an array")
-				require.NotEmpty(t, errors)
+				findings := inspectFindings(t, badFile)
+				require.NotEmpty(t, findings)
 			},
 		},
 		{
@@ -104,19 +98,14 @@ jobs:
 			},
 			checkJSON: func(t *testing.T, data map[string]any) {
 				assert.False(t, data["valid"].(bool))
-				files, ok := data["files"].(map[string]any)
-				require.True(t, ok, "files should be an object")
 
-				validFile, ok := files["valid.yaml"].(map[string]any)
-				require.True(t, ok, "valid.yaml should exist")
+				validFile := inspectEntryByBaseName(t, data, "valid.yaml")
 				assert.True(t, validFile["valid"].(bool))
 
-				invalidFile, ok := files["invalid.yaml"].(map[string]any)
-				require.True(t, ok, "invalid.yaml should exist")
+				invalidFile := inspectEntryByBaseName(t, data, "invalid.yaml")
 				assert.False(t, invalidFile["valid"].(bool))
-				errors, ok := invalidFile["errors"].([]any)
-				require.True(t, ok, "errors should be an array")
-				require.NotEmpty(t, errors)
+				findings := inspectFindings(t, invalidFile)
+				require.NotEmpty(t, findings)
 			},
 		},
 		{
@@ -125,9 +114,7 @@ jobs:
 			setupFiles: nil,
 			checkJSON: func(t *testing.T, data map[string]any) {
 				assert.True(t, data["valid"].(bool))
-				files, ok := data["files"].(map[string]any)
-				require.True(t, ok, "files should be an object")
-				assert.Empty(t, files)
+				assert.Empty(t, inspectEntries(t, data))
 			},
 		},
 		{
@@ -152,15 +139,11 @@ jobs:
 			},
 			checkJSON: func(t *testing.T, data map[string]any) {
 				assert.False(t, data["valid"].(bool))
-				files, ok := data["files"].(map[string]any)
-				require.True(t, ok, "files should be an object")
 
-				firstFile, ok := files["first.yaml"].(map[string]any)
-				require.True(t, ok, "first.yaml should exist")
+				firstFile := inspectEntryByBaseName(t, data, "first.yaml")
 				assert.False(t, firstFile["valid"].(bool))
 
-				secondFile, ok := files["second.yaml"].(map[string]any)
-				require.True(t, ok, "second.yaml should exist")
+				secondFile := inspectEntryByBaseName(t, data, "second.yaml")
 				assert.False(t, secondFile["valid"].(bool))
 			},
 		},
@@ -179,16 +162,12 @@ jobs:
 			},
 			checkJSON: func(t *testing.T, data map[string]any) {
 				assert.False(t, data["valid"].(bool))
-				files, ok := data["files"].(map[string]any)
-				require.True(t, ok, "files should be an object")
 
-				reservedFile, ok := files["reserved.yaml"].(map[string]any)
-				require.True(t, ok, "reserved.yaml should exist")
+				reservedFile := inspectEntryByBaseName(t, data, "reserved.yaml")
 				assert.False(t, reservedFile["valid"].(bool))
-				errors, ok := reservedFile["errors"].([]any)
-				require.True(t, ok, "errors should be an array")
-				require.NotEmpty(t, errors)
-				assert.Contains(t, errors[0].(map[string]any)["message"], "reserved")
+				findings := inspectFindings(t, reservedFile)
+				require.NotEmpty(t, findings)
+				assert.Contains(t, findings[0]["message"], "reserved")
 			},
 		},
 		{
@@ -205,11 +184,8 @@ jobs:
 			},
 			checkJSON: func(t *testing.T, data map[string]any) {
 				assert.True(t, data["valid"].(bool))
-				files, ok := data["files"].(map[string]any)
-				require.True(t, ok, "files should be an object")
 
-				builtinFile, ok := files["argus-project-init.yaml"].(map[string]any)
-				require.True(t, ok, "argus-project-init.yaml should exist")
+				builtinFile := inspectEntryByBaseName(t, data, "argus-project-init.yaml")
 				assert.True(t, builtinFile["valid"].(bool))
 			},
 		},
@@ -228,16 +204,12 @@ jobs:
 			},
 			checkJSON: func(t *testing.T, data map[string]any) {
 				assert.False(t, data["valid"].(bool))
-				files, ok := data["files"].(map[string]any)
-				require.True(t, ok, "files should be an object")
 
-				file, ok := files["wrong-name.yaml"].(map[string]any)
-				require.True(t, ok, "wrong-name.yaml should exist")
+				file := inspectEntryByBaseName(t, data, "wrong-name.yaml")
 				assert.False(t, file["valid"].(bool))
-				errors, ok := file["errors"].([]any)
-				require.True(t, ok, "errors should be an array")
-				require.NotEmpty(t, errors)
-				assert.Contains(t, errors[0].(map[string]any)["message"], `expected "release.yaml"`)
+				findings := inspectFindings(t, file)
+				require.NotEmpty(t, findings)
+				assert.Contains(t, findings[0]["message"], `expected "release.yaml"`)
 			},
 		},
 		{
@@ -255,16 +227,12 @@ jobs:
 			},
 			checkJSON: func(t *testing.T, data map[string]any) {
 				assert.False(t, data["valid"].(bool))
-				files, ok := data["files"].(map[string]any)
-				require.True(t, ok, "files should be an object")
 
-				badFile, ok := files["bad-template.yaml"].(map[string]any)
-				require.True(t, ok, "bad-template.yaml should exist")
+				badFile := inspectEntryByBaseName(t, data, "bad-template.yaml")
 				assert.False(t, badFile["valid"].(bool))
-				errors, ok := badFile["errors"].([]any)
-				require.True(t, ok, "errors should be an array")
-				require.NotEmpty(t, errors)
-				assert.Contains(t, errors[0].(map[string]any)["message"], "template")
+				findings := inspectFindings(t, badFile)
+				require.NotEmpty(t, findings)
+				assert.Contains(t, findings[0]["message"], "template")
 			},
 		},
 		{
@@ -287,16 +255,12 @@ jobs:
 			},
 			checkJSON: func(t *testing.T, data map[string]any) {
 				assert.False(t, data["valid"].(bool))
-				files, ok := data["files"].(map[string]any)
-				require.True(t, ok, "files should be an object")
 
-				buildFile, ok := files["build.yaml"].(map[string]any)
-				require.True(t, ok, "build.yaml should exist")
+				buildFile := inspectEntryByBaseName(t, data, "build.yaml")
 				assert.False(t, buildFile["valid"].(bool))
-				errors, ok := buildFile["errors"].([]any)
-				require.True(t, ok, "errors should be an array")
-				require.NotEmpty(t, errors)
-				assert.Contains(t, errors[0].(map[string]any)["message"], "not found")
+				findings := inspectFindings(t, buildFile)
+				require.NotEmpty(t, findings)
+				assert.Contains(t, findings[0]["message"], "not found")
 			},
 		},
 	}
@@ -448,12 +412,9 @@ jobs:
 	require.NoError(t, json.Unmarshal(output, &data))
 	assert.Equal(t, "ok", data["status"])
 
-	files, ok := data["files"].(map[string]any)
-	require.True(t, ok, "files should be an object")
-	require.Len(t, files, 1)
-	assert.NotNil(t, files["build.yaml"])
-	assert.Nil(t, files["README.md"])
-	assert.Nil(t, files["notes.txt"])
+	entries := inspectEntries(t, data)
+	require.Len(t, entries, 1)
+	assert.NotNil(t, inspectEntryByBaseName(t, data, "build.yaml"))
 }
 
 func TestWorkflowInspectDirectoryNotFound(t *testing.T) {
@@ -517,9 +478,7 @@ jobs:
 	require.NoError(t, json.Unmarshal(output, &data))
 	assert.Equal(t, "ok", data["status"])
 
-	files, ok := data["files"].(map[string]any)
-	require.True(t, ok, "files should be an object")
-	require.Len(t, files, 1)
-	assert.NotNil(t, files["build.yaml"])
-	assert.Nil(t, files["nested.yaml"])
+	entries := inspectEntries(t, data)
+	require.Len(t, entries, 1)
+	assert.NotNil(t, inspectEntryByBaseName(t, data, "build.yaml"))
 }
