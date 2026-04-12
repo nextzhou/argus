@@ -11,7 +11,8 @@ type WorkflowSummary struct {
 type InvariantFailure struct {
 	ID          string
 	Description string
-	Suggestion  string
+	Prompt      string
+	WorkflowID  string
 }
 
 // FormatNoPipeline returns readable text listing available workflows when no pipeline is active.

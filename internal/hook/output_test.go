@@ -131,7 +131,8 @@ func TestFormatInvariantFailure(t *testing.T) {
 	output, err := FormatInvariantFailure(InvariantFailure{
 		ID:          "argus-project-init",
 		Description: "Project not initialized",
-		Suggestion:  "Run argus workflow start argus-project-init",
+		Prompt:      "<<<ARGUS_INIT_REQUIRED>>> initialize argus first",
+		WorkflowID:  "argus-project-init",
 	})
 
 	require.NoError(t, err)
@@ -139,7 +140,9 @@ func TestFormatInvariantFailure(t *testing.T) {
 	assert.Contains(t, output, "Argus: Invariant check failed:")
 	assert.Contains(t, output, "argus-project-init")
 	assert.Contains(t, output, "Project not initialized")
-	assert.Contains(t, output, "Suggestion: Run argus workflow start argus-project-init")
+	assert.Contains(t, output, "Prompt: <<<ARGUS_INIT_REQUIRED>>> initialize argus first")
+	assert.Contains(t, output, "Workflow: Start the remediation workflow with `argus workflow start argus-project-init`")
+	assert.Less(t, strings.Index(output, "Prompt:"), strings.Index(output, "Workflow:"))
 	assert.NotContains(t, output, "No active pipeline")
 	assert.NotContains(t, output, "---")
 }

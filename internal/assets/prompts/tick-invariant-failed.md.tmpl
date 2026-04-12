@@ -1,3 +1,8 @@
 Argus: Invariant check failed:
   - {{.Failure.ID}}: {{.Failure.Description}}
-    Suggestion: {{.Failure.Suggestion}}
+{{- if .Failure.Prompt }}
+    Prompt: {{.Failure.Prompt}}
+{{- end }}
+{{- if .Failure.WorkflowID }}
+    Workflow: Start the remediation workflow with `argus workflow start {{.Failure.WorkflowID}}`
+{{- end }}

@@ -89,7 +89,7 @@ Typical collaboration loop:
 | `prompt` | No | Guidance text injected on failure |
 | `workflow` | No | Suggested remediation workflow ID |
 
-`prompt` and `workflow` may not both be empty. They may coexist, in which case Argus injects both prompt guidance and a workflow suggestion.
+`prompt` and `workflow` may not both be empty. They may coexist, in which case `tick` injects both a `Prompt:` line and a `Workflow:` action line.
 
 Invariant file names are also part of the contract: each file must be named `<invariant-id>.yaml`.
 
@@ -226,7 +226,7 @@ Each invariant step can be:
 - **fail**
 - **skip** because a previous step already failed and the check short-circuited
 
-Only failed invariants attach `workflow` and `prompt` remediation information.
+Only failed invariants attach `workflow` and `prompt` remediation information. In `tick`, both are rendered when present, with `Prompt:` shown before `Workflow:`.
 
 ### Manual Checks
 

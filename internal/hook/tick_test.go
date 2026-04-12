@@ -100,46 +100,6 @@ func TestRunTickInvariants_LoadError(t *testing.T) {
 	assert.Contains(t, logs, "boom")
 }
 
-func TestInvariantSuggestion(t *testing.T) {
-	tests := []struct {
-		name string
-		inv  *invariant.Invariant
-		want string
-	}{
-		{
-			name: "nil invariant falls back to generic guidance",
-			inv:  nil,
-			want: "Review the invariant definition and project state",
-		},
-		{
-			name: "workflow takes priority over prompt",
-			inv: &invariant.Invariant{
-				Workflow: "argus-project-init",
-				Prompt:   "<<<ARGUS_INIT_REQUIRED>>>",
-			},
-			want: "Run argus workflow start argus-project-init",
-		},
-		{
-			name: "prompt is used when workflow is absent",
-			inv: &invariant.Invariant{
-				Prompt: "<<<ARGUS_INIT_REQUIRED>>>",
-			},
-			want: "<<<ARGUS_INIT_REQUIRED>>>",
-		},
-		{
-			name: "empty invariant falls back to generic guidance",
-			inv:  &invariant.Invariant{},
-			want: "Review the invariant definition and project state",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, invariantSuggestion(tt.inv))
-		})
-	}
-}
-
 func TestShouldRunInvariantAuto(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -655,7 +615,7 @@ func TestRunTickInvariants(t *testing.T) {
 			wantFailure: &InvariantFailure{
 				ID:          "fail-always",
 				Description: "Always failing invariant",
-				Suggestion:  "Fix the always invariant",
+				Prompt:      "Fix the always invariant",
 			},
 		},
 		{
@@ -664,7 +624,7 @@ func TestRunTickInvariants(t *testing.T) {
 			wantFailure: &InvariantFailure{
 				ID:          "fail-always",
 				Description: "Always failing invariant",
-				Suggestion:  "Fix the always invariant",
+				Prompt:      "Fix the always invariant",
 			},
 		},
 	}

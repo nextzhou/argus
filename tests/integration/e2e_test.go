@@ -25,6 +25,7 @@ jobs:
 
 const testInvariant = `version: v0.1.0
 id: e2e-test-inv
+order: 50
 description: End-to-end test invariant
 auto: always
 check:
@@ -311,6 +312,7 @@ func TestE2E_StatusWithInvariants(t *testing.T) {
 	writeFile(t, projectDir, ".argus/workflows/e2e-test.yaml", testWorkflow)
 	successfulInvariantYAML := `version: v0.1.0
 id: e2e-pass-inv
+order: 50
 description: Always passes
 auto: always
 check:

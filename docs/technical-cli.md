@@ -206,7 +206,8 @@ When no active pipeline exists, `tick` evaluates valid auto invariants in ascend
 ```markdown
 Argus: Invariant check failed:
   - argus-project-init: The project has completed Argus initialization
-    Suggestion: Run argus workflow start argus-project-init
+    Prompt: Generate workflow files for this project under .argus/workflows/.
+    Workflow: Start the remediation workflow with `argus workflow start argus-project-init`
 ```
 
 ### Scenario 6: No Active Pipeline, Invariants Passed, No Workflows Available

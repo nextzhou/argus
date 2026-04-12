@@ -345,7 +345,8 @@ func runTickInvariants(catalog *invariant.Catalog, projectRoot string, firstTick
 		failure := InvariantFailure{
 			ID:          inv.ID,
 			Description: describeInvariant(inv),
-			Suggestion:  invariantSuggestion(inv),
+			Prompt:      inv.Prompt,
+			WorkflowID:  inv.Workflow,
 		}
 		return &failure
 	}
@@ -378,19 +379,6 @@ func describeInvariant(inv *invariant.Invariant) string {
 		shells = append(shells, step.Shell)
 	}
 	return strings.Join(shells, "; ")
-}
-
-func invariantSuggestion(inv *invariant.Invariant) string {
-	if inv == nil {
-		return "Review the invariant definition and project state"
-	}
-	if inv.Workflow != "" {
-		return fmt.Sprintf("Run argus workflow start %s", inv.Workflow)
-	}
-	if inv.Prompt != "" {
-		return inv.Prompt
-	}
-	return "Review the invariant definition and project state"
 }
 
 func writeTickWarning(stdout io.Writer, format string, args ...any) {

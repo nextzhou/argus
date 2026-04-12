@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/nextzhou/argus/internal/sessiontest"
@@ -216,7 +217,7 @@ func TestTickLifecycle_FirstTickInvariant(t *testing.T) {
 	assert.NotContains(t, output, "tick-session-start-inv")
 }
 
-func TestTickLifecycle_PromptOnlyInvariantSuggestion(t *testing.T) {
+func TestTickLifecycle_PromptOnlyInvariantRemediation(t *testing.T) {
 	t.Chdir(t.TempDir())
 	writeWorkflowFixture(t, "tick-lifecycle", tickLifecycleWorkflow)
 	writeInvariantFixture(t, "tick-prompt-only-inv", `version: v0.1.0
@@ -240,11 +241,11 @@ prompt: "<<<ARGUS_INIT_REQUIRED>>> initialize argus first"
 	output := string(out)
 	assert.Contains(t, output, "Invariant check failed")
 	assert.Contains(t, output, "tick-prompt-only-inv")
-	assert.Contains(t, output, "<<<ARGUS_INIT_REQUIRED>>> initialize argus first")
-	assert.NotContains(t, output, "Run argus workflow start tick-prompt-only-inv")
+	assert.Contains(t, output, "Prompt: <<<ARGUS_INIT_REQUIRED>>> initialize argus first")
+	assert.NotContains(t, output, "Workflow:")
 }
 
-func TestTickLifecycle_WorkflowOnlyInvariantSuggestion(t *testing.T) {
+func TestTickLifecycle_WorkflowOnlyInvariantRemediation(t *testing.T) {
 	t.Chdir(t.TempDir())
 	writeWorkflowFixture(t, "tick-lifecycle", tickLifecycleWorkflow)
 	writeInvariantFixture(t, "tick-workflow-only-inv", `version: v0.1.0
@@ -268,11 +269,11 @@ workflow: remediation-flow
 	output := string(out)
 	assert.Contains(t, output, "Invariant check failed")
 	assert.Contains(t, output, "tick-workflow-only-inv")
-	assert.Contains(t, output, "Suggestion: Run argus workflow start remediation-flow")
+	assert.Contains(t, output, "Workflow: Start the remediation workflow with `argus workflow start remediation-flow`")
 	assert.NotContains(t, output, "<<<ARGUS_INIT_REQUIRED>>>")
 }
 
-func TestTickLifecycle_WorkflowSuggestionTakesPriorityOverPrompt(t *testing.T) {
+func TestTickLifecycle_PromptAndWorkflowAreBothRendered(t *testing.T) {
 	t.Chdir(t.TempDir())
 	writeWorkflowFixture(t, "tick-lifecycle", tickLifecycleWorkflow)
 	writeInvariantFixture(t, "tick-workflow-priority-inv", `version: v0.1.0
@@ -297,8 +298,9 @@ prompt: "<<<ARGUS_INIT_REQUIRED>>> initialize argus first"
 	output := string(out)
 	assert.Contains(t, output, "Invariant check failed")
 	assert.Contains(t, output, "tick-workflow-priority-inv")
-	assert.Contains(t, output, "Suggestion: Run argus workflow start preferred-remediation")
-	assert.NotContains(t, output, "<<<ARGUS_INIT_REQUIRED>>> initialize argus first")
+	assert.Contains(t, output, "Prompt: <<<ARGUS_INIT_REQUIRED>>> initialize argus first")
+	assert.Contains(t, output, "Workflow: Start the remediation workflow with `argus workflow start preferred-remediation`")
+	assert.Less(t, strings.Index(output, "Prompt:"), strings.Index(output, "Workflow:"))
 }
 
 func TestTickLifecycle_PassingInvariantDoesNotAppendFailure(t *testing.T) {
