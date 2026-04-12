@@ -8,6 +8,7 @@ import (
 	"github.com/nextzhou/argus/internal/core"
 	"github.com/nextzhou/argus/internal/lifecycle"
 	"github.com/nextzhou/argus/internal/pipeline"
+	"github.com/nextzhou/argus/internal/scope"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -143,6 +144,48 @@ func TestCheckBuiltinInvariants_SkipsMisnamedBuiltinFile(t *testing.T) {
 	assert.Equal(t, "builtin-invariants", result.Name)
 	assert.Equal(t, "pass", result.Status)
 	assert.Contains(t, result.Message, "no built-in invariants")
+}
+
+func TestCheckAutomaticInvariantDiagnostics_DefaultSkip(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	projectRoot := t.TempDir()
+	createArgusDir(t, projectRoot, "invariants")
+	writeInvariantFileWithAuto(t, projectRoot, "slow-check.yaml", "slow-check", "always", ":")
+
+	result := CheckAutomaticInvariantDiagnostics(nil, RunOptions{})
+
+	assert.Equal(t, checkAutomaticInvariantDiagnostics, result.Name)
+	assert.Equal(t, "skip", result.Status)
+	assert.Contains(t, result.Message, "disabled by default")
+	assert.Contains(t, result.Suggestion, "argus doctor --check-invariants")
+	require.NotNil(t, result.Detail)
+	require.NotNil(t, result.Detail.AutomaticInvariantDiagnostics)
+	assert.False(t, result.Detail.AutomaticInvariantDiagnostics.Enabled)
+}
+
+func TestCheckAutomaticInvariantDiagnostics_WithFlagReportsStepTiming(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	projectRoot := t.TempDir()
+	createArgusDir(t, projectRoot, "invariants")
+	writeInvariantFileWithAuto(t, projectRoot, "slow-check.yaml", "slow-check", "always", "sleep 3")
+
+	result := CheckAutomaticInvariantDiagnostics(scope.NewProjectScope(projectRoot), RunOptions{CheckInvariants: true})
+
+	assert.Equal(t, checkAutomaticInvariantDiagnostics, result.Name)
+	assert.Equal(t, "fail", result.Status)
+	assert.Contains(t, result.Message, "automatic invariant checks took")
+	require.NotNil(t, result.Detail)
+	require.NotNil(t, result.Detail.AutomaticInvariantDiagnostics)
+	detail := result.Detail.AutomaticInvariantDiagnostics
+	assert.True(t, detail.Enabled)
+	assert.EqualValues(t, 2000, detail.ThresholdMS)
+	assert.GreaterOrEqual(t, detail.TotalTimeMS, int64(3000))
+	require.Len(t, detail.Invariants, 1)
+	assert.Equal(t, "slow-check", detail.Invariants[0].ID)
+	assert.Equal(t, "always", detail.Invariants[0].Auto)
+	require.Len(t, detail.Invariants[0].Steps, 1)
+	assert.Equal(t, "pass", detail.Invariants[0].Steps[0].Status)
+	assert.GreaterOrEqual(t, detail.Invariants[0].Steps[0].DurationMS, int64(3000))
 }
 
 func TestCheckSkillIntegrity_Present(t *testing.T) {
@@ -313,8 +356,8 @@ func TestRunAllChecks_InstalledProject(t *testing.T) {
 	writeHomeFile(t, homeDir, filepath.Join(".codex", "hooks.json"), "{}")
 	writeHomeFile(t, homeDir, filepath.Join(".config", "opencode", "plugins", "argus.ts"), "export default {}\n")
 
-	results := RunAllChecks(projectRoot)
-	require.Len(t, results, 13)
+	results := RunAllChecks(projectRoot, scope.NewProjectScope(projectRoot), RunOptions{CheckInvariants: true})
+	require.Len(t, results, 14)
 
 	for _, result := range results {
 		assert.NotEqual(t, "fail", result.Status, result.Name)
@@ -324,6 +367,7 @@ func TestRunAllChecks_InstalledProject(t *testing.T) {
 	assert.Equal(t, "pass", byName["workflow-files"].Status)
 	assert.Equal(t, "pass", byName["invariant-files"].Status)
 	assert.Equal(t, "pass", byName["builtin-invariants"].Status)
+	assert.Equal(t, "pass", byName["automatic-invariant-diagnostics"].Status)
 	assert.Equal(t, "pass", byName["workspace-config"].Status)
 	assert.Equal(t, "pass", byName["shell-env"].Status)
 	assert.Equal(t, "pass", byName["tmp-permissions"].Status)
@@ -375,6 +419,19 @@ func writeInvariantFile(t *testing.T, projectRoot string, fileName string, invar
 		"check:\n" +
 		"  - description: validate setup\n" +
 		"    shell: test -d .argus\n"
+	writeRepoFile(t, projectRoot, filepath.Join(".argus", "invariants", fileName), content)
+}
+
+func writeInvariantFileWithAuto(t *testing.T, projectRoot string, fileName string, invariantID string, auto string, shell string) {
+	t.Helper()
+
+	content := "version: " + core.SchemaVersion + "\n" +
+		"id: " + invariantID + "\n" +
+		"order: 10\n" +
+		"auto: " + auto + "\n" +
+		"check:\n" +
+		"  - shell: " + `"` + shell + `"` + "\n" +
+		"prompt: Fix it\n"
 	writeRepoFile(t, projectRoot, filepath.Join(".argus", "invariants", fileName), content)
 }
 

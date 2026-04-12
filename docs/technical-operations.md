@@ -6,17 +6,17 @@ This document describes Argus diagnostics, security constraints, and deferred im
 
 ### 12.1 Design Principles
 
-Argus follows architecture invariant #4: diagnostic tools diagnose only and never repair automatically. `doctor` reports problems and suggests actions, but must not execute repair logic or start workflows on its own.
+Argus follows architecture invariant #4: diagnostic tools diagnose only and never repair automatically. `doctor` reports problems and suggests actions, but must not execute repair logic or start workflows on its own. Default `doctor` runs stay on the safe path and avoid invariant shell execution; deeper invariant diagnostics require explicit opt-in.
 
 - **Exit-code model**: follow a `git diff --exit-code` style. Return 0 when all checks pass and 1 when any issue is found
 - **Two entry points**:
   - `argus doctor`: the main CLI diagnosis command
   - `argus-doctor`: an agent skill used as an alternate path, especially when the Argus binary is broken or missing. Invoked as `/argus-doctor` in Claude Code, `$argus-doctor` or `/use argus-doctor` in Codex, and through the `skill` tool in OpenCode
-- **Graceful degradation without the binary**: when the Argus binary is unavailable, `argus-doctor` should mark binary-dependent checks as **skipped** (for example `argus version`, `workflow inspect`, `invariant inspect`, and built-in invariant execution), while still running file-presence, directory-structure, hook-config, and `.gitignore` checks. The final report should summarize `N passed / M failed / K skipped`
+- **Graceful degradation without the binary**: when the Argus binary is unavailable, `argus-doctor` should mark binary-dependent checks as **skipped** (for example `argus version`, `workflow inspect`, `invariant inspect`, and any invariant execution), while still running file-presence, directory-structure, hook-config, and `.gitignore` checks. The final report should summarize `N passed / M failed / K skipped`
 
 ### 12.2 Full Checklist
 
-Doctor covers the following 13 dimensions.
+Doctor covers the following 14 dimensions.
 
 #### 1. Argus Installation Completeness
 
@@ -43,47 +43,55 @@ Doctor covers the following 13 dimensions.
 
 #### 5. Built-In Invariant Checks
 
-- execute shell checks for built-in invariants whose IDs begin with `argus-`
-- do **not** execute user-defined invariants inside `doctor`; keeping the diagnostic surface predictable is more important than running arbitrary project-specific checks here
+- built-in invariant shell checks are **skipped by default**
+- `argus doctor --check-invariants` opts into executing built-in invariants whose IDs begin with `argus-`
+- even when opted in, this remains diagnosis only: no repairs and no workflow starts
 
-#### 6. Skill File Integrity
+#### 6. Automatic Invariant Deep Diagnostics
+
+- automatic invariant deep diagnostics are **skipped by default**
+- `argus doctor --check-invariants` opts into executing current-scope automatic invariants (`auto != never`)
+- report aggregate timing plus invariant-level and step-level timing breakdowns
+- because this runs project-defined shell checks, agent-facing guidance should recommend using the `argus-doctor` skill first to assess risk
+
+#### 7. Skill File Integrity
 
 - verify that Argus-managed project-level skill files exist in `.agents/skills/argus-*/SKILL.md` and `.claude/skills/argus-*/SKILL.md`
 
-#### 7. `.gitignore` Coverage
+#### 8. `.gitignore` Coverage
 
 - confirm that local-only paths are ignored
 - required entries: `.argus/pipelines/`, `.argus/logs/`, `.argus/tmp/`
 - confirm that `.argus/data/` is **not** ignored, because it is a shared git-tracked data directory
 
-#### 8. Log Health
+#### 9. Log Health
 
 - read the full project-level log from `.argus/logs/hook.log` when it exists
 - otherwise fall back to `~/.config/argus/logs/hook.log`, which may contain pre-setup global-hook records
 - report `ERROR` records
 - `doctor` is a low-frequency command, so it may read complete logs rather than sampling them
 
-#### 9. Version Compatibility
+#### 10. Version Compatibility
 
 - extract `version` from workflow, invariant, and pipeline files
 - compare against the current Argus binary using major-version compatibility
 
-#### 10. Temporary Directory Permissions
+#### 11. Temporary Directory Permissions
 
 - verify that `/tmp/argus/` is writable by creating and deleting a temporary file
 
-#### 11. Pipeline Data Integrity
+#### 12. Pipeline Data Integrity
 
 - identify all `running` pipelines
 - verify that each pipeline’s `workflow_id` exists under workflows
 - ensure pipeline YAML is parseable
 
-#### 12. Shell Environment Check
+#### 13. Shell Environment Check
 
 - inspect the user’s default shell from `$SHELL`
 - if it is not bash, emit a warning that invariant shell checks are always executed with bash, so aliases or shell-specific initialization from another shell may not be available there
 
-#### 13. Workspace-Specific Checks
+#### 14. Workspace-Specific Checks
 
 When workspaces are configured:
 

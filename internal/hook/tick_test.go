@@ -321,7 +321,7 @@ jobs:
     prompt: "Run tests"
 `)
 
-	output, logDetails := buildNoActivePipelineOutput(scope.NewProjectScope(projectRoot), false)
+	output, logDetails := buildNoActivePipelineOutput(scope.NewProjectScope(projectRoot), &session.Session{}, false)
 
 	expected, err := FormatNoPipeline([]WorkflowSummary{{ID: "release", Description: "Release workflow"}})
 	require.NoError(t, err)
@@ -349,7 +349,7 @@ check:
 prompt: "Initialize the project first"
 `)
 
-	output, logDetails := buildNoActivePipelineOutput(scope.NewProjectScope(projectRoot), false)
+	output, logDetails := buildNoActivePipelineOutput(scope.NewProjectScope(projectRoot), &session.Session{}, false)
 
 	assertHookSafeTickText(t, output)
 	assert.Contains(t, output, "Argus: Invariant check failed:")
@@ -361,11 +361,135 @@ prompt: "Initialize the project first"
 }
 
 func TestBuildNoActivePipelineOutput_NoWorkflowsReturnsEmpty(t *testing.T) {
-	output, logDetails := buildNoActivePipelineOutput(scope.NewProjectScope(t.TempDir()), false)
+	output, logDetails := buildNoActivePipelineOutput(scope.NewProjectScope(t.TempDir()), &session.Session{}, false)
 
 	assert.Empty(t, output)
 	assert.Contains(t, logDetails, "active=0")
 	assert.Contains(t, logDetails, "scenario=no-output")
+}
+
+func TestHandleTick_NoPipelineSlowInvariantWarnsOncePerSession(t *testing.T) {
+	projectRoot := t.TempDir()
+	writeTickWorkflowFixture(t, projectRoot, "release", `version: v0.1.0
+id: release
+description: Release workflow
+jobs:
+  - id: run_tests
+    prompt: "Run tests"
+`)
+	writeTickInvariantFixture(t, projectRoot, "slow-check", `version: v0.1.0
+id: slow-check
+order: 10
+description: Slow check
+auto: always
+check:
+  - shell: "sleep 3"
+prompt: "Fix it"
+`)
+
+	sessionBaseDir := t.TempDir()
+	input := bytes.NewBufferString(`{"session_id":"ses-slow-once","cwd":"` + projectRoot + `"}`)
+
+	var firstOut bytes.Buffer
+	err := HandleTick("claude-code", false, input, &firstOut, projectRoot, sessionBaseDir)
+	require.NoError(t, err)
+	assert.Contains(t, firstOut.String(), "Invariant checks took 3.")
+	assert.Contains(t, firstOut.String(), "argus-doctor")
+	assert.Contains(t, firstOut.String(), "argus doctor --check-invariants")
+
+	var secondOut bytes.Buffer
+	err = HandleTick(
+		"claude-code",
+		false,
+		bytes.NewBufferString(`{"session_id":"ses-slow-once","cwd":"`+projectRoot+`"}`),
+		&secondOut,
+		projectRoot,
+		sessionBaseDir,
+	)
+	require.NoError(t, err)
+	assert.NotContains(t, secondOut.String(), "Invariant checks took")
+}
+
+func TestHandleTick_NoPipelineWarnsWhenSessionBecomesSlow(t *testing.T) {
+	projectRoot := t.TempDir()
+	writeTickWorkflowFixture(t, projectRoot, "release", `version: v0.1.0
+id: release
+description: Release workflow
+jobs:
+  - id: run_tests
+    prompt: "Run tests"
+`)
+	writeTickInvariantFixture(t, projectRoot, "check", `version: v0.1.0
+id: check
+order: 10
+description: Fast check
+auto: always
+check:
+  - shell: ":"
+prompt: "Fix it"
+`)
+
+	sessionBaseDir := t.TempDir()
+
+	var firstOut bytes.Buffer
+	err := HandleTick(
+		"claude-code",
+		false,
+		bytes.NewBufferString(`{"session_id":"ses-slow-later","cwd":"`+projectRoot+`"}`),
+		&firstOut,
+		projectRoot,
+		sessionBaseDir,
+	)
+	require.NoError(t, err)
+	assert.NotContains(t, firstOut.String(), "Invariant checks took")
+
+	writeTickInvariantFixture(t, projectRoot, "check", `version: v0.1.0
+id: check
+order: 10
+description: Slow check
+auto: always
+check:
+  - shell: "sleep 3"
+prompt: "Fix it"
+`)
+
+	var secondOut bytes.Buffer
+	err = HandleTick(
+		"claude-code",
+		false,
+		bytes.NewBufferString(`{"session_id":"ses-slow-later","cwd":"`+projectRoot+`"}`),
+		&secondOut,
+		projectRoot,
+		sessionBaseDir,
+	)
+	require.NoError(t, err)
+	assert.Contains(t, secondOut.String(), "Invariant checks took 3.")
+}
+
+func TestHandleTick_InvariantFailureSuppressesSlowWarning(t *testing.T) {
+	projectRoot := t.TempDir()
+	writeTickInvariantFixture(t, projectRoot, "slow-fail", `version: v0.1.0
+id: slow-fail
+order: 10
+description: Slow failure
+auto: always
+check:
+  - shell: "sleep 3; exit 1"
+prompt: "Fix the invariant"
+`)
+
+	var out bytes.Buffer
+	err := HandleTick(
+		"claude-code",
+		false,
+		bytes.NewBufferString(`{"session_id":"ses-slow-fail","cwd":"`+projectRoot+`"}`),
+		&out,
+		projectRoot,
+		t.TempDir(),
+	)
+	require.NoError(t, err)
+	assert.Contains(t, out.String(), "Argus: Invariant check failed:")
+	assert.NotContains(t, out.String(), "Invariant checks took")
 }
 
 func TestBuildActivePipelineOutput_SnoozedPipeline(t *testing.T) {
@@ -608,6 +732,7 @@ func TestRunTickInvariants(t *testing.T) {
 		name        string
 		firstTick   bool
 		wantFailure *InvariantFailure
+		wantRan     int
 	}{
 		{
 			name:      "first tick returns first failing invariant",
@@ -617,6 +742,7 @@ func TestRunTickInvariants(t *testing.T) {
 				Description: "Always failing invariant",
 				Prompt:      "Fix the always invariant",
 			},
+			wantRan: 2,
 		},
 		{
 			name:      "later ticks still return always invariant",
@@ -626,6 +752,7 @@ func TestRunTickInvariants(t *testing.T) {
 				Description: "Always failing invariant",
 				Prompt:      "Fix the always invariant",
 			},
+			wantRan: 2,
 		},
 	}
 
@@ -673,9 +800,11 @@ check:
 
 			catalog, err := scope.NewProjectScope(projectRoot).LoadInvariantCatalog()
 			require.NoError(t, err)
-			failure := runTickInvariants(catalog, projectRoot, tt.firstTick)
-			require.NotNil(t, failure)
-			assert.Equal(t, *tt.wantFailure, *failure)
+			result := runTickInvariants(catalog, projectRoot, tt.firstTick)
+			require.NotNil(t, result.Failure)
+			assert.Equal(t, *tt.wantFailure, *result.Failure)
+			assert.Equal(t, tt.wantRan, result.RanChecks)
+			assert.Positive(t, result.TotalTime)
 		})
 	}
 }

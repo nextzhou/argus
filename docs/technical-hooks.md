@@ -65,7 +65,7 @@ Rejected alternative:
 
 ### Output Normalization: One Text Format for `tick`
 
-`argus tick` emits human-readable text and does not customize the payload shape per agent. Each wrapper adapts that text to the hosting agent:
+`argus tick` emits human-readable text and does not customize the payload shape per agent. The payload has one primary orchestration message and may append short non-blocking warning lines after it. Each wrapper adapts that text to the hosting agent:
 
 - **Claude Code / Codex**: the text becomes `additionalContext`
 - **OpenCode**: the text is appended as a message part

@@ -97,7 +97,7 @@ func HandleTickWithSessionStore(agent string, global bool, stdin io.Reader, stdo
 		snapshotJobID      string
 	)
 	if len(activePipelines) == 0 {
-		output, logDetails = buildNoActivePipelineOutput(s, firstTick)
+		output, logDetails = buildNoActivePipelineOutput(s, sess, firstTick)
 	} else {
 		output, logDetails, snapshotPipelineID, snapshotJobID = buildActivePipelineOutput(
 			s,
@@ -202,28 +202,43 @@ func buildActivePipelineOutput(
 	return output, logDetails + " scenario=minimal", snapshotPipelineID, snapshotJobID
 }
 
-func buildNoActivePipelineOutput(s scope.Scope, firstTick bool) (output string, logDetails string) {
+type tickInvariantRun struct {
+	Failure   *InvariantFailure
+	TotalTime time.Duration
+	RanChecks int
+}
+
+func buildNoActivePipelineOutput(s scope.Scope, sess *session.Session, firstTick bool) (output string, logDetails string) {
 	logDetails = "active=0 warnings=0"
 	catalog, warning := loadTickInvariantCatalog(s)
 	if catalog != nil && len(catalog.Issues) > 0 {
 		logDetails += fmt.Sprintf(" invalid_invariants=%d", len(catalog.Issues))
 	}
 
-	failure := runTickInvariants(catalog, s.ProjectRoot(), firstTick)
-	if failure != nil {
-		output, err := FormatInvariantFailure(*failure)
+	result := runTickInvariants(catalog, s.ProjectRoot(), firstTick)
+	if result.Failure != nil {
+		output, err := FormatInvariantFailure(*result.Failure)
 		if err != nil {
 			return appendTickWarningText("", fmt.Sprintf("format error: %v", err)), logDetails + " scenario=format-error"
 		}
 		if warning != "" {
 			output = appendTickWarningText(output, warning)
 		}
-		return output, logDetails + " scenario=invariant-failed invariant=" + failure.ID
+		return output, logDetails + " scenario=invariant-failed invariant=" + result.Failure.ID
+	}
+
+	slowWarning := ""
+	if result.RanChecks > 0 && result.TotalTime > invariant.SlowCheckThreshold && !session.HasWarnedSlowCheck(sess, s.ProjectRoot()) {
+		slowWarning = formatSlowInvariantWarning(result.TotalTime)
+		session.MarkSlowCheckWarned(sess, s.ProjectRoot())
+		logDetails += fmt.Sprintf(" slow_check=%.1fs", result.TotalTime.Seconds())
 	}
 
 	workflows := loadTickWorkflowSummaries(s)
 	if len(workflows) == 0 {
-		return appendTickWarningText("", warning), logDetails + " scenario=no-output"
+		output = appendTickWarningText(output, warning)
+		output = appendTickWarningText(output, slowWarning)
+		return output, logDetails + " scenario=no-output"
 	}
 
 	output, err := FormatNoPipeline(workflows)
@@ -232,6 +247,9 @@ func buildNoActivePipelineOutput(s scope.Scope, firstTick bool) (output string, 
 	}
 	if warning != "" {
 		output = appendTickWarningText(output, warning)
+	}
+	if slowWarning != "" {
+		output = appendTickWarningText(output, slowWarning)
 	}
 	return output, logDetails + " scenario=no-pipeline"
 }
@@ -322,13 +340,14 @@ func loadTickInvariantCatalog(s scope.Scope) (*invariant.Catalog, string) {
 	return catalog, ""
 }
 
-func runTickInvariants(catalog *invariant.Catalog, projectRoot string, firstTick bool) *InvariantFailure {
+func runTickInvariants(catalog *invariant.Catalog, projectRoot string, firstTick bool) tickInvariantRun {
+	run := tickInvariantRun{}
 	if catalog == nil {
-		return nil
+		return run
 	}
 
 	if len(catalog.Invariants) == 0 {
-		return nil
+		return run
 	}
 
 	ctx := context.Background()
@@ -338,20 +357,22 @@ func runTickInvariants(catalog *invariant.Catalog, projectRoot string, firstTick
 		}
 
 		result := invariant.RunCheck(ctx, inv, projectRoot)
+		run.RanChecks++
+		run.TotalTime += result.TotalTime
 		if result.Passed {
 			continue
 		}
 
-		failure := InvariantFailure{
+		run.Failure = &InvariantFailure{
 			ID:          inv.ID,
 			Description: describeInvariant(inv),
 			Prompt:      inv.Prompt,
 			WorkflowID:  inv.Workflow,
 		}
-		return &failure
+		return run
 	}
 
-	return nil
+	return run
 }
 
 func shouldRunInvariantAuto(inv *invariant.Invariant, firstTick bool) bool {
@@ -398,4 +419,11 @@ func appendTickWarningText(base string, warning string) string {
 		return base + fmt.Sprintf("Argus warning: %s\n", warning)
 	}
 	return base + "\n" + fmt.Sprintf("Argus warning: %s\n", warning)
+}
+
+func formatSlowInvariantWarning(totalCheckTime time.Duration) string {
+	return fmt.Sprintf(
+		"Invariant checks took %.1fs total. Use the `argus-doctor` skill to assess invariant risk before running `argus doctor --check-invariants`.",
+		totalCheckTime.Seconds(),
+	)
 }

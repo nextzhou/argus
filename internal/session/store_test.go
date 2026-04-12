@@ -26,6 +26,7 @@ func TestSessionLifecycle(t *testing.T) {
 			Job:       "run_tests",
 			Timestamp: "20240115T113000Z",
 		},
+		SlowCheckWarnedScopes: []string{"scope-a"},
 	}
 
 	err := SaveSession(dir, sessionID, original)
@@ -43,6 +44,7 @@ func TestSessionLifecycle(t *testing.T) {
 	assert.Equal(t, original.LastTick.Pipeline, loaded.LastTick.Pipeline)
 	assert.Equal(t, original.LastTick.Job, loaded.LastTick.Job)
 	assert.Equal(t, original.LastTick.Timestamp, loaded.LastTick.Timestamp)
+	assert.Equal(t, original.SlowCheckWarnedScopes, loaded.SlowCheckWarnedScopes)
 }
 
 func TestSessionLifecycleNilLastTick(t *testing.T) {

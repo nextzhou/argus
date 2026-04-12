@@ -52,7 +52,7 @@ Prefer checking actual file/artifact existence over boolean flags or recorded st
 
 ### 4. Diagnostic tools only diagnose, never treat
 
-`inspect`, `invariant check`, `doctor` only report problems and suggest solutions. They never auto-fix or auto-start workflows. The Agent guides the user to decide.
+`inspect`, `invariant check`, `doctor` only report problems and suggest solutions. They never auto-fix or auto-start workflows. `doctor` may run explicit opt-in diagnostic checks, including invariant shell checks, but still remains read-only. The Agent guides the user to decide.
 
 ### 5. Invariant check is shell-only
 
@@ -130,8 +130,10 @@ All independent schema files (workflow YAML, invariant YAML, pipeline data) incl
 
 ### tick injection strategy
 
-- State changed (new job, new pipeline): inject full context (prompt, skill, detailed guidance)
-- State unchanged: inject minimal summary (current job id + status + job-done reminder)
+- Primary output carries the current orchestration context: either full job context, minimal reminder, no-pipeline workflow list, or the first failing invariant's remediation guidance
+- Secondary warning lane may append short non-blocking warnings after the primary output, for example invalid invariant summaries or slow automatic-check notices
+- State changed (new job, new pipeline): primary output injects full context (prompt, skill, detailed guidance)
+- State unchanged: primary output injects minimal summary (current job id + status + job-done reminder)
 - Minimal summary is necessary: prevents Agent from forgetting to call job-done after multiple conversation turns
 
 ### job-done dual progression

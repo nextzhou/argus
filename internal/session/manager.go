@@ -72,6 +72,32 @@ func UpdateLastTick(s *Session, pipelineID, jobID string, now time.Time) {
 	}
 }
 
+// MarkSlowCheckWarned records that the scope rooted at projectRoot has already
+// surfaced a slow automatic-invariant warning during this session.
+func MarkSlowCheckWarned(s *Session, projectRoot string) {
+	if s == nil || projectRoot == "" {
+		return
+	}
+
+	scopeID := core.ProjectPathToSafeID(projectRoot)
+	if slices.Contains(s.SlowCheckWarnedScopes, scopeID) {
+		return
+	}
+
+	s.SlowCheckWarnedScopes = append(s.SlowCheckWarnedScopes, scopeID)
+}
+
+// HasWarnedSlowCheck reports whether projectRoot has already emitted a slow
+// automatic-invariant warning during this session.
+func HasWarnedSlowCheck(s *Session, projectRoot string) bool {
+	if s == nil || projectRoot == "" {
+		return false
+	}
+
+	scopeID := core.ProjectPathToSafeID(projectRoot)
+	return slices.Contains(s.SlowCheckWarnedScopes, scopeID)
+}
+
 // HasStateChanged reports whether the pipeline/job differs from the last tick.
 func HasStateChanged(s *Session, currentPipeline, currentJob string) bool {
 	if s == nil || s.LastTick == nil {

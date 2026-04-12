@@ -11,6 +11,7 @@ func TestSessionZeroValue(t *testing.T) {
 
 	assert.Nil(t, s.SnoozedPipelines)
 	assert.Nil(t, s.LastTick)
+	assert.Nil(t, s.SlowCheckWarnedScopes)
 }
 
 func TestLastTickStateZeroValue(t *testing.T) {
@@ -29,6 +30,7 @@ func TestSessionFields(t *testing.T) {
 			Job:       "run_tests",
 			Timestamp: "20240115T113000Z",
 		},
+		SlowCheckWarnedScopes: []string{"scope-a", "scope-b"},
 	}
 
 	assert.Len(t, s.SnoozedPipelines, 2)
@@ -39,6 +41,7 @@ func TestSessionFields(t *testing.T) {
 	assert.Equal(t, "release-20240115T103000Z", s.LastTick.Pipeline)
 	assert.Equal(t, "run_tests", s.LastTick.Job)
 	assert.Equal(t, "20240115T113000Z", s.LastTick.Timestamp)
+	assert.Equal(t, []string{"scope-a", "scope-b"}, s.SlowCheckWarnedScopes)
 }
 
 func TestSessionNullableLastTick(t *testing.T) {

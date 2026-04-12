@@ -35,7 +35,7 @@ func TestRunCheckWithRuntime(t *testing.T) {
 				return checkRuntime{
 					now:         fakeNow(base, base.Add(1*time.Millisecond), base.Add(3*time.Millisecond), base.Add(4*time.Millisecond), base.Add(7*time.Millisecond), base.Add(8*time.Millisecond)),
 					stepTimeout: stepTimeout,
-					slowCheckAt: slowCheckAt,
+					slowCheckAt: SlowCheckThreshold,
 					runStep: func(_ context.Context, script string, projectRoot string) (string, string) {
 						seen = append(seen, script)
 						assert.Equal(t, "/tmp/project", projectRoot)
@@ -77,7 +77,7 @@ func TestRunCheckWithRuntime(t *testing.T) {
 				return checkRuntime{
 					now:         fakeNow(base, base.Add(1*time.Millisecond), base.Add(2*time.Millisecond), base.Add(3*time.Millisecond), base.Add(5*time.Millisecond), base.Add(6*time.Millisecond)),
 					stepTimeout: stepTimeout,
-					slowCheckAt: slowCheckAt,
+					slowCheckAt: SlowCheckThreshold,
 					runStep: func(_ context.Context, _ string, _ string) (string, string) {
 						call++
 						if call == 1 {
@@ -121,7 +121,7 @@ func TestRunCheckWithRuntime(t *testing.T) {
 				return checkRuntime{
 					now:         fakeNow(base, base.Add(1*time.Millisecond), base.Add(2*time.Millisecond), base.Add(3*time.Millisecond), base.Add(4*time.Millisecond), base.Add(5*time.Millisecond)),
 					stepTimeout: stepTimeout,
-					slowCheckAt: slowCheckAt,
+					slowCheckAt: SlowCheckThreshold,
 					runStep: func(ctx context.Context, _ string, _ string) (string, string) {
 						call++
 						if call == 1 {
@@ -195,7 +195,7 @@ func TestRunCheckWithRuntime(t *testing.T) {
 				return checkRuntime{
 					now:         fakeNow(base, base.Add(time.Millisecond), base.Add(2*time.Millisecond), base.Add(2*time.Millisecond)),
 					stepTimeout: stepTimeout,
-					slowCheckAt: slowCheckAt,
+					slowCheckAt: SlowCheckThreshold,
 					runStep: func(_ context.Context, _ string, _ string) (string, string) {
 						return "", stepStatusPass
 					},

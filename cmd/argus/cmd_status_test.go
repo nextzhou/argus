@@ -281,6 +281,27 @@ func TestStatusDefaultTextNoPipeline(t *testing.T) {
 	assert.Contains(t, stdout, "Invariants: 0 passed, 0 failed")
 }
 
+func TestStatusDefaultTextIncludesSlowCheckHint(t *testing.T) {
+	t.Chdir(t.TempDir())
+	writeInvariantFixture(t, "slow-check", `version: v0.1.0
+id: slow-check
+order: 10
+description: Slow check
+auto: always
+check:
+  - shell: "sleep 3"
+prompt: "Fix it"
+`)
+
+	stdout, stderr, err := executeTextCommand(t, newStatusCmd())
+	require.NoError(t, err)
+	assert.Empty(t, stderr)
+	assert.Contains(t, stdout, "Hints:")
+	assert.Contains(t, stdout, "Invariant checks took 3.")
+	assert.Contains(t, stdout, "argus-doctor")
+	assert.Contains(t, stdout, "argus doctor --check-invariants")
+}
+
 func TestStatusWithInvariants(t *testing.T) {
 	tests := []struct {
 		name      string

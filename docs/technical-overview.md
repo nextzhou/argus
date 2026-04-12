@@ -19,7 +19,7 @@ Argus is built around the following invariants:
 3. **Workflow and Invariant are complementary.**
    Workflow answers "how to proceed". Invariant answers "what must be true".
 4. **Diagnostic tools diagnose only.**
-   `doctor`, `inspect`, and invariant checks report problems. They do not auto-fix or auto-start workflows.
+   `doctor`, `inspect`, and invariant checks report problems. They do not auto-fix or auto-start workflows. `doctor` may run explicit opt-in diagnostic checks, including invariant shell checks, while remaining read-only.
 5. **Invariant checks are shell-only.**
    They must be deterministic and cheap enough to run silently during `tick`.
 6. **Semantic checks become freshness checks when needed.**

@@ -18,6 +18,7 @@ import (
 	"github.com/nextzhou/argus/internal/invariant"
 	"github.com/nextzhou/argus/internal/lifecycle"
 	"github.com/nextzhou/argus/internal/pipeline"
+	"github.com/nextzhou/argus/internal/scope"
 	"github.com/nextzhou/argus/internal/workflow"
 	"github.com/nextzhou/argus/internal/workspace"
 	"gopkg.in/yaml.v3"
@@ -28,19 +29,20 @@ const (
 	statusFail = "fail"
 	statusSkip = "skip"
 
-	checkSetupIntegrity  = "setup-integrity"
-	checkHookConfig      = "hook-config"
-	checkWorkflowFiles   = "workflow-files"
-	checkInvariantFiles  = "invariant-files"
-	checkBuiltinChecks   = "builtin-invariants"
-	checkSkillIntegrity  = "skill-integrity"
-	checkGitignore       = "gitignore"
-	checkLogHealth       = "log-health"
-	checkVersionCompat   = "version-compat"
-	checkTmpPermissions  = "tmp-permissions"
-	checkPipelineData    = "pipeline-data"
-	checkShellEnv        = "shell-env"
-	checkWorkspaceConfig = "workspace-config"
+	checkSetupIntegrity                = "setup-integrity"
+	checkHookConfig                    = "hook-config"
+	checkWorkflowFiles                 = "workflow-files"
+	checkInvariantFiles                = "invariant-files"
+	checkBuiltinChecks                 = "builtin-invariants"
+	checkAutomaticInvariantDiagnostics = "automatic-invariant-diagnostics"
+	checkSkillIntegrity                = "skill-integrity"
+	checkGitignore                     = "gitignore"
+	checkLogHealth                     = "log-health"
+	checkVersionCompat                 = "version-compat"
+	checkTmpPermissions                = "tmp-permissions"
+	checkPipelineData                  = "pipeline-data"
+	checkShellEnv                      = "shell-env"
+	checkWorkspaceConfig               = "workspace-config"
 
 	tmpArgusDir                  = "/tmp/argus"
 	workspaceConfigRelativePath  = ".config/argus/config.yaml"
@@ -53,24 +55,60 @@ const (
 	builtinInvariantCheckTimeout = 30 * time.Second
 )
 
+// RunOptions configures optional doctor diagnostics.
+type RunOptions struct {
+	CheckInvariants bool
+}
+
+// CheckDetail contains structured data for checks that expose richer JSON output.
+type CheckDetail struct {
+	AutomaticInvariantDiagnostics *AutomaticInvariantDiagnostics `json:"automatic_invariant_diagnostics,omitempty"`
+}
+
+// AutomaticInvariantDiagnostics reports timing breakdowns for automatic invariant checks.
+type AutomaticInvariantDiagnostics struct {
+	Enabled     bool                     `json:"enabled"`
+	Risk        string                   `json:"risk,omitempty"`
+	ThresholdMS int64                    `json:"threshold_ms,omitempty"`
+	TotalTimeMS int64                    `json:"total_time_ms,omitempty"`
+	Invariants  []InvariantTimingDetails `json:"invariants,omitempty"`
+}
+
+// InvariantTimingDetails reports one invariant's total runtime and per-step timing.
+type InvariantTimingDetails struct {
+	ID          string                `json:"id"`
+	Auto        string                `json:"auto"`
+	TotalTimeMS int64                 `json:"total_time_ms"`
+	Steps       []InvariantStepTiming `json:"steps"`
+}
+
+// InvariantStepTiming reports one invariant step duration and execution status.
+type InvariantStepTiming struct {
+	Description string `json:"description,omitempty"`
+	Status      string `json:"status"`
+	DurationMS  int64  `json:"duration_ms"`
+}
+
 // CheckResult reports one doctor check outcome.
 type CheckResult struct {
-	Name       string `json:"name"`
-	Status     string `json:"status"`
-	Message    string `json:"message"`
-	Suggestion string `json:"suggestion,omitempty"`
+	Name       string       `json:"name"`
+	Status     string       `json:"status"`
+	Message    string       `json:"message"`
+	Suggestion string       `json:"suggestion,omitempty"`
+	Detail     *CheckDetail `json:"detail,omitempty"`
 }
 
 // RunAllChecks executes the full doctor check suite.
-func RunAllChecks(projectRoot string) []CheckResult {
-	results := make([]CheckResult, 0, 13)
+func RunAllChecks(projectRoot string, currentScope scope.Scope, options RunOptions) []CheckResult {
+	results := make([]CheckResult, 0, 14)
 	if projectRoot == "" {
 		results = append(results,
 			CheckSetupIntegrity(""),
 			skippedProjectCheck(checkHookConfig),
 			skippedProjectCheck(checkWorkflowFiles),
 			skippedProjectCheck(checkInvariantFiles),
-			skippedProjectCheck(checkBuiltinChecks),
+			skippedInvariantExecutionCheck(checkBuiltinChecks),
+			skippedProjectCheck(checkAutomaticInvariantDiagnostics),
 			skippedProjectCheck(checkSkillIntegrity),
 			skippedProjectCheck(checkGitignore),
 			CheckLogHealth(""),
@@ -88,7 +126,8 @@ func RunAllChecks(projectRoot string) []CheckResult {
 		CheckHookConfig(projectRoot),
 		CheckWorkflowFiles(projectRoot),
 		CheckInvariantFiles(projectRoot),
-		CheckBuiltinInvariants(projectRoot),
+		checkBuiltinDiagnostics(projectRoot, options),
+		CheckAutomaticInvariantDiagnostics(currentScope, options),
 		CheckSkillIntegrity(projectRoot),
 		CheckGitignore(projectRoot),
 		CheckLogHealth(projectRoot),
@@ -328,6 +367,123 @@ func CheckBuiltinInvariants(projectRoot string) CheckResult {
 	return passResult(checkBuiltinChecks, "all built-in invariants passed")
 }
 
+func checkBuiltinDiagnostics(projectRoot string, options RunOptions) CheckResult {
+	if !options.CheckInvariants {
+		return skippedInvariantExecutionCheck(checkBuiltinChecks)
+	}
+
+	return CheckBuiltinInvariants(projectRoot)
+}
+
+// CheckAutomaticInvariantDiagnostics profiles automatic invariant execution.
+func CheckAutomaticInvariantDiagnostics(currentScope scope.Scope, options RunOptions) CheckResult {
+	if !options.CheckInvariants {
+		return CheckResult{
+			Name:       checkAutomaticInvariantDiagnostics,
+			Status:     statusSkip,
+			Message:    "automatic invariant deep diagnostics are disabled by default because they execute project-defined shell checks",
+			Suggestion: "use the `argus-doctor` skill to assess invariant risk, then re-run `argus doctor --check-invariants` if safe",
+			Detail: &CheckDetail{
+				AutomaticInvariantDiagnostics: &AutomaticInvariantDiagnostics{
+					Enabled: false,
+					Risk:    "executes project-defined automatic invariant shell checks",
+				},
+			},
+		}
+	}
+
+	if currentScope == nil {
+		return skipResult(checkAutomaticInvariantDiagnostics, "current Argus scope not found")
+	}
+
+	catalog, err := currentScope.LoadInvariantCatalog()
+	if err != nil {
+		return failResult(
+			checkAutomaticInvariantDiagnostics,
+			fmt.Sprintf("loading invariant catalog: %v", err),
+			"repair the invariant catalog before re-running `argus doctor --check-invariants`",
+		)
+	}
+
+	detail := &AutomaticInvariantDiagnostics{
+		Enabled:     true,
+		Risk:        "executes project-defined automatic invariant shell checks",
+		ThresholdMS: invariant.SlowCheckThreshold.Milliseconds(),
+		Invariants:  []InvariantTimingDetails{},
+	}
+
+	if catalog == nil || len(catalog.Invariants) == 0 {
+		return passResultWithDetail(
+			checkAutomaticInvariantDiagnostics,
+			"no automatic invariants found for deep diagnostics",
+			&CheckDetail{AutomaticInvariantDiagnostics: detail},
+		)
+	}
+
+	projectRoot := currentScope.ProjectRoot()
+	var total time.Duration
+	for _, inv := range catalog.Invariants {
+		if inv.Auto == "never" {
+			continue
+		}
+
+		result := invariant.RunCheck(context.Background(), inv, projectRoot)
+		total += result.TotalTime
+
+		steps := make([]InvariantStepTiming, 0, len(result.Steps))
+		for _, step := range result.Steps {
+			steps = append(steps, InvariantStepTiming{
+				Description: step.Description,
+				Status:      step.Status,
+				DurationMS:  step.Duration.Milliseconds(),
+			})
+		}
+
+		detail.Invariants = append(detail.Invariants, InvariantTimingDetails{
+			ID:          inv.ID,
+			Auto:        inv.Auto,
+			TotalTimeMS: result.TotalTime.Milliseconds(),
+			Steps:       steps,
+		})
+	}
+
+	detail.TotalTimeMS = total.Milliseconds()
+	slices.SortFunc(detail.Invariants, func(a, b InvariantTimingDetails) int {
+		switch {
+		case a.TotalTimeMS > b.TotalTimeMS:
+			return -1
+		case a.TotalTimeMS < b.TotalTimeMS:
+			return 1
+		default:
+			return strings.Compare(a.ID, b.ID)
+		}
+	})
+
+	if len(detail.Invariants) == 0 {
+		return passResultWithDetail(
+			checkAutomaticInvariantDiagnostics,
+			"no automatic invariants found for deep diagnostics",
+			&CheckDetail{AutomaticInvariantDiagnostics: detail},
+		)
+	}
+
+	message := fmt.Sprintf(
+		"automatic invariant checks took %.1fs total across %d invariants",
+		total.Seconds(),
+		len(detail.Invariants),
+	)
+	if total > invariant.SlowCheckThreshold {
+		return failResultWithDetail(
+			checkAutomaticInvariantDiagnostics,
+			message,
+			"optimize the slowest automatic invariants or narrow their auto policy",
+			&CheckDetail{AutomaticInvariantDiagnostics: detail},
+		)
+	}
+
+	return passResultWithDetail(checkAutomaticInvariantDiagnostics, message, &CheckDetail{AutomaticInvariantDiagnostics: detail})
+}
+
 // CheckSkillIntegrity verifies managed project skill mirrors.
 func CheckSkillIntegrity(projectRoot string) CheckResult {
 	if projectRoot == "" {
@@ -561,6 +717,18 @@ func failResult(name string, message string, suggestion string) CheckResult {
 	return CheckResult{Name: name, Status: statusFail, Message: message, Suggestion: suggestion}
 }
 
+func passResultWithDetail(name string, message string, detail *CheckDetail) CheckResult {
+	result := passResult(name, message)
+	result.Detail = detail
+	return result
+}
+
+func failResultWithDetail(name string, message string, suggestion string, detail *CheckDetail) CheckResult {
+	result := failResult(name, message, suggestion)
+	result.Detail = detail
+	return result
+}
+
 func readProjectFile(projectRoot string, relativePath string) ([]byte, error) {
 	path := filepath.Join(projectRoot, relativePath)
 	if err := core.ValidatePath(projectRoot, path); err != nil {
@@ -582,6 +750,15 @@ func skipResult(name string, message string) CheckResult {
 
 func skippedProjectCheck(name string) CheckResult {
 	return skipResult(name, "project root not found")
+}
+
+func skippedInvariantExecutionCheck(name string) CheckResult {
+	return CheckResult{
+		Name:       name,
+		Status:     statusSkip,
+		Message:    "invariant shell checks are disabled by default because they execute shell commands",
+		Suggestion: "use the `argus-doctor` skill to assess invariant risk, then re-run `argus doctor --check-invariants` if safe",
+	}
 }
 
 func isExistingDirectory(path string) bool {

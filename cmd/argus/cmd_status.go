@@ -209,8 +209,11 @@ func runStatusInvariants(ctx context.Context, s scope.Scope, out *statusOutput) 
 		})
 	}
 
-	if totalCheckTime.Seconds() > 2 {
-		out.Hints = append(out.Hints, fmt.Sprintf("Invariant checks took %.1fs total. Run argus doctor to investigate slow checks.", totalCheckTime.Seconds()))
+	if totalCheckTime > invariant.SlowCheckThreshold {
+		out.Hints = append(out.Hints, fmt.Sprintf(
+			"Invariant checks took %.1fs total. Use the `argus-doctor` skill to assess invariant risk before running `argus doctor --check-invariants`.",
+			totalCheckTime.Seconds(),
+		))
 	}
 }
 
@@ -234,11 +237,24 @@ func renderStatusTextInvalidInvariants(w io.Writer, out statusOutput) {
 	}
 }
 
+func renderStatusTextHints(w io.Writer, out statusOutput) {
+	if len(out.Hints) == 0 {
+		return
+	}
+
+	_, _ = fmt.Fprintln(w)
+	_, _ = fmt.Fprintln(w, "Hints:")
+	for _, hint := range out.Hints {
+		_, _ = fmt.Fprintf(w, "  - %s\n", hint)
+	}
+}
+
 func renderStatusTextNoPipeline(w io.Writer, out statusOutput) {
 	_, _ = fmt.Fprintf(w, "Argus: Project status\n\n")
 	_, _ = fmt.Fprintf(w, "Pipeline: No active pipeline\n\n")
 	_, _ = fmt.Fprintf(w, "Invariants: %d passed, %d failed\n", out.Invariants.Passed, out.Invariants.Failed)
 	renderStatusTextFailedInvariants(w, out)
+	renderStatusTextHints(w, out)
 	renderStatusTextInvalidInvariants(w, out)
 }
 
@@ -269,5 +285,6 @@ func renderStatusTextActive(w io.Writer, out statusOutput, instanceID string) {
 
 	_, _ = fmt.Fprintf(w, "\nInvariants: %d passed, %d failed\n", out.Invariants.Passed, out.Invariants.Failed)
 	renderStatusTextFailedInvariants(w, out)
+	renderStatusTextHints(w, out)
 	renderStatusTextInvalidInvariants(w, out)
 }

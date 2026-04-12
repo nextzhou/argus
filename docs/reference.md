@@ -264,7 +264,7 @@ These commands default to human-readable text. Add `--json` when you need struct
 | `argus setup --workspace <path> [--yes] [--json]` | Register a workspace and set up or refresh global hooks, skills, and global artifacts |
 | `argus teardown [--yes] [--json]` | Remove project-level Argus setup from the current directory; managed user-level global skills are left in place |
 | `argus teardown --workspace <path> [--yes] [--json]` | Remove a registered workspace; if it is the last one, also remove managed global hooks, skills, global artifacts, and the `~/.config/argus/` root |
-| `argus doctor [--json]` | Diagnose setup and configuration issues |
+| `argus doctor [--check-invariants] [--json]` | Diagnose setup and configuration issues; `--check-invariants` opts into invariant shell checks for deeper diagnostics |
 | `argus version [--json]` | Show version |
 
 ### Workflow and Pipeline Commands

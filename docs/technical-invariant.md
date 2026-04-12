@@ -187,7 +187,7 @@ During `tick`, Argus only considers automatic invariants when no active pipeline
 
 Argus evaluates valid automatic invariants in ascending `order`. `session_start` and `always` share the same ordering pool; on the first tick of a session, both categories may participate, and the first failure is whichever valid invariant with the lowest `order` fails first.
 
-To keep hooks responsive, automatic checks should remain fast. A single check step has a timeout of 5 seconds. If total invariant-check time exceeds 2 seconds, Argus warns the user to investigate slow checks.
+To keep hooks responsive, automatic checks should remain fast. A single check step has a timeout of 5 seconds. If total automatic-check time exceeds 2 seconds, Argus surfaces a slow-check warning and points the agent toward deeper diagnostics.
 
 ### Shell Check Execution Environment
 
@@ -209,14 +209,14 @@ Each check step runs in an isolated Bash process:
 ### Timeout and Performance Monitoring
 
 - **Per-step timeout**: 5 seconds. A timed-out step counts as **failed** and should be labeled as a timeout in reports
-- **Aggregate timing**: Argus records total invariant-check time. If total time exceeds 2 seconds, `tick` adds a hint suggesting `argus doctor`
+- **Aggregate timing**: Argus records total invariant-check time. If total time exceeds 2 seconds, `tick` may append a secondary warning on the first slow occurrence in a session when no failing invariant is being surfaced, and `status` adds an overview hint. Deep timing breakdowns require explicit opt-in through `argus doctor --check-invariants`
 - **Phase 1 has no custom timeout field**: invariant YAML does not support per-check timeout configuration yet
 
 ### Failure Handling
 
 When an automatic check fails, Argus does not auto-start a repair workflow. Instead, it stops at the first failing invariant in `order` and injects that failure's remediation guidance as the exclusive tick output. The agent explains the issue to the user and guides the next decision.
 
-If some invariant files are invalid, Argus excludes them from the ordered runtime evaluation set. `tick` emits only a summary warning and points the agent to `argus invariant inspect`; `status`, `invariant list`, and `invariant check` continue operating on valid invariants while surfacing invalid-definition issues separately.
+If some invariant files are invalid, Argus excludes them from the ordered runtime evaluation set. `tick` emits only a summary warning in its secondary warning lane and points the agent to `argus invariant inspect`; `status`, `invariant list`, and `invariant check` continue operating on valid invariants while surfacing invalid-definition issues separately.
 
 ### Three-State Step Output
 

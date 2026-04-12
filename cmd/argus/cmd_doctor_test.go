@@ -2,6 +2,8 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -12,7 +14,7 @@ import (
 )
 
 // executeDoctorCmd runs the doctor command and captures command output.
-func executeDoctorCmd(t *testing.T) (string, error) {
+func executeDoctorCmd(t *testing.T, args ...string) (string, error) {
 	t.Helper()
 
 	cmd := newDoctorCmd()
@@ -20,6 +22,7 @@ func executeDoctorCmd(t *testing.T) (string, error) {
 	cmd.SilenceUsage = true
 	var out bytes.Buffer
 	cmd.SetOut(&out)
+	cmd.SetArgs(args)
 	cmdErr := cmd.Execute()
 
 	return out.String(), cmdErr
@@ -72,6 +75,57 @@ func TestDoctorCmd_NoProjectRoot(t *testing.T) {
 		"non-project checks should still run")
 	assert.Regexp(t, `\d+ checks: \d+ passed, \d+ failed, \d+ skipped`, out,
 		"should still show summary")
+}
+
+func TestDoctorCmd_DefaultShowsInvariantDiagnosticsSkip(t *testing.T) {
+	setUpIsolatedDoctorEnv(t)
+	projectRoot := t.TempDir()
+	t.Chdir(projectRoot)
+	require.NoError(t, os.MkdirAll(filepath.Join(projectRoot, ".git"), 0o700))
+
+	out, _ := executeDoctorCmd(t)
+
+	assert.Contains(t, out, "[SKIP] automatic-invariant-diagnostics")
+	assert.Contains(t, out, "disabled by default")
+	assert.Contains(t, out, "argus doctor --check-invariants")
+}
+
+func TestDoctorCmd_JSONIncludesStructuredInvariantDiagnostics(t *testing.T) {
+	setUpIsolatedDoctorEnv(t)
+	projectRoot := t.TempDir()
+	t.Chdir(projectRoot)
+	require.NoError(t, os.MkdirAll(filepath.Join(projectRoot, ".git"), 0o700))
+	require.NoError(t, os.MkdirAll(filepath.Join(projectRoot, ".argus", "invariants"), 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(projectRoot, ".argus", "invariants", "slow-check.yaml"), []byte(`version: v0.1.0
+id: slow-check
+order: 10
+auto: always
+check:
+  - shell: "sleep 3"
+prompt: "Fix it"
+`), 0o600))
+
+	data, err := executeJSONCommand(t, newDoctorCmd(), "--check-invariants")
+	require.Error(t, err)
+
+	var payload map[string]any
+	require.NoError(t, json.Unmarshal(data, &payload))
+	checks := payload["checks"].([]any)
+	found := false
+	for _, raw := range checks {
+		check := raw.(map[string]any)
+		if check["name"] != "automatic-invariant-diagnostics" {
+			continue
+		}
+		found = true
+		detail := check["detail"].(map[string]any)
+		auto := detail["automatic_invariant_diagnostics"].(map[string]any)
+		assert.Equal(t, true, auto["enabled"])
+		invariants := auto["invariants"].([]any)
+		require.Len(t, invariants, 1)
+		break
+	}
+	assert.True(t, found, "expected automatic invariant diagnostics check in JSON output")
 }
 
 func TestWriteDoctorReport_OutputFormat(t *testing.T) {

@@ -19,6 +19,8 @@ func TestManager(t *testing.T) {
 	t.Run("TestSnoozeAll", TestSnoozeAll)
 	t.Run("TestUpdateLastTick", TestUpdateLastTick)
 	t.Run("TestHasStateChanged", TestHasStateChanged)
+	t.Run("TestMarkSlowCheckWarned", TestMarkSlowCheckWarned)
+	t.Run("TestHasWarnedSlowCheck", TestHasWarnedSlowCheck)
 	t.Run("TestSessionFileTimingContract", TestSessionFileTimingContract)
 }
 
@@ -215,6 +217,58 @@ func TestSessionFileTimingContract(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.False(t, IsFirstTick(baseDir, sessionID))
+}
+
+func TestMarkSlowCheckWarned(t *testing.T) {
+	t.Run("adds scope once using stable safe id", func(t *testing.T) {
+		s := &Session{}
+
+		MarkSlowCheckWarned(s, "/tmp/project-a")
+		MarkSlowCheckWarned(s, "/tmp/project-a")
+		MarkSlowCheckWarned(s, "/tmp/project-b")
+
+		assert.Len(t, s.SlowCheckWarnedScopes, 2)
+		assert.Equal(t, core.ProjectPathToSafeID("/tmp/project-a"), s.SlowCheckWarnedScopes[0])
+		assert.Equal(t, core.ProjectPathToSafeID("/tmp/project-b"), s.SlowCheckWarnedScopes[1])
+	})
+}
+
+func TestHasWarnedSlowCheck(t *testing.T) {
+	tests := []struct {
+		name        string
+		session     *Session
+		projectRoot string
+		want        bool
+	}{
+		{
+			name:        "nil session returns false",
+			session:     nil,
+			projectRoot: "/tmp/project-a",
+			want:        false,
+		},
+		{
+			name: "matching safe id returns true",
+			session: &Session{
+				SlowCheckWarnedScopes: []string{core.ProjectPathToSafeID("/tmp/project-a")},
+			},
+			projectRoot: "/tmp/project-a",
+			want:        true,
+		},
+		{
+			name: "different project returns false",
+			session: &Session{
+				SlowCheckWarnedScopes: []string{core.ProjectPathToSafeID("/tmp/project-a")},
+			},
+			projectRoot: "/tmp/project-b",
+			want:        false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, HasWarnedSlowCheck(tt.session, tt.projectRoot))
+		})
+	}
 }
 
 func countMatches(items []string, target string) int {

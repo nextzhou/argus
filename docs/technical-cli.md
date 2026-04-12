@@ -29,7 +29,7 @@ Argus uses an agent-centric interaction model. The external command set stays de
 | `argus setup --workspace <path> [--yes] [--json]` | Register a workspace path. Set up global `tick` hooks, the current managed global built-in skills, and global-scope artifacts under `~/.config/argus/`. If the workspace is already registered, rerunning the command refreshes those managed global resources to match the current binary. Confirmation is required unless `--yes` is used. Default output is text; `--json` returns a structured result. | `0` success, `1` failure |
 | `argus teardown [--yes] [--json]` | Remove project-level Argus setup from the current directory. Delete `.argus/`, remove Argus-managed project-level skills (`.agents/skills/argus-*` and `.claude/skills/argus-*`; non-`argus-` prefixed user skills are preserved), and remove Argus hook configuration. Managed user-level global skills remain in place. Git-tracked files can be restored through Git if needed. Confirmation is required unless `--yes` is used. | `0` success, `1` failure |
 | `argus teardown --workspace <path> [--yes] [--json]` | Remove one registered workspace path. If no workspaces remain, also remove global hooks, global skills, global artifacts, and the managed `~/.config/argus/` root. Confirmation is required unless `--yes` is used. | `0` success, `1` failure |
-| `argus doctor [--json]` | Diagnose Argus setup and configuration health. Reports only, never repairs. Default output is a human-readable report; `--json` returns structured data. | `0` all checks passed, `1` findings present |
+| `argus doctor [--check-invariants] [--json]` | Diagnose Argus setup and configuration health. Default mode stays in a safe, non-executing diagnostic path; `--check-invariants` opts into invariant shell checks for deeper diagnostics. Reports only, never repairs. Default output is a human-readable report; `--json` returns structured data. | `0` all checks passed, `1` findings present |
 | `argus version [--json]` | Show the current version. Default output is brief text; `--json` returns structured data. | Always `0` |
 | `argus help [--all]` | Show help. `--all` includes internal commands. | Always `0` |
 
@@ -37,7 +37,7 @@ Argus uses an agent-centric interaction model. The external command set stays de
 
 | Command | Description |
 | :--- | :--- |
-| `argus tick` | Passive coordination point triggered whenever the user sends input to the agent. Checks state and injects context. |
+| `argus tick` | Passive coordination point triggered whenever the user sends input to the agent. Injects primary orchestration context and may append short non-blocking warnings. |
 | `argus trap` | Reserved operation-gating entry point. In Phase 1 it always allows operations and is not wired by `argus setup`. |
 | `argus job-done [--fail] [--end-pipeline] [--message "..."] [--json]` | Report that the current job is finished. `--fail` marks failure. `--end-pipeline` ends the pipeline early (defaults to success; combined with `--fail` it becomes an early failure). `--message` records an optional summary. Default output is readable text; `--json` returns structured data. |
 | `argus status [--json]` | Show a project-level overview including pipeline progress and invariant status. Runs real-time invariant checks. |
@@ -82,7 +82,7 @@ The following commands were removed during design iteration:
 
 - `job current`: superseded by `tick` for passive reminders and `status` for active inspection
 - `job done` / `job fail`: unified as `job-done` with flags
-- `info`: static information belongs to `doctor` and `version`; runtime information belongs to `status`
+- `info`: overview-style runtime state belongs to `status`; deep read-only diagnostics belong to `doctor`
 - `rules regenerate`: rule regeneration should happen through a workflow, not a dedicated subcommand
 - `rules check`: freshness checks are covered by invariants and `tick`
 - `rules list`: agents can already read `.argus/rules/` directly
@@ -162,6 +162,13 @@ Specific commands define their own inner fields (see §8.2 `workflow start`, §8
 
 **Compatibility rule**: the first non-whitespace character must not be `[` or `{`. Current Codex may interpret those prefixes as JSON candidates and reject otherwise valid text output.
 
+`tick` has two output lanes:
+
+- **Primary output**: the orchestration context Argus wants the agent to act on
+- **Secondary warnings**: short non-blocking warnings appended after the primary output when needed
+
+The scenarios below describe the primary output. Secondary warnings may still be appended for issues such as invalid invariant definitions or slow automatic checks.
+
 ### Scenario 1: No Active Pipeline, Invariants Passed, Workflows Available
 
 ```markdown
@@ -201,7 +208,7 @@ If the current pipeline has been snoozed in the current session, output becomes 
 
 ### Scenario 5: No Active Pipeline, First Failing Invariant
 
-When no active pipeline exists, `tick` evaluates valid auto invariants in ascending `order` and stops at the first failing one. Invalid invariant definitions are excluded from that runtime pool and summarized as a warning. The invariant failure becomes the only main output:
+When no active pipeline exists, `tick` evaluates valid auto invariants in ascending `order` and stops at the first failing one. Invalid invariant definitions are excluded from that runtime pool and summarized as a warning. The invariant failure becomes the only primary output:
 
 ```markdown
 Argus: Invariant check failed:
@@ -212,7 +219,7 @@ Argus: Invariant check failed:
 
 ### Scenario 6: No Active Pipeline, Invariants Passed, No Workflows Available
 
-`tick` emits no output.
+`tick` emits no primary output. Secondary warnings may still appear when Argus needs to surface a non-blocking problem.
 
 ## 8.2 `workflow start` Output
 
@@ -444,7 +451,7 @@ Invariants: 2 passed, 1 failed
   },
   "invalid_invariants": [],
   "hints": [
-    "Invariant checks took 3.2s total. Run argus doctor to investigate slow checks."
+    "Invariant checks took 3.2s total. Use the `argus-doctor` skill to assess invariant risk before running `argus doctor --check-invariants`."
   ]
 }
 ```
@@ -457,6 +464,7 @@ Notes:
 - `invalid_invariants` lists malformed or conflicting invariant definitions that were excluded from runtime evaluation
 - `description` comes from top-level invariant YAML `description`; if missing, Argus may fall back to a shell-summary string
 - `hints` is a general-purpose array for performance warnings and other guidance
+- slow invariant-check hints stay at the overview level here; deep timing breakdowns require `argus doctor --check-invariants`
 
 ### With No Active Pipeline
 

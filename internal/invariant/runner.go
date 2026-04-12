@@ -18,8 +18,10 @@ const (
 	stepStatusSkip = "skip"
 
 	stepTimeout = 5 * time.Second
-	slowCheckAt = 2 * time.Second
-	outputCap   = 8 * 1024
+	// SlowCheckThreshold is the aggregate automatic-check runtime above which
+	// Argus surfaces a slow-check warning or diagnostic finding.
+	SlowCheckThreshold = 2 * time.Second
+	outputCap          = 8 * 1024
 )
 
 type checkRuntime struct {
@@ -62,7 +64,7 @@ func runCheckWithRuntime(ctx context.Context, inv *Invariant, projectRoot string
 		runtime.stepTimeout = stepTimeout
 	}
 	if runtime.slowCheckAt == 0 {
-		runtime.slowCheckAt = slowCheckAt
+		runtime.slowCheckAt = SlowCheckThreshold
 	}
 	if runtime.runStep == nil {
 		runtime.runStep = func(ctx context.Context, script string, projectRoot string) (string, string) {
