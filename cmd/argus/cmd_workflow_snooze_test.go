@@ -46,13 +46,14 @@ func TestWorkflowSnooze(t *testing.T) {
 			},
 			wantErr: false,
 			checkJSON: func(t *testing.T, data map[string]any) {
+				t.Helper()
 				assert.Equal(t, "ok", data["status"])
-				snoozed, ok := data["snoozed"].([]any)
-				require.True(t, ok, "snoozed should be an array")
+				snoozed := mustJSONArray(t, data["snoozed"])
 				require.Len(t, snoozed, 1)
 				assert.Equal(t, "release-20240101T000000Z", snoozed[0])
 			},
 			checkSess: func(t *testing.T, store session.Store, sessionID string) {
+				t.Helper()
 				s, err := store.Load(sessionID)
 				require.NoError(t, err)
 				assert.Contains(t, s.SnoozedPipelines, "release-20240101T000000Z")
@@ -64,6 +65,7 @@ func TestWorkflowSnooze(t *testing.T) {
 			pipelines:    nil,
 			wantErr:      true,
 			checkJSON: func(t *testing.T, data map[string]any) {
+				t.Helper()
 				assert.Equal(t, "error", data["status"])
 				assert.NotEmpty(t, data["message"])
 			},
@@ -76,9 +78,11 @@ func TestWorkflowSnooze(t *testing.T) {
 			},
 			wantErr: false,
 			checkJSON: func(t *testing.T, data map[string]any) {
+				t.Helper()
 				assert.Equal(t, "ok", data["status"])
 			},
 			checkSess: func(t *testing.T, store session.Store, sessionID string) {
+				t.Helper()
 				s, err := store.Load(sessionID)
 				require.NoError(t, err)
 				count := 0
@@ -111,19 +115,20 @@ jobs:
 			},
 			wantErr: false,
 			checkJSON: func(t *testing.T, data map[string]any) {
+				t.Helper()
 				assert.Equal(t, "ok", data["status"])
-				snoozed, ok := data["snoozed"].([]any)
-				require.True(t, ok, "snoozed should be an array")
+				snoozed := mustJSONArray(t, data["snoozed"])
 				require.Len(t, snoozed, 2)
 
 				ids := make([]string, len(snoozed))
 				for i, v := range snoozed {
-					ids[i] = v.(string)
+					ids[i] = mustJSONString(t, v)
 				}
 				assert.Contains(t, ids, "release-20240101T000000Z")
 				assert.Contains(t, ids, "deploy-20240102T000000Z")
 			},
 			checkSess: func(t *testing.T, store session.Store, sessionID string) {
+				t.Helper()
 				s, err := store.Load(sessionID)
 				require.NoError(t, err)
 				assert.Contains(t, s.SnoozedPipelines, "release-20240101T000000Z")

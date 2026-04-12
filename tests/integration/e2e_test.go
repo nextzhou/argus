@@ -60,11 +60,10 @@ func TestE2E_CompleteWorkflowLifecycle(t *testing.T) {
 
 	result = runArgusJSON(t, projectDir, "workflow", "list")
 	data := requireOK(t, result)
-	workflows, ok := data["workflows"].([]any)
-	require.True(t, ok, "workflows should be an array")
+	workflows := requireJSONArray(t, data["workflows"], "workflows")
 	found := false
-	for _, w := range workflows {
-		wf := w.(map[string]any)
+	for index, w := range workflows {
+		wf := requireJSONObject(t, w, fmt.Sprintf("workflows[%d]", index))
 		if wf["id"] == "e2e-test" {
 			found = true
 			break
@@ -76,9 +75,9 @@ func TestE2E_CompleteWorkflowLifecycle(t *testing.T) {
 	data = requireOK(t, result)
 	assert.Equal(t, "running", data["pipeline_status"])
 	assert.Equal(t, "1/3", data["progress"])
-	nextJob := data["next_job"].(map[string]any)
+	nextJob := requireJSONObject(t, data["next_job"], "next_job")
 	assert.Equal(t, "step_one", nextJob["id"])
-	assert.Contains(t, nextJob["prompt"].(string), "Execute step one")
+	assert.Contains(t, requireJSONString(t, nextJob["prompt"], "next_job.prompt"), "Execute step one")
 
 	stdinJSON := fmt.Sprintf(`{"session_id":"%s","cwd":"%s"}`, sessionID, projectDir)
 	result = runArgusWithStdin(t, projectDir, stdinJSON, "tick", "--agent", "claude-code")
@@ -91,22 +90,22 @@ func TestE2E_CompleteWorkflowLifecycle(t *testing.T) {
 	result = runArgusJSON(t, projectDir, "job-done", "--message", "step one completed")
 	data = requireOK(t, result)
 	assert.Equal(t, "running", data["pipeline_status"])
-	nextJob = data["next_job"].(map[string]any)
+	nextJob = mustJSONObject(t, data["next_job"])
 	assert.Equal(t, "step_two", nextJob["id"])
-	assert.Contains(t, nextJob["prompt"].(string), "step one completed")
+	assert.Contains(t, mustJSONString(t, nextJob["prompt"]), "step one completed")
 
 	result = runArgusJSON(t, projectDir, "job-done", "--message", "step two completed")
 	data = requireOK(t, result)
 	assert.Equal(t, "running", data["pipeline_status"])
-	nextJob = data["next_job"].(map[string]any)
+	nextJob = mustJSONObject(t, data["next_job"])
 	assert.Equal(t, "step_three", nextJob["id"])
 
 	result = runArgusJSON(t, projectDir, "status")
 	data = requireOK(t, result)
-	pipeline := data["pipeline"].(map[string]any)
+	pipeline := mustJSONObject(t, data["pipeline"])
 	assert.Equal(t, "running", pipeline["status"])
 	assert.Equal(t, "e2e-test", pipeline["workflow_id"])
-	progress := pipeline["progress"].(map[string]any)
+	progress := mustJSONObject(t, pipeline["progress"])
 	assert.InDelta(t, 3, progress["current"], 0)
 	assert.InDelta(t, 3, progress["total"], 0)
 
@@ -138,10 +137,10 @@ func TestE2E_InvariantCheckIntegration(t *testing.T) {
 
 	result = runArgusJSON(t, projectDir, "invariant", "list")
 	data := requireOK(t, result)
-	invariants := data["invariants"].([]any)
+	invariants := mustJSONArray(t, data["invariants"])
 	found := false
 	for _, inv := range invariants {
-		invMap := inv.(map[string]any)
+		invMap := mustJSONObject(t, inv)
 		if invMap["id"] == "e2e-test-inv" {
 			found = true
 			break
@@ -153,9 +152,9 @@ func TestE2E_InvariantCheckIntegration(t *testing.T) {
 	data = requireOK(t, result)
 	assert.InDelta(t, 0, data["passed"], 0)
 	assert.InDelta(t, 1, data["failed"], 0)
-	results := data["results"].([]any)
+	results := mustJSONArray(t, data["results"])
 	require.Len(t, results, 1)
-	invResult := results[0].(map[string]any)
+	invResult := mustJSONObject(t, results[0])
 	assert.Equal(t, "e2e-test-inv", invResult["id"])
 	assert.Equal(t, "failed", invResult["status"])
 
@@ -165,9 +164,9 @@ func TestE2E_InvariantCheckIntegration(t *testing.T) {
 	data = requireOK(t, result)
 	assert.InDelta(t, 1, data["passed"], 0)
 	assert.InDelta(t, 0, data["failed"], 0)
-	results = data["results"].([]any)
+	results = mustJSONArray(t, data["results"])
 	require.Len(t, results, 1)
-	invResult = results[0].(map[string]any)
+	invResult = mustJSONObject(t, results[0])
 	assert.Equal(t, "passed", invResult["status"])
 }
 
@@ -184,9 +183,12 @@ func TestE2E_WorkflowInspect(t *testing.T) {
 
 	result = runArgusJSON(t, projectDir, "workflow", "inspect")
 	data := requireOK(t, result)
-	files := data["files"].(map[string]any)
-	e2eFile := files["e2e-test.yaml"].(map[string]any)
-	assert.Equal(t, true, e2eFile["valid"], "user workflow should be valid")
+	entries := requireJSONArray(t, data["entries"], "entries")
+	entry := requireEntryByBaseName(t, entries, "e2e-test.yaml")
+	assert.Equal(t, true, entry["valid"], "user workflow should be valid")
+
+	source := requireJSONObject(t, entry["source"], "entry.source")
+	assert.Equal(t, "e2e-test.yaml", filepath.Base(requireJSONString(t, source["raw"], "entry.source.raw")))
 
 	result = runArgusJSON(t, projectDir, "invariant", "inspect")
 	requireOK(t, result)
@@ -241,7 +243,7 @@ func TestE2E_CancelAndRestart(t *testing.T) {
 
 	result = runArgusJSON(t, projectDir, "workflow", "cancel")
 	data := requireOK(t, result)
-	cancelled := data["cancelled"].([]any)
+	cancelled := mustJSONArray(t, data["cancelled"])
 	require.Len(t, cancelled, 1)
 
 	result = runArgusJSON(t, projectDir, "status")
@@ -331,21 +333,21 @@ prompt: "fix it"
 	result = runArgusJSON(t, projectDir, "status")
 	data := requireOK(t, result)
 
-	pipeline := data["pipeline"].(map[string]any)
+	pipeline := mustJSONObject(t, data["pipeline"])
 	assert.Equal(t, "running", pipeline["status"])
 
-	invariants := data["invariants"].(map[string]any)
-	details := invariants["details"].([]any)
+	invariants := mustJSONObject(t, data["invariants"])
+	details := mustJSONArray(t, invariants["details"])
 	foundPass := false
 	for _, d := range details {
-		detail := d.(map[string]any)
+		detail := mustJSONObject(t, d)
 		if detail["id"] == "e2e-pass-inv" {
 			assert.Equal(t, "passed", detail["status"])
 			foundPass = true
 		}
 	}
 	assert.True(t, foundPass, "e2e-pass-inv should appear in status details")
-	passed := invariants["passed"].(float64)
+	passed := mustJSONNumber(t, invariants["passed"])
 	assert.GreaterOrEqual(t, passed, float64(1), "at least our custom invariant should pass")
 }
 
@@ -372,7 +374,7 @@ func TestE2E_TrapAlwaysAllows(t *testing.T) {
 	require.Equal(t, 0, result.ExitCode)
 
 	data := parseJSON(t, result.Stdout)
-	hookOutput := data["hookSpecificOutput"].(map[string]any)
+	hookOutput := mustJSONObject(t, data["hookSpecificOutput"])
 	assert.Equal(t, "allow", hookOutput["permissionDecision"])
 }
 
@@ -393,7 +395,7 @@ func TestE2E_Snooze(t *testing.T) {
 
 	result = runArgusJSON(t, projectDir, "workflow", "snooze", "--session", sessionID)
 	data := requireOK(t, result)
-	snoozed := data["snoozed"].([]any)
+	snoozed := mustJSONArray(t, data["snoozed"])
 	require.Len(t, snoozed, 1)
 
 	stdinJSON := fmt.Sprintf(`{"session_id":"%s","cwd":"%s"}`, sessionID, projectDir)

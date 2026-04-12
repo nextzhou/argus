@@ -35,6 +35,8 @@ jobs:
     prompt: "Run tests"
 `,
 			checkJobs: func(t *testing.T, jobs []workflow.Job) {
+				t.Helper()
+				t.Helper()
 				require.Len(t, jobs, 2)
 				assert.Equal(t, "build", jobs[0].ID)
 				assert.Equal(t, "Build the project", jobs[0].Prompt)
@@ -65,6 +67,8 @@ jobs:
     skill: "argus-test"
 `,
 			checkJobs: func(t *testing.T, jobs []workflow.Job) {
+				t.Helper()
+				t.Helper()
 				require.Len(t, jobs, 2)
 				assert.Equal(t, "build_job", jobs[0].ID)
 				assert.Equal(t, "Build from shared", jobs[0].Prompt)
@@ -117,6 +121,8 @@ jobs:
     skill: "argus-shared"
 `,
 			checkJobs: func(t *testing.T, jobs []workflow.Job) {
+				t.Helper()
+				t.Helper()
 				require.Len(t, jobs, 3)
 				assert.Equal(t, "direct_job", jobs[0].ID)
 				assert.Equal(t, "Direct prompt", jobs[0].Prompt)

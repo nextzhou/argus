@@ -41,7 +41,7 @@ func runWorkspaceTeardown(cmd *cobra.Command, workspacePath string, yesFlag bool
 	preview, err := lifecycle.PrepareWorkspaceTeardown(workspacePath)
 	if err != nil {
 		writeCommandError(cmd, jsonFlag, err.Error())
-		return err
+		return fmt.Errorf("preparing workspace teardown: %w", err)
 	}
 
 	if !yesFlag {
@@ -61,7 +61,7 @@ func runWorkspaceTeardown(cmd *cobra.Command, workspacePath string, yesFlag bool
 	result, err := lifecycle.TeardownWorkspaceWithReport(workspacePath)
 	if err != nil {
 		writeCommandError(cmd, jsonFlag, err.Error())
-		return err
+		return fmt.Errorf("tearing down workspace: %w", err)
 	}
 
 	output := lifecycleOutput{
@@ -109,7 +109,7 @@ func runProjectTeardown(cmd *cobra.Command, yesFlag bool, jsonFlag bool) error {
 	report, err := lifecycle.TeardownProject(cwd)
 	if err != nil {
 		writeCommandError(cmd, jsonFlag, err.Error())
-		return err
+		return fmt.Errorf("tearing down project: %w", err)
 	}
 
 	output := lifecycleOutput{

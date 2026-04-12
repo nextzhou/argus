@@ -22,15 +22,15 @@ import (
 // HandleTick orchestrates the tick command logic.
 // It reads stdin, determines project state, and writes context output.
 // It always succeeds (errors become warning text) to maintain fail-open behavior.
-func HandleTick(agent string, global bool, stdin io.Reader, stdout io.Writer, projectRoot string, sessionBaseDir string) error {
-	return HandleTickWithSessionStore(agent, global, stdin, stdout, projectRoot, session.NewFileStore(sessionBaseDir))
+func HandleTick(ctx context.Context, agent string, global bool, stdin io.Reader, stdout io.Writer, projectRoot string, sessionBaseDir string) error {
+	return HandleTickWithSessionStore(ctx, agent, global, stdin, stdout, projectRoot, session.NewFileStore(sessionBaseDir))
 }
 
 // HandleTickWithSessionStore orchestrates the tick command logic using store.
-func HandleTickWithSessionStore(agent string, global bool, stdin io.Reader, stdout io.Writer, projectRoot string, store session.Store) error {
+func HandleTickWithSessionStore(ctx context.Context, agent string, global bool, stdin io.Reader, stdout io.Writer, projectRoot string, store session.Store) error {
 	input, err := ParseInput(stdin, agent)
 	if err != nil {
-		writeTickWarning(stdout, "could not parse hook input: %v", err)
+		writeTickWarningf(stdout, "could not parse hook input: %v", err)
 		return nil
 	}
 
@@ -45,19 +45,19 @@ func HandleTickWithSessionStore(agent string, global bool, stdin io.Reader, stdo
 
 	root, err := workspace.FindProjectRoot(effectiveCWD)
 	if err != nil {
-		writeTickWarning(stdout, "could not determine project root: %v", err)
+		writeTickWarningf(stdout, "could not determine project root: %v", err)
 		return nil
 	}
 	if root == nil {
 		if !global {
-			writeTickWarning(stdout, "not inside an Argus project")
+			writeTickWarningf(stdout, "not inside an Argus project")
 		}
 		return nil
 	}
 
 	s, err := scope.ResolveScopeForTick(root, global)
 	if err != nil {
-		writeTickWarning(stdout, "scope resolution error: %v", err)
+		writeTickWarningf(stdout, "scope resolution error: %v", err)
 		logStore, logErr := artifact.NewFallbackHookLogStore()
 		if logErr == nil {
 			_ = logStore.Append("tick", false, "scope: "+err.Error())
@@ -66,7 +66,7 @@ func HandleTickWithSessionStore(agent string, global bool, stdin io.Reader, stdo
 	}
 	if s == nil {
 		if !global {
-			writeTickWarning(stdout, "not inside an Argus project")
+			writeTickWarningf(stdout, "not inside an Argus project")
 		} else {
 			logStore, logErr := artifact.NewFallbackHookLogStore()
 			if logErr == nil {
@@ -78,18 +78,18 @@ func HandleTickWithSessionStore(agent string, global bool, stdin io.Reader, stdo
 
 	activePipelines, scanWarnings, err := s.Artifacts().Pipelines().ScanActive()
 	if err != nil {
-		writeTickWarning(stdout, "could not scan active pipelines: %v", err)
+		writeTickWarningf(stdout, "could not scan active pipelines: %v", err)
 		return nil
 	}
 	if len(activePipelines) > 1 {
-		writeTickWarning(stdout, "multiple active pipelines detected; run argus workflow cancel or argus doctor")
+		writeTickWarningf(stdout, "multiple active pipelines detected; run argus workflow cancel or argus doctor")
 		return nil
 	}
 
 	sess, err := store.Load(input.SessionID)
 	if err != nil {
 		if !errors.Is(err, fs.ErrNotExist) {
-			writeTickWarning(stdout, "could not load session state: %v", err)
+			writeTickWarningf(stdout, "could not load session state: %v", err)
 			return nil
 		}
 		sess = &session.Session{}
@@ -104,9 +104,10 @@ func HandleTickWithSessionStore(agent string, global bool, stdin io.Reader, stdo
 		snapshotJobID      string
 	)
 	if len(activePipelines) == 0 {
-		output, logDetails = buildNoActivePipelineOutput(s, sess, firstTick)
+		output, logDetails = buildNoActivePipelineOutput(ctx, s, sess, firstTick)
 	} else {
 		output, logDetails, snapshotPipelineID, snapshotJobID = buildActivePipelineOutput(
+			ctx,
 			s,
 			input.SessionID,
 			sess,
@@ -117,7 +118,7 @@ func HandleTickWithSessionStore(agent string, global bool, stdin io.Reader, stdo
 
 	session.UpdateLastTick(sess, snapshotPipelineID, snapshotJobID, time.Now())
 	if err := store.Save(input.SessionID, sess); err != nil {
-		writeTickWarning(stdout, "could not save session state: %v", err)
+		writeTickWarningf(stdout, "could not save session state: %v", err)
 		return nil
 	}
 
@@ -133,6 +134,7 @@ func HandleTickWithSessionStore(agent string, global bool, stdin io.Reader, stdo
 }
 
 func buildActivePipelineOutput(
+	ctx context.Context,
 	s *scope.Resolved,
 	sessionID string,
 	sess *session.Session,
@@ -194,7 +196,7 @@ func buildActivePipelineOutput(
 
 	progress := fmt.Sprintf("%d/%d", jobIndex+1, len(wf.Jobs))
 	if session.HasStateChanged(sess, active.InstanceID, currentJobID) {
-		prompt, skill := renderTickJobPrompt(active.Pipeline, wf, jobIndex)
+		prompt, skill := renderTickJobPrompt(ctx, active.Pipeline, wf, jobIndex)
 		output, err := FormatFullContext(active.InstanceID, active.Pipeline.WorkflowID, progress, currentJobID, prompt, skill, sessionID)
 		if err != nil {
 			return formatErrorOutput(err, snapshotPipelineID, snapshotJobID)
@@ -215,14 +217,14 @@ type tickInvariantRun struct {
 	RanChecks int
 }
 
-func buildNoActivePipelineOutput(s *scope.Resolved, sess *session.Session, firstTick bool) (output string, logDetails string) {
+func buildNoActivePipelineOutput(ctx context.Context, s *scope.Resolved, sess *session.Session, firstTick bool) (output string, logDetails string) {
 	logDetails = "active=0 warnings=0"
 	catalog, warning := loadTickInvariantCatalog(s)
 	if catalog != nil && len(catalog.Issues) > 0 {
 		logDetails += fmt.Sprintf(" invalid_invariants=%d", len(catalog.Issues))
 	}
 
-	result := runTickInvariants(catalog, s.ProjectRoot(), firstTick)
+	result := runTickInvariants(ctx, catalog, s.ProjectRoot(), firstTick)
 	if result.Failure != nil {
 		output, err := FormatInvariantFailure(*result.Failure)
 		if err != nil {
@@ -290,13 +292,13 @@ func toHookWorkflowSummaries(scopeSummaries []artifact.WorkflowSummary) []Workfl
 	return summaries
 }
 
-func renderTickJobPrompt(p *pipeline.Pipeline, wf *workflow.Workflow, jobIndex int) (prompt string, skill string) {
+func renderTickJobPrompt(ctx context.Context, p *pipeline.Pipeline, wf *workflow.Workflow, jobIndex int) (prompt string, skill string) {
 	if wf == nil || jobIndex < 0 || jobIndex >= len(wf.Jobs) {
 		return "", ""
 	}
 
 	templateJobs := buildPipelineJobDataMap(p)
-	tmplCtx := workflow.BuildContext(context.Background(), templateJobs, wf, jobIndex)
+	tmplCtx := workflow.BuildContext(ctx, templateJobs, wf, jobIndex)
 	// RenderPrompt returns (rendered, warnings) where warnings is []string of
 	// unresolved template placeholders — not an error. In tick's fail-open context,
 	// partial template rendering is acceptable, so warnings are intentionally discarded.
@@ -347,7 +349,7 @@ func loadTickInvariantCatalog(s *scope.Resolved) (*invariant.Catalog, string) {
 	return catalog, ""
 }
 
-func runTickInvariants(catalog *invariant.Catalog, projectRoot string, firstTick bool) tickInvariantRun {
+func runTickInvariants(ctx context.Context, catalog *invariant.Catalog, projectRoot string, firstTick bool) tickInvariantRun {
 	run := tickInvariantRun{}
 	if catalog == nil {
 		return run
@@ -357,7 +359,6 @@ func runTickInvariants(catalog *invariant.Catalog, projectRoot string, firstTick
 		return run
 	}
 
-	ctx := context.Background()
 	for _, inv := range catalog.Invariants {
 		if !shouldRunInvariantAuto(inv, firstTick) {
 			continue
@@ -409,7 +410,7 @@ func describeInvariant(inv *invariant.Invariant) string {
 	return strings.Join(shells, "; ")
 }
 
-func writeTickWarning(stdout io.Writer, format string, args ...any) {
+func writeTickWarningf(stdout io.Writer, format string, args ...any) {
 	// Tick warnings share the same plain-text constraint as normal tick output:
 	// do not begin with '[' or '{', or Codex may try to parse them as JSON.
 	_, _ = fmt.Fprintf(stdout, "Argus warning: "+format+"\n", args...)

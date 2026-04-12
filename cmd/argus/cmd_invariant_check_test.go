@@ -73,19 +73,20 @@ func TestInvariantCheck(t *testing.T) {
 		{
 			name: "check all with mix of pass and fail",
 			setup: func(t *testing.T) {
+				t.Helper()
 				writeInvariantFixture(t, "check-pass", successfulInvariantYAML)
 				writeInvariantFixture(t, "check-fail", failingInvariant)
 			},
 			wantStatus: "ok",
 			checkJSON: func(t *testing.T, data map[string]any) {
+				t.Helper()
 				assert.InDelta(t, 1, data["passed"], 0)
 				assert.InDelta(t, 1, data["failed"], 0)
 
-				results, ok := data["results"].([]any)
-				require.True(t, ok, "results should be an array")
+				results := mustJSONArray(t, data["results"])
 				require.Len(t, results, 2)
 
-				r0 := results[0].(map[string]any)
+				r0 := mustJSONObject(t, results[0])
 				assert.Equal(t, "check-fail", r0["id"])
 				assert.InDelta(t, 10, r0["order"], 0)
 				assert.Equal(t, "Always fails", r0["description"])
@@ -93,14 +94,13 @@ func TestInvariantCheck(t *testing.T) {
 				assert.Equal(t, "fix-it", r0["workflow"])
 				assert.Equal(t, "Run the fix-it workflow", r0["prompt"])
 
-				steps0, ok := r0["steps"].([]any)
-				require.True(t, ok, "steps should be an array")
+				steps0 := mustJSONArray(t, r0["steps"])
 				require.Len(t, steps0, 1)
-				step0 := steps0[0].(map[string]any)
+				step0 := mustJSONObject(t, steps0[0])
 				assert.Equal(t, "always false", step0["description"])
 				assert.Equal(t, "fail", step0["status"])
 
-				r1 := results[1].(map[string]any)
+				r1 := mustJSONObject(t, results[1])
 				assert.Equal(t, "check-pass", r1["id"])
 				assert.InDelta(t, 20, r1["order"], 0)
 				assert.Equal(t, "Always passes", r1["description"])
@@ -113,19 +113,20 @@ func TestInvariantCheck(t *testing.T) {
 			name: "check single by id",
 			args: []string{"check-pass"},
 			setup: func(t *testing.T) {
+				t.Helper()
 				writeInvariantFixture(t, "check-pass", successfulInvariantYAML)
 				writeInvariantFixture(t, "check-fail", failingInvariant)
 			},
 			wantStatus: "ok",
 			checkJSON: func(t *testing.T, data map[string]any) {
+				t.Helper()
 				assert.InDelta(t, 1, data["passed"], 0)
 				assert.InDelta(t, 0, data["failed"], 0)
 
-				results, ok := data["results"].([]any)
-				require.True(t, ok)
+				results := mustJSONArray(t, data["results"])
 				require.Len(t, results, 1)
 
-				r0 := results[0].(map[string]any)
+				r0 := mustJSONObject(t, results[0])
 				assert.Equal(t, "check-pass", r0["id"])
 				assert.InDelta(t, 20, r0["order"], 0)
 				assert.Equal(t, "passed", r0["status"])
@@ -137,8 +138,8 @@ func TestInvariantCheck(t *testing.T) {
 			wantErr:    true,
 			wantStatus: "error",
 			checkJSON: func(t *testing.T, data map[string]any) {
-				msg, ok := data["message"].(string)
-				require.True(t, ok)
+				t.Helper()
+				msg := mustJSONString(t, data["message"])
 				assert.Contains(t, msg, "invariant not found")
 			},
 		},
@@ -146,23 +147,25 @@ func TestInvariantCheck(t *testing.T) {
 			name:       "missing invariants directory returns empty results",
 			wantStatus: "ok",
 			checkJSON: func(t *testing.T, data map[string]any) {
+				t.Helper()
 				assert.InDelta(t, 0, data["passed"], 0)
 				assert.InDelta(t, 0, data["failed"], 0)
-				results, ok := data["results"].([]any)
-				require.True(t, ok)
+				results := mustJSONArray(t, data["results"])
 				assert.Empty(t, results)
 			},
 		},
 		{
 			name: "failed invariant shows workflow and prompt",
 			setup: func(t *testing.T) {
+				t.Helper()
 				writeInvariantFixture(t, "check-fail", failingInvariant)
 			},
 			wantStatus: "ok",
 			checkJSON: func(t *testing.T, data map[string]any) {
+				t.Helper()
 				assert.InDelta(t, 1, data["failed"], 0)
-				results := data["results"].([]any)
-				r0 := results[0].(map[string]any)
+				results := mustJSONArray(t, data["results"])
+				r0 := mustJSONObject(t, results[0])
 				assert.Equal(t, "failed", r0["status"])
 				assert.Equal(t, "fix-it", r0["workflow"])
 				assert.Equal(t, "Run the fix-it workflow", r0["prompt"])
@@ -171,12 +174,14 @@ func TestInvariantCheck(t *testing.T) {
 		{
 			name: "description fallback to shell commands",
 			setup: func(t *testing.T) {
+				t.Helper()
 				writeInvariantFixture(t, "no-desc", failingNoDescription)
 			},
 			wantStatus: "ok",
 			checkJSON: func(t *testing.T, data map[string]any) {
-				results := data["results"].([]any)
-				r0 := results[0].(map[string]any)
+				t.Helper()
+				results := mustJSONArray(t, data["results"])
+				r0 := mustJSONObject(t, results[0])
 				assert.Equal(t, "no-desc", r0["id"])
 				assert.Equal(t, "echo hello; false", r0["description"])
 			},
@@ -184,6 +189,7 @@ func TestInvariantCheck(t *testing.T) {
 		{
 			name: "check all reports invalid invariants separately",
 			setup: func(t *testing.T) {
+				t.Helper()
 				writeInvariantFixture(t, "check-pass", successfulInvariantYAML)
 				writeInvariantFixture(t, "broken-order", `version: v0.1.0
 id: broken-order
@@ -194,14 +200,14 @@ prompt: "Fix it"
 			},
 			wantStatus: "ok",
 			checkJSON: func(t *testing.T, data map[string]any) {
+				t.Helper()
 				assert.InDelta(t, 1, data["passed"], 0)
 				assert.InDelta(t, 0, data["failed"], 0)
-				results := data["results"].([]any)
+				results := mustJSONArray(t, data["results"])
 				require.Len(t, results, 1)
-				invalid, ok := data["invalid_invariants"].([]any)
-				require.True(t, ok)
+				invalid := mustJSONArray(t, data["invalid_invariants"])
 				require.Len(t, invalid, 1)
-				issue := invalid[0].(map[string]any)
+				issue := mustJSONObject(t, invalid[0])
 				assert.Equal(t, "broken-order.yaml", issue["file"])
 				assert.Equal(t, "order", issue["path"])
 			},
@@ -210,6 +216,7 @@ prompt: "Fix it"
 			name: "check single invalid target returns details",
 			args: []string{"broken-order"},
 			setup: func(t *testing.T) {
+				t.Helper()
 				writeInvariantFixture(t, "broken-order", `version: v0.1.0
 id: broken-order
 check:
@@ -220,13 +227,12 @@ prompt: "Fix it"
 			wantErr:    true,
 			wantStatus: "error",
 			checkJSON: func(t *testing.T, data map[string]any) {
-				msg, ok := data["message"].(string)
-				require.True(t, ok)
+				t.Helper()
+				msg := mustJSONString(t, data["message"])
 				assert.Contains(t, msg, "invalid")
-				details, ok := data["details"].([]any)
-				require.True(t, ok)
+				details := mustJSONArray(t, data["details"])
 				require.Len(t, details, 1)
-				d0 := details[0].(map[string]any)
+				d0 := mustJSONObject(t, details[0])
 				assert.Equal(t, "order", d0["path"])
 			},
 		},
@@ -234,6 +240,7 @@ prompt: "Fix it"
 			name: "check single ignores unrelated invalid invariants",
 			args: []string{"check-pass"},
 			setup: func(t *testing.T) {
+				t.Helper()
 				writeInvariantFixture(t, "check-pass", successfulInvariantYAML)
 				writeInvariantFixture(t, "broken-order", `version: v0.1.0
 id: broken-order
@@ -244,10 +251,10 @@ prompt: "Fix it"
 			},
 			wantStatus: "ok",
 			checkJSON: func(t *testing.T, data map[string]any) {
-				results := data["results"].([]any)
+				t.Helper()
+				results := mustJSONArray(t, data["results"])
 				require.Len(t, results, 1)
-				invalid, ok := data["invalid_invariants"].([]any)
-				require.True(t, ok)
+				invalid := mustJSONArray(t, data["invalid_invariants"])
 				require.Len(t, invalid, 1)
 			},
 		},

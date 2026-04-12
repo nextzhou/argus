@@ -29,6 +29,7 @@ func TestWorkflowCancel(t *testing.T) {
 			pipelines: nil,
 			wantErr:   true,
 			checkJSON: func(t *testing.T, data map[string]any) {
+				t.Helper()
 				assert.Equal(t, "error", data["status"])
 				assert.NotEmpty(t, data["message"])
 			},
@@ -48,9 +49,9 @@ jobs:
 			},
 			wantErr: false,
 			checkJSON: func(t *testing.T, data map[string]any) {
+				t.Helper()
 				assert.Equal(t, "ok", data["status"])
-				cancelled, ok := data["cancelled"].([]any)
-				require.True(t, ok, "cancelled should be an array")
+				cancelled := mustJSONArray(t, data["cancelled"])
 				require.Len(t, cancelled, 1)
 				assert.Equal(t, "release-20240101T000000Z", cancelled[0])
 			},
@@ -79,14 +80,14 @@ jobs:
 			},
 			wantErr: false,
 			checkJSON: func(t *testing.T, data map[string]any) {
+				t.Helper()
 				assert.Equal(t, "ok", data["status"])
-				cancelled, ok := data["cancelled"].([]any)
-				require.True(t, ok, "cancelled should be an array")
+				cancelled := mustJSONArray(t, data["cancelled"])
 				require.Len(t, cancelled, 2)
 
 				ids := make([]string, len(cancelled))
 				for i, v := range cancelled {
-					ids[i] = v.(string)
+					ids[i] = mustJSONString(t, v)
 				}
 				assert.Contains(t, ids, "release-20240101T000000Z")
 				assert.Contains(t, ids, "deploy-20240102T000000Z")
@@ -109,6 +110,7 @@ jobs:
 			},
 			wantErr: true,
 			checkJSON: func(t *testing.T, data map[string]any) {
+				t.Helper()
 				assert.Equal(t, "error", data["status"])
 			},
 		},

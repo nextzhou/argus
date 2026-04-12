@@ -130,7 +130,7 @@ func newJobDoneCmd() *cobra.Command {
 				rendered, warnings := workflow.RenderPrompt(nextJob.Prompt, templateCtx)
 				renderedPrompt = rendered
 				for _, w := range warnings {
-					_, _ = fmt.Fprintf(os.Stderr, "Argus warning: %s\n", w)
+					_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Argus warning: %s\n", w)
 				}
 			}
 

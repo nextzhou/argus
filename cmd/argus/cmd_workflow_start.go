@@ -82,7 +82,7 @@ func newWorkflowStartCmd() *cobra.Command {
 			rendered, warnings := workflow.RenderPrompt(firstJob.Prompt, templateCtx)
 
 			for _, warning := range warnings {
-				_, _ = fmt.Fprintf(os.Stderr, "Argus warning: %s\n", warning)
+				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Argus warning: %s\n", warning)
 			}
 
 			progress := fmt.Sprintf("1/%d", len(w.Jobs))

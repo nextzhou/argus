@@ -92,7 +92,7 @@ func SetupWithReport(projectRoot string) (ProjectOperationResult, error) {
 func releaseAssetFileTracked(projectRoot, srcPath, dstPath string, tracker *mutationTracker) error {
 	data, err := assets.ReadAsset(srcPath)
 	if err != nil {
-		return err
+		return fmt.Errorf("reading asset %s: %w", srcPath, err)
 	}
 
 	if err := writeFileTracked(filepath.Join(projectRoot, dstPath), data, tracker); err != nil {
@@ -107,7 +107,7 @@ func managedAgents() []string {
 }
 
 func releaseAssetsTracked(projectRoot, srcDir, dstDir string, tracker *mutationTracker) error {
-	return assets.WalkAssets(srcDir, func(path string, d fs.DirEntry, err error) error {
+	if err := assets.WalkAssets(srcDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return fmt.Errorf("walking %s assets: %w", srcDir, err)
 		}
@@ -131,7 +131,7 @@ func releaseAssetsTracked(projectRoot, srcDir, dstDir string, tracker *mutationT
 
 		data, err := assets.ReadAsset(path)
 		if err != nil {
-			return err
+			return fmt.Errorf("reading asset %s: %w", path, err)
 		}
 
 		if err := writeFileTracked(dstPath, data, tracker); err != nil {
@@ -139,7 +139,10 @@ func releaseAssetsTracked(projectRoot, srcDir, dstDir string, tracker *mutationT
 		}
 
 		return nil
-	})
+	}); err != nil {
+		return fmt.Errorf("releasing assets from %s to %s: %w", srcDir, dstDir, err)
+	}
+	return nil
 }
 
 func ensureDirTracked(path string, tracker *mutationTracker) error {
@@ -154,7 +157,7 @@ func ensureDirTracked(path string, tracker *mutationTracker) error {
 	}
 
 	if err := os.MkdirAll(path, 0o700); err != nil {
-		return err
+		return fmt.Errorf("creating directory %s: %w", path, err)
 	}
 
 	tracker.recordCreated(path)

@@ -17,6 +17,7 @@ import (
 )
 
 func executeWorkspaceSetupCmd(t *testing.T, workspacePath string) ([]byte, error) {
+	t.Helper()
 	return executeWorkspaceSetupCmdWithArgs(t, workspacePath, "--yes")
 }
 
@@ -27,6 +28,7 @@ func executeWorkspaceSetupCmdWithArgs(t *testing.T, workspacePath string, args .
 }
 
 func executeWorkspaceTeardownCmd(t *testing.T, workspacePath string) ([]byte, error) {
+	t.Helper()
 	return executeWorkspaceTeardownCmdWithArgs(t, workspacePath, "--yes")
 }
 

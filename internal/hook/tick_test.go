@@ -2,6 +2,7 @@ package hook
 
 import (
 	"bytes"
+	"context"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -30,6 +31,7 @@ jobs:
 
 	var out bytes.Buffer
 	err := HandleTick(
+		context.Background(),
 		"claude-code",
 		false,
 		bytes.NewBufferString(`{"session_id":"ses-no-pipeline","cwd":"`+projectRoot+`"}`),
@@ -51,6 +53,7 @@ jobs:
 func TestHandleTick_SubAgent(t *testing.T) {
 	var out bytes.Buffer
 	err := HandleTick(
+		context.Background(),
 		"claude-code",
 		false,
 		bytes.NewBufferString(`{"session_id":"ses-sub-agent","agent_id":"worker-1"}`),
@@ -65,6 +68,7 @@ func TestHandleTick_SubAgent(t *testing.T) {
 func TestHandleTick_NoProjectRoot(t *testing.T) {
 	var out bytes.Buffer
 	err := HandleTick(
+		context.Background(),
 		"claude-code",
 		false,
 		bytes.NewBufferString(`{"session_id":"ses-no-root"}`),
@@ -328,7 +332,7 @@ jobs:
     prompt: "Run tests"
 `)
 
-	output, logDetails := buildNoActivePipelineOutput(scope.NewProjectScope(projectRoot), &session.Session{}, false)
+	output, logDetails := buildNoActivePipelineOutput(context.Background(), scope.NewProjectScope(projectRoot), &session.Session{}, false)
 
 	expected, err := FormatNoPipeline([]WorkflowSummary{{ID: "release", Description: "Release workflow"}})
 	require.NoError(t, err)
@@ -356,7 +360,7 @@ check:
 prompt: "Initialize the project first"
 `)
 
-	output, logDetails := buildNoActivePipelineOutput(scope.NewProjectScope(projectRoot), &session.Session{}, false)
+	output, logDetails := buildNoActivePipelineOutput(context.Background(), scope.NewProjectScope(projectRoot), &session.Session{}, false)
 
 	assertHookSafeTickText(t, output)
 	assert.Contains(t, output, "Argus: Invariant check failed:")
@@ -368,7 +372,7 @@ prompt: "Initialize the project first"
 }
 
 func TestBuildNoActivePipelineOutput_NoWorkflowsReturnsEmpty(t *testing.T) {
-	output, logDetails := buildNoActivePipelineOutput(scope.NewProjectScope(t.TempDir()), &session.Session{}, false)
+	output, logDetails := buildNoActivePipelineOutput(context.Background(), scope.NewProjectScope(t.TempDir()), &session.Session{}, false)
 
 	assert.Empty(t, output)
 	assert.Contains(t, logDetails, "active=0")
@@ -398,7 +402,7 @@ prompt: "Fix it"
 	input := bytes.NewBufferString(`{"session_id":"ses-slow-once","cwd":"` + projectRoot + `"}`)
 
 	var firstOut bytes.Buffer
-	err := HandleTick("claude-code", false, input, &firstOut, projectRoot, sessionBaseDir)
+	err := HandleTick(context.Background(), "claude-code", false, input, &firstOut, projectRoot, sessionBaseDir)
 	require.NoError(t, err)
 	assert.Contains(t, firstOut.String(), "Invariant checks took 3.")
 	assert.Contains(t, firstOut.String(), "argus-doctor")
@@ -406,6 +410,7 @@ prompt: "Fix it"
 
 	var secondOut bytes.Buffer
 	err = HandleTick(
+		context.Background(),
 		"claude-code",
 		false,
 		bytes.NewBufferString(`{"session_id":"ses-slow-once","cwd":"`+projectRoot+`"}`),
@@ -440,6 +445,7 @@ prompt: "Fix it"
 
 	var firstOut bytes.Buffer
 	err := HandleTick(
+		context.Background(),
 		"claude-code",
 		false,
 		bytes.NewBufferString(`{"session_id":"ses-slow-later","cwd":"`+projectRoot+`"}`),
@@ -462,6 +468,7 @@ prompt: "Fix it"
 
 	var secondOut bytes.Buffer
 	err = HandleTick(
+		context.Background(),
 		"claude-code",
 		false,
 		bytes.NewBufferString(`{"session_id":"ses-slow-later","cwd":"`+projectRoot+`"}`),
@@ -487,6 +494,7 @@ prompt: "Fix the invariant"
 
 	var out bytes.Buffer
 	err := HandleTick(
+		context.Background(),
 		"claude-code",
 		false,
 		bytes.NewBufferString(`{"session_id":"ses-slow-fail","cwd":"`+projectRoot+`"}`),
@@ -520,7 +528,7 @@ jobs:
 `)
 
 	activePipelines, scanWarnings := loadTickActivePipelines(t, projectRoot)
-	output, logDetails, snapshotPipelineID, snapshotJobID := buildActivePipelineOutput(scope.NewProjectScope(projectRoot), "ses-snoozed", &session.Session{SnoozedPipelines: []string{instanceID}}, activePipelines, scanWarnings)
+	output, logDetails, snapshotPipelineID, snapshotJobID := buildActivePipelineOutput(context.Background(), scope.NewProjectScope(projectRoot), "ses-snoozed", &session.Session{SnoozedPipelines: []string{instanceID}}, activePipelines, scanWarnings)
 
 	expected, err := FormatSnoozed([]WorkflowSummary{{ID: "release", Description: "Release workflow"}})
 	require.NoError(t, err)
@@ -549,7 +557,7 @@ jobs: {}
 `)
 
 	activePipelines, scanWarnings := loadTickActivePipelines(t, projectRoot)
-	output, logDetails, snapshotPipelineID, snapshotJobID := buildActivePipelineOutput(scope.NewProjectScope(projectRoot), "ses-missing-job", &session.Session{}, activePipelines, scanWarnings)
+	output, logDetails, snapshotPipelineID, snapshotJobID := buildActivePipelineOutput(context.Background(), scope.NewProjectScope(projectRoot), "ses-missing-job", &session.Session{}, activePipelines, scanWarnings)
 
 	assertHookSafeTickText(t, output)
 	assert.Contains(t, output, "Argus: No active pipeline.")
@@ -580,7 +588,7 @@ jobs:
 `)
 
 	activePipelines, scanWarnings := loadTickActivePipelines(t, projectRoot)
-	output, logDetails, snapshotPipelineID, snapshotJobID := buildActivePipelineOutput(scope.NewProjectScope(projectRoot), "ses-missing-workflow", &session.Session{}, activePipelines, scanWarnings)
+	output, logDetails, snapshotPipelineID, snapshotJobID := buildActivePipelineOutput(context.Background(), scope.NewProjectScope(projectRoot), "ses-missing-workflow", &session.Session{}, activePipelines, scanWarnings)
 
 	assertHookSafeTickText(t, output)
 	assert.Contains(t, output, "Argus: No active pipeline.")
@@ -611,7 +619,7 @@ jobs:
 `)
 
 	activePipelines, scanWarnings := loadTickActivePipelines(t, projectRoot)
-	output, logDetails, snapshotPipelineID, snapshotJobID := buildActivePipelineOutput(scope.NewProjectScope(projectRoot), "ses-workflow-mismatch", &session.Session{}, activePipelines, scanWarnings)
+	output, logDetails, snapshotPipelineID, snapshotJobID := buildActivePipelineOutput(context.Background(), scope.NewProjectScope(projectRoot), "ses-workflow-mismatch", &session.Session{}, activePipelines, scanWarnings)
 
 	assertHookSafeTickText(t, output)
 	assert.Contains(t, output, "Argus: No active pipeline.")
@@ -645,7 +653,7 @@ jobs:
 	activePipelines, scanWarnings := loadTickActivePipelines(t, projectRoot)
 	sess := &session.Session{}
 
-	fullOutput, fullLogDetails, snapshotPipelineID, snapshotJobID := buildActivePipelineOutput(scope.NewProjectScope(projectRoot), "ses-state-change", sess, activePipelines, scanWarnings)
+	fullOutput, fullLogDetails, snapshotPipelineID, snapshotJobID := buildActivePipelineOutput(context.Background(), scope.NewProjectScope(projectRoot), "ses-state-change", sess, activePipelines, scanWarnings)
 	expectedFullOutput, err := FormatFullContext(instanceID, "release", "1/1", "run_tests", "Run tests with context", "test-skill", "ses-state-change")
 	require.NoError(t, err)
 	assert.Equal(t, expectedFullOutput, fullOutput)
@@ -654,7 +662,7 @@ jobs:
 	assert.Equal(t, "run_tests", snapshotJobID)
 
 	sess.LastTick = &session.LastTickState{Pipeline: instanceID, Job: "run_tests"}
-	minimalOutput, minimalLogDetails, snapshotPipelineID, snapshotJobID := buildActivePipelineOutput(scope.NewProjectScope(projectRoot), "ses-state-change", sess, activePipelines, scanWarnings)
+	minimalOutput, minimalLogDetails, snapshotPipelineID, snapshotJobID := buildActivePipelineOutput(context.Background(), scope.NewProjectScope(projectRoot), "ses-state-change", sess, activePipelines, scanWarnings)
 	expectedMinimalOutput, err := FormatMinimalSummary("release", "run_tests", "1/1")
 	require.NoError(t, err)
 	assert.Equal(t, expectedMinimalOutput, minimalOutput)
@@ -727,7 +735,7 @@ func TestRenderTickJobPrompt(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gotPrompt, gotSkill := renderTickJobPrompt(tt.pipeline, tt.workflow, tt.jobIndex)
+			gotPrompt, gotSkill := renderTickJobPrompt(context.Background(), tt.pipeline, tt.workflow, tt.jobIndex)
 			assert.Equal(t, tt.wantPrompt, gotPrompt)
 			assert.Equal(t, tt.wantSkill, gotSkill)
 		})
@@ -807,13 +815,35 @@ check:
 
 			catalog, err := scope.NewProjectScope(projectRoot).Artifacts().Invariants().Catalog(true)
 			require.NoError(t, err)
-			result := runTickInvariants(catalog, projectRoot, tt.firstTick)
+			result := runTickInvariants(context.Background(), catalog, projectRoot, tt.firstTick)
 			require.NotNil(t, result.Failure)
 			assert.Equal(t, *tt.wantFailure, *result.Failure)
 			assert.Equal(t, tt.wantRan, result.RanChecks)
 			assert.Positive(t, result.TotalTime)
 		})
 	}
+}
+
+func TestRunTickInvariants_UsesProvidedContext(t *testing.T) {
+	projectRoot := t.TempDir()
+	writeTickInvariantFixture(t, projectRoot, "fail-always", `version: v0.1.0
+id: fail-always
+order: 10
+auto: always
+check:
+  - shell: "exit 1"
+prompt: "Fix the always invariant"
+`)
+
+	catalog, warning := loadTickInvariantCatalog(scope.NewProjectScope(projectRoot))
+	require.Empty(t, warning)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	result := runTickInvariants(ctx, catalog, projectRoot, true)
+	assert.Equal(t, 1, result.RanChecks)
+	assert.Nil(t, result.Failure)
 }
 
 func writeTickWorkflowFixture(t *testing.T, projectRoot, workflowID, yamlContent string) {

@@ -2,6 +2,7 @@ package hook
 
 import (
 	"bytes"
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -25,9 +26,11 @@ func TestHandleTick_Global(t *testing.T) {
 			stdin: `{"session_id":"ses-sub-agent","agent_id":"worker-1"}`,
 			setup: func(t *testing.T, _ string) string {
 				t.Helper()
+				t.Helper()
 				return t.TempDir()
 			},
 			assert: func(t *testing.T, output string, _ string) {
+				t.Helper()
 				t.Helper()
 				assert.Empty(t, output)
 			},
@@ -37,9 +40,11 @@ func TestHandleTick_Global(t *testing.T) {
 			stdin: `{"session_id":"ses-non-git"}`,
 			setup: func(t *testing.T, _ string) string {
 				t.Helper()
+				t.Helper()
 				return t.TempDir()
 			},
 			assert: func(t *testing.T, output string, _ string) {
+				t.Helper()
 				t.Helper()
 				assert.Empty(t, output)
 			},
@@ -48,6 +53,7 @@ func TestHandleTick_Global(t *testing.T) {
 			name:  "set up project uses project scope in global mode",
 			stdin: `{"session_id":"ses-set-up"}`,
 			setup: func(t *testing.T, homeDir string) string {
+				t.Helper()
 				t.Helper()
 				projectDir := filepath.Join(homeDir, "set-up-project")
 				createTickGlobalProject(t, projectDir, true)
@@ -63,6 +69,7 @@ jobs:
 			},
 			assert: func(t *testing.T, output string, sessionBaseDir string) {
 				t.Helper()
+				t.Helper()
 				assertHookSafeTickText(t, output)
 				assert.Contains(t, output, "No active pipeline")
 				assert.Contains(t, output, "argus-project-init")
@@ -75,6 +82,7 @@ jobs:
 			stdin: `{"session_id":"ses-workspace"}`,
 			setup: func(t *testing.T, homeDir string) string {
 				t.Helper()
+				t.Helper()
 				workspaceDir := filepath.Join(homeDir, "work", "company")
 				writeTickGlobalWorkspaceConfig(t, homeDir, []string{normalizeTickGlobalWorkspacePath(t, workspaceDir)})
 				writeTickGlobalInvariant(t, homeDir)
@@ -84,6 +92,7 @@ jobs:
 				return projectDir
 			},
 			assert: func(t *testing.T, output string, sessionBaseDir string) {
+				t.Helper()
 				t.Helper()
 				assertHookSafeTickText(t, output)
 				assert.Contains(t, output, "Argus: Invariant check failed:")
@@ -101,6 +110,7 @@ jobs:
 			stdin: `{"session_id":"ses-outside-workspace"}`,
 			setup: func(t *testing.T, homeDir string) string {
 				t.Helper()
+				t.Helper()
 				workspaceDir := filepath.Join(homeDir, "work", "company")
 				writeTickGlobalWorkspaceConfig(t, homeDir, []string{normalizeTickGlobalWorkspacePath(t, workspaceDir)})
 
@@ -110,6 +120,7 @@ jobs:
 			},
 			assert: func(t *testing.T, output string, _ string) {
 				t.Helper()
+				t.Helper()
 				assert.Empty(t, output)
 			},
 		},
@@ -118,11 +129,13 @@ jobs:
 			stdin: `{"session_id":"ses-missing-config"}`,
 			setup: func(t *testing.T, homeDir string) string {
 				t.Helper()
+				t.Helper()
 				projectDir := filepath.Join(homeDir, "missing-config-project")
 				createTickGlobalProject(t, projectDir, false)
 				return projectDir
 			},
 			assert: func(t *testing.T, output string, _ string) {
+				t.Helper()
 				t.Helper()
 				assert.Empty(t, output)
 			},
@@ -138,7 +151,7 @@ jobs:
 			sessionBaseDir := t.TempDir()
 
 			var out bytes.Buffer
-			err := HandleTick("claude-code", true, bytes.NewBufferString(tt.stdin), &out, projectDir, sessionBaseDir)
+			err := HandleTick(context.Background(), "claude-code", true, bytes.NewBufferString(tt.stdin), &out, projectDir, sessionBaseDir)
 			require.NoError(t, err)
 
 			tt.assert(t, out.String(), sessionBaseDir)

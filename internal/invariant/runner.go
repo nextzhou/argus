@@ -54,9 +54,6 @@ func RunCheck(ctx context.Context, inv *Invariant, projectRoot string) *CheckRes
 }
 
 func runCheckWithRuntime(ctx context.Context, inv *Invariant, projectRoot string, runtime checkRuntime) *CheckResult {
-	if ctx == nil {
-		ctx = context.Background()
-	}
 	if runtime.now == nil {
 		runtime.now = time.Now
 	}
@@ -187,7 +184,7 @@ func (b *limitedBuffer) Write(p []byte) (int, error) {
 			p = p[:remaining]
 		}
 		if _, err := b.buffer.Write(p); err != nil {
-			return 0, err
+			return 0, fmt.Errorf("writing invariant output buffer: %w", err)
 		}
 	}
 	return len(p), nil

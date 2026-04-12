@@ -64,8 +64,8 @@ func formatFileSource(projectRoot, raw string) string {
 			return "~"
 		}
 		prefix := cleanHome + string(filepath.Separator)
-		if strings.HasPrefix(cleanRaw, prefix) {
-			return "~" + string(filepath.Separator) + strings.TrimPrefix(cleanRaw, prefix)
+		if suffix, ok := strings.CutPrefix(cleanRaw, prefix); ok {
+			return "~" + string(filepath.Separator) + suffix
 		}
 	}
 

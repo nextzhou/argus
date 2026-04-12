@@ -25,6 +25,7 @@ func TestRunCheckWithRuntime(t *testing.T) {
 			name: "all steps pass",
 			buildContext: func(t *testing.T) context.Context {
 				t.Helper()
+				t.Helper()
 				return t.Context()
 			},
 			buildRuntime: func(t *testing.T) checkRuntime {
@@ -52,6 +53,7 @@ func TestRunCheckWithRuntime(t *testing.T) {
 			},
 			assertResult: func(t *testing.T, result *CheckResult) {
 				t.Helper()
+				t.Helper()
 				require.NotNil(t, result)
 				assert.Equal(t, "all-pass", result.InvariantID)
 				assert.True(t, result.Passed)
@@ -67,9 +69,11 @@ func TestRunCheckWithRuntime(t *testing.T) {
 			name: "step failure short circuits remaining steps",
 			buildContext: func(t *testing.T) context.Context {
 				t.Helper()
+				t.Helper()
 				return t.Context()
 			},
 			buildRuntime: func(t *testing.T) checkRuntime {
+				t.Helper()
 				t.Helper()
 
 				base := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
@@ -97,6 +101,7 @@ func TestRunCheckWithRuntime(t *testing.T) {
 			},
 			assertResult: func(t *testing.T, result *CheckResult) {
 				t.Helper()
+				t.Helper()
 				require.NotNil(t, result)
 				assert.False(t, result.Passed)
 				require.Len(t, result.Steps, 3)
@@ -109,11 +114,13 @@ func TestRunCheckWithRuntime(t *testing.T) {
 			name: "caller cancellation skips remaining steps",
 			buildContext: func(t *testing.T) context.Context {
 				t.Helper()
+				t.Helper()
 				ctx, cancel := context.WithCancel(t.Context())
 				t.Cleanup(cancel)
 				return context.WithValue(ctx, cancelKey{}, cancel)
 			},
 			buildRuntime: func(t *testing.T) checkRuntime {
+				t.Helper()
 				t.Helper()
 
 				base := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
@@ -127,7 +134,8 @@ func TestRunCheckWithRuntime(t *testing.T) {
 						if call == 1 {
 							return "", stepStatusPass
 						}
-						cancel := ctx.Value(cancelKey{}).(context.CancelFunc)
+						cancel, ok := ctx.Value(cancelKey{}).(context.CancelFunc)
+						require.True(t, ok, "context should carry cancel func")
 						cancel()
 						return buildFailureOutput(ctx, "", context.Canceled, stepTimeout), stepStatusFail
 					},
@@ -143,6 +151,7 @@ func TestRunCheckWithRuntime(t *testing.T) {
 			},
 			assertResult: func(t *testing.T, result *CheckResult) {
 				t.Helper()
+				t.Helper()
 				require.NotNil(t, result)
 				assert.False(t, result.Passed)
 				require.Len(t, result.Steps, 3)
@@ -154,9 +163,11 @@ func TestRunCheckWithRuntime(t *testing.T) {
 			name: "slow check is flagged when total time exceeds threshold",
 			buildContext: func(t *testing.T) context.Context {
 				t.Helper()
+				t.Helper()
 				return t.Context()
 			},
 			buildRuntime: func(t *testing.T) checkRuntime {
+				t.Helper()
 				t.Helper()
 
 				base := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
@@ -175,6 +186,7 @@ func TestRunCheckWithRuntime(t *testing.T) {
 			},
 			assertResult: func(t *testing.T, result *CheckResult) {
 				t.Helper()
+				t.Helper()
 				require.NotNil(t, result)
 				assert.True(t, result.Passed)
 				assert.True(t, result.SlowCheck)
@@ -186,9 +198,11 @@ func TestRunCheckWithRuntime(t *testing.T) {
 			name: "empty shell script is a no-op pass",
 			buildContext: func(t *testing.T) context.Context {
 				t.Helper()
+				t.Helper()
 				return t.Context()
 			},
 			buildRuntime: func(t *testing.T) checkRuntime {
+				t.Helper()
 				t.Helper()
 
 				base := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
@@ -206,6 +220,7 @@ func TestRunCheckWithRuntime(t *testing.T) {
 				Check: []CheckStep{{Description: "whitespace only", Shell: " \n\t "}},
 			},
 			assertResult: func(t *testing.T, result *CheckResult) {
+				t.Helper()
 				t.Helper()
 				require.NotNil(t, result)
 				assert.True(t, result.Passed)

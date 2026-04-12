@@ -182,12 +182,7 @@ func TestFindProjectRoot_RelativePath(t *testing.T) {
 	argusDir := filepath.Join(base, ".argus")
 	require.NoError(t, os.Mkdir(argusDir, 0o700))
 
-	// Change to base directory temporarily
-	oldCwd, err := os.Getwd()
-	require.NoError(t, err)
-	defer func() { _ = os.Chdir(oldCwd) }()
-
-	require.NoError(t, os.Chdir(base))
+	t.Chdir(base)
 
 	// Use relative path
 	root, err := FindProjectRoot(".")
@@ -276,12 +271,8 @@ func TestIsSubdirectory_PrefixButNotSegment(t *testing.T) {
 }
 
 func TestIsSubdirectory_RelativePaths(t *testing.T) {
-	oldCwd, err := os.Getwd()
-	require.NoError(t, err)
-	defer func() { _ = os.Chdir(oldCwd) }()
-
 	base := t.TempDir()
-	require.NoError(t, os.Chdir(base))
+	t.Chdir(base)
 
 	child := filepath.Join(base, "child")
 	require.NoError(t, os.Mkdir(child, 0o700))

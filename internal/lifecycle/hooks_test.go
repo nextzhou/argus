@@ -106,6 +106,42 @@ func TestClaudeCodePreserveNonArgusHooks(t *testing.T) {
 	assert.Equal(t, map[string]any{"allow": []any{"Read"}}, settings["permissions"])
 }
 
+func TestClaudeCodePreservesCustomWrappersThatMentionArgus(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	projectRoot := newTestProjectRoot(t)
+	settingsPath := filepath.Join(projectRoot, ".claude", "settings.json")
+
+	writeTestFile(t, settingsPath, `{
+	  "hooks": {
+	    "UserPromptSubmit": [
+	      {
+	        "hooks": [
+	          {
+	            "type": "command",
+	            "command": "bash -lc 'argus tick --agent claude-code'",
+	            "timeout": 5,
+	            "statusMessage": "Custom Wrapper"
+	          }
+	        ]
+	      }
+	    ]
+	  }
+	}`)
+
+	require.NoError(t, SetupHooks(projectRoot, []string{"claude-code"}))
+
+	settings := readJSONFile(t, settingsPath)
+	commands := hookCommandsForEvent(t, settings, "UserPromptSubmit")
+	require.Len(t, commands, 2)
+	assert.Equal(t, "bash -lc 'argus tick --agent claude-code'", commands[0])
+	assertArgusShellHookCommand(t, commands[1], "claude-code", false)
+
+	require.NoError(t, TeardownHooks(projectRoot, []string{"claude-code"}))
+
+	settings = readJSONFile(t, settingsPath)
+	assert.Equal(t, []string{"bash -lc 'argus tick --agent claude-code'"}, hookCommandsForEvent(t, settings, "UserPromptSubmit"))
+}
+
 func TestIdempotentSetup(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	projectRoot := newTestProjectRoot(t)

@@ -199,7 +199,7 @@ func TestWorkspace_TeardownNotRegistered(t *testing.T) {
 
 	result := runArgusJSON(t, homeDir, "teardown", "--workspace", "/nonexistent/path")
 	data := requireError(t, result)
-	assert.Contains(t, data["message"].(string), "not registered")
+	assert.Contains(t, mustJSONString(t, data["message"]), "not registered")
 }
 
 func TestWorkspace_DuplicateRegistration(t *testing.T) {
@@ -284,5 +284,5 @@ func TestWorkspace_SetupBadPath(t *testing.T) {
 
 	result := runArgusJSON(t, homeDir, "setup", "--workspace", "/nonexistent/workspace/path")
 	data := requireError(t, result)
-	assert.Contains(t, data["message"].(string), "does not exist")
+	assert.Contains(t, mustJSONString(t, data["message"]), "does not exist")
 }

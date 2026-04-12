@@ -172,8 +172,7 @@ func TestTickLifecycle_Snooze(t *testing.T) {
 	var data map[string]any
 	require.NoError(t, json.Unmarshal(out, &data))
 	assert.Equal(t, "ok", data["status"])
-	snoozed, ok := data["snoozed"].([]any)
-	require.True(t, ok)
+	snoozed := mustJSONArray(t, data["snoozed"])
 	require.Len(t, snoozed, 1)
 
 	// Tick after snooze — shows available workflows, no pipeline context
@@ -442,24 +441,20 @@ prompt: "Fix it"
 	assert.Equal(t, "ok", data["status"])
 
 	// Verify pipeline info
-	p, ok := data["pipeline"].(map[string]any)
-	require.True(t, ok, "pipeline should be an object")
+	p := mustJSONObject(t, data["pipeline"])
 	assert.Equal(t, "tick-lifecycle", p["workflow_id"])
 	assert.Equal(t, "running", p["status"])
-	progress, ok := p["progress"].(map[string]any)
-	require.True(t, ok, "progress should be an object")
+	progress := mustJSONObject(t, p["progress"])
 	assert.InDelta(t, 2, progress["current"], 0)
 	assert.InDelta(t, 3, progress["total"], 0)
 
 	// Verify invariant info
-	inv, ok := data["invariants"].(map[string]any)
-	require.True(t, ok, "invariants should be an object")
+	inv := mustJSONObject(t, data["invariants"])
 	assert.InDelta(t, 1, inv["passed"], 0)
 	assert.InDelta(t, 0, inv["failed"], 0)
-	details, ok := inv["details"].([]any)
-	require.True(t, ok, "details should be an array")
+	details := mustJSONArray(t, inv["details"])
 	require.Len(t, details, 1)
-	d0 := details[0].(map[string]any)
+	d0 := mustJSONObject(t, details[0])
 	assert.Equal(t, "tick-status-inv", d0["id"])
 	assert.Equal(t, "passed", d0["status"])
 }

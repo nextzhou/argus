@@ -77,9 +77,6 @@ func BuildContext(renderCtx context.Context, jobs map[string]*PipelineJobData, w
 }
 
 func buildContextWithRuntime(renderCtx context.Context, jobs map[string]*PipelineJobData, w *Workflow, jobIdx int, runtime templateRuntime) *TemplateContext {
-	if renderCtx == nil {
-		renderCtx = context.Background()
-	}
 	if runtime.env == nil {
 		runtime.env = buildEnvContext
 	}

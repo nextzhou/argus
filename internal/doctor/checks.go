@@ -100,7 +100,7 @@ type CheckResult struct {
 }
 
 // RunAllChecks executes the full doctor check suite.
-func RunAllChecks(projectRoot string, currentScope *scope.Resolved, options RunOptions) []CheckResult {
+func RunAllChecks(ctx context.Context, projectRoot string, currentScope *scope.Resolved, options RunOptions) []CheckResult {
 	results := make([]CheckResult, 0, 14)
 	if projectRoot == "" {
 		results = append(results,
@@ -127,8 +127,8 @@ func RunAllChecks(projectRoot string, currentScope *scope.Resolved, options RunO
 		CheckHookConfig(projectRoot),
 		CheckWorkflowFiles(projectRoot),
 		CheckInvariantFiles(projectRoot),
-		checkBuiltinDiagnostics(projectRoot, options),
-		CheckAutomaticInvariantDiagnostics(currentScope, options),
+		checkBuiltinDiagnostics(ctx, projectRoot, options),
+		CheckAutomaticInvariantDiagnostics(ctx, currentScope, options),
 		CheckSkillIntegrity(projectRoot),
 		CheckGitignore(projectRoot),
 		CheckLogHealth(projectRoot),
@@ -246,7 +246,7 @@ func CheckHookConfig(projectRoot string) CheckResult {
 				continue
 			}
 			if !slices.ContainsFunc(commands, func(command string) bool {
-				return strings.Contains(command, cfg.tickCommand)
+				return lifecycle.IsArgusAgentCommand(command, "tick", cfg.agent)
 			}) {
 				message := fmt.Sprintf("%s: missing argus tick entry", cfg.agent)
 				issues = append(issues, message)
@@ -337,7 +337,7 @@ func CheckInvariantFiles(projectRoot string) CheckResult {
 }
 
 // CheckBuiltinInvariants runs built-in invariant shell checks.
-func CheckBuiltinInvariants(projectRoot string) CheckResult {
+func CheckBuiltinInvariants(ctx context.Context, projectRoot string) CheckResult {
 	if projectRoot == "" {
 		return skippedProjectCheck(checkBuiltinChecks)
 	}
@@ -383,7 +383,7 @@ func CheckBuiltinInvariants(projectRoot string) CheckResult {
 	}
 
 	slices.Sort(files)
-	ctx, cancel := context.WithTimeout(context.Background(), builtinInvariantCheckTimeout)
+	ctx, cancel := context.WithTimeout(ctx, builtinInvariantCheckTimeout)
 	defer cancel()
 
 	issues := make([]string, 0)
@@ -422,16 +422,16 @@ func CheckBuiltinInvariants(projectRoot string) CheckResult {
 	return passResult(checkBuiltinChecks, "all built-in invariants passed")
 }
 
-func checkBuiltinDiagnostics(projectRoot string, options RunOptions) CheckResult {
+func checkBuiltinDiagnostics(ctx context.Context, projectRoot string, options RunOptions) CheckResult {
 	if !options.CheckInvariants {
 		return skippedInvariantExecutionCheck(checkBuiltinChecks)
 	}
 
-	return CheckBuiltinInvariants(projectRoot)
+	return CheckBuiltinInvariants(ctx, projectRoot)
 }
 
 // CheckAutomaticInvariantDiagnostics profiles automatic invariant execution.
-func CheckAutomaticInvariantDiagnostics(currentScope *scope.Resolved, options RunOptions) CheckResult {
+func CheckAutomaticInvariantDiagnostics(ctx context.Context, currentScope *scope.Resolved, options RunOptions) CheckResult {
 	if !options.CheckInvariants {
 		return CheckResult{
 			Name:       checkAutomaticInvariantDiagnostics,
@@ -492,7 +492,7 @@ func CheckAutomaticInvariantDiagnostics(currentScope *scope.Resolved, options Ru
 			continue
 		}
 
-		result := invariant.RunCheck(context.Background(), inv, projectRoot)
+		result := invariant.RunCheck(ctx, inv, projectRoot)
 		total += result.TotalTime
 
 		steps := make([]InvariantStepTiming, 0, len(result.Steps))
@@ -604,20 +604,19 @@ func CheckGitignore(projectRoot string) CheckResult {
 	}
 
 	missing := make([]string, 0, 3)
-	content := string(data)
-	for _, entry := range []string{".argus/pipelines/", ".argus/logs/", ".argus/tmp/"} {
-		if !strings.Contains(content, entry) {
+	for _, entry := range []string{".argus/pipelines", ".argus/logs", ".argus/tmp"} {
+		if !hasGitignoreRule(data, entry) {
 			missing = append(missing, entry)
 		}
 	}
 	if len(missing) > 0 {
 		findings := make([]core.Finding, 0, len(missing))
 		for _, entry := range missing {
-			findings = append(findings, fileFinding(filepath.Join(projectRoot, ".gitignore"), "missing_gitignore_entry", entry))
+			findings = append(findings, fileFinding(filepath.Join(projectRoot, ".gitignore"), "missing_gitignore_entry", entry+"/"))
 		}
 		return failResultWithFindings(
 			checkGitignore,
-			fmt.Sprintf("missing .gitignore entries: %s", strings.Join(missing, ", ")),
+			fmt.Sprintf("missing .gitignore entries: %s", joinGitignoreEntries(missing)),
 			"add the missing Argus local-only directories to .gitignore",
 			findings,
 		)
@@ -960,10 +959,53 @@ func readProjectFile(projectRoot string, relativePath string) ([]byte, error) {
 	//nolint:gosec // The file path is constrained to the resolved project root via ValidatePath.
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("reading %s: %w", relativePath, err)
 	}
 
 	return data, nil
+}
+
+func hasGitignoreRule(data []byte, required string) bool {
+	for line := range strings.SplitSeq(string(data), "\n") {
+		rule, ok := normalizeGitignoreRule(line)
+		if !ok {
+			continue
+		}
+		if rule == required {
+			return true
+		}
+	}
+
+	return false
+}
+
+func normalizeGitignoreRule(line string) (string, bool) {
+	trimmed := strings.TrimSpace(line)
+	switch {
+	case trimmed == "":
+		return "", false
+	case strings.HasPrefix(trimmed, "#"):
+		return "", false
+	case strings.HasPrefix(trimmed, "!"):
+		return "", false
+	}
+
+	trimmed = strings.TrimPrefix(trimmed, "/")
+	trimmed = strings.TrimSuffix(trimmed, "/")
+	if trimmed == "" {
+		return "", false
+	}
+
+	return trimmed, true
+}
+
+func joinGitignoreEntries(entries []string) string {
+	withSlash := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		withSlash = append(withSlash, entry+"/")
+	}
+
+	return strings.Join(withSlash, ", ")
 }
 
 func skipResult(name string, summary string) CheckResult {
@@ -1173,7 +1215,7 @@ func readDoctorLog(projectRoot string) (string, []byte, error) {
 			return path, data, nil
 		}
 		if !errors.Is(readErr, os.ErrNotExist) {
-			return "", nil, readErr
+			return "", nil, fmt.Errorf("reading doctor log %s: %w", path, readErr)
 		}
 	}
 

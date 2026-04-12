@@ -7,20 +7,47 @@ run:
 linters:
   default: none
   enable:
+    - asciicheck
+    - bidichk
+    - containedctx
+    - copyloopvar
+    - depguard
+    - durationcheck
+    - errchkjson
     - errcheck
+    - errname
+    - exhaustive
+    - gomoddirectives
     - govet
     - staticcheck
     - ineffassign
     - gocritic
+    - gocheckcompilerdirectives
+    - goprintffuncname
+    - ireturn
+    - loggercheck
     - revive
     - misspell
+    - modernize
     - nolintlint
+    - predeclared
+    - recvcheck
+    - sloglint
+    - thelper
+    - usetesting
     - unconvert
     - unparam
     - unused
+    - wastedassign
+    - wrapcheck
     - gochecknoinits
     - gochecknoglobals
     - noctx
+    - contextcheck
+    - fatcontext
+    - forcetypeassert
+    - intrange
+    - makezero
     - errorlint
     - testifylint
     - gosec
@@ -35,6 +62,50 @@ linters:
       forbid:
         - pattern: 'fmt\.Print'
           msg: use os.Stdout.WriteString or slog instead of fmt.Print*
+    depguard:
+      rules:
+        banned-packages:
+          deny:
+            - pkg: github.com/pkg/errors$
+              desc: use standard library errors and fmt.Errorf
+            - pkg: gopkg.in/yaml.v2$
+              desc: use gopkg.in/yaml.v3
+            - pkg: github.com/pelletier/go-toml$
+              desc: use github.com/pelletier/go-toml/v2
+            - pkg: golang.org/x/exp/slices$
+              desc: use standard library slices
+            - pkg: golang.org/x/exp/maps$
+              desc: use standard library maps
+            - pkg: reflect$
+              desc: prefer typed code and explicit parsing over reflection
+            - pkg: unsafe$
+              desc: unsafe is prohibited in this repository
+        no-testify-in-production:
+          files:
+            - "!$test"
+          deny:
+            - pkg: github.com/stretchr/testify/
+              desc: testify is test-only and must not leak into production code
+        no-cobra-outside-cmd:
+          files:
+            - internal/**/*.go
+            - tests/**/*.go
+          deny:
+            - pkg: github.com/spf13/cobra$
+              desc: cobra belongs in the CLI layer under cmd
+        no-cmd-imports:
+          files:
+            - internal/**/*.go
+            - tests/**/*.go
+          deny:
+            - pkg: github.com/nextzhou/argus/cmd/
+              desc: do not depend on the CLI layer outside cmd
+        core-no-internal-deps:
+          files:
+            - internal/core/**/*.go
+          deny:
+            - pkg: github.com/nextzhou/argus/internal/
+              desc: internal/core must stay independent from other internal packages
 
 formatters:
   enable:

@@ -51,10 +51,7 @@ jobs:
 `)
 	sessionID := sessiontest.NewSessionID(t, "tick-cli-no-pipeline")
 
-	oldCwd, err := os.Getwd()
-	require.NoError(t, err)
-	defer func() { require.NoError(t, os.Chdir(oldCwd)) }()
-	require.NoError(t, os.Chdir(projectRoot))
+	t.Chdir(projectRoot)
 
 	output, cmdErr := executeTickCmd(t, sessiontest.NewMemoryStore(), mustJSONInput(t, map[string]string{
 		"session_id": sessionID,
@@ -71,10 +68,7 @@ func TestTickSubAgentSkip(t *testing.T) {
 	require.NoError(t, os.MkdirAll(filepath.Join(projectRoot, ".argus", "workflows"), 0o700))
 	sessionID := sessiontest.NewSessionID(t, "tick-cli-sub-agent")
 
-	oldCwd, err := os.Getwd()
-	require.NoError(t, err)
-	defer func() { require.NoError(t, os.Chdir(oldCwd)) }()
-	require.NoError(t, os.Chdir(projectRoot))
+	t.Chdir(projectRoot)
 
 	output, cmdErr := executeTickCmd(t, sessiontest.NewMemoryStore(), mustJSONInput(t, map[string]string{
 		"session_id": sessionID,
@@ -88,10 +82,7 @@ func TestTickFailOpen(t *testing.T) {
 	projectRoot := t.TempDir()
 	require.NoError(t, os.MkdirAll(filepath.Join(projectRoot, ".argus", "workflows"), 0o700))
 
-	oldCwd, err := os.Getwd()
-	require.NoError(t, err)
-	defer func() { require.NoError(t, os.Chdir(oldCwd)) }()
-	require.NoError(t, os.Chdir(projectRoot))
+	t.Chdir(projectRoot)
 
 	output, cmdErr := executeTickCmd(t, sessiontest.NewMemoryStore(), `{invalid json}`, "--agent", "claude-code")
 	require.NoError(t, cmdErr)

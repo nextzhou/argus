@@ -22,7 +22,7 @@ func TestError_WorkflowNotFound(t *testing.T) {
 
 	result = runArgusJSON(t, projectDir, "workflow", "start", "nonexistent")
 	data := requireError(t, result)
-	assert.Contains(t, data["message"].(string), "nonexistent")
+	assert.Contains(t, mustJSONString(t, data["message"]), "nonexistent")
 }
 
 func TestError_DuplicateWorkflowStart(t *testing.T) {
@@ -85,7 +85,7 @@ func TestError_InvalidWorkflowID(t *testing.T) {
 
 	result = runArgusJSON(t, projectDir, "workflow", "start", "../etc/passwd")
 	data := requireError(t, result)
-	assert.Contains(t, data["message"].(string), "workflow ID")
+	assert.Contains(t, mustJSONString(t, data["message"]), "workflow ID")
 }
 
 func TestError_CorruptYAMLWorkflowInspect(t *testing.T) {
@@ -201,7 +201,7 @@ func TestError_TeardownWithoutProjectSetup(t *testing.T) {
 
 	result := runArgusJSON(t, projectDir, "teardown", "--yes")
 	data := requireError(t, result)
-	assert.Contains(t, data["message"].(string), "no project-level Argus setup found")
+	assert.Contains(t, mustJSONString(t, data["message"]), "no project-level Argus setup found")
 }
 
 func TestError_SetupNonGitDirectory(t *testing.T) {
@@ -212,7 +212,7 @@ func TestError_SetupNonGitDirectory(t *testing.T) {
 
 	result := runArgusJSON(t, nonGitDir, "setup", "--yes")
 	data := requireError(t, result)
-	assert.Contains(t, strings.ToLower(data["message"].(string)), "git")
+	assert.Contains(t, strings.ToLower(mustJSONString(t, data["message"])), "git")
 }
 
 func TestError_SnoozeNoActivePipeline(t *testing.T) {
@@ -269,7 +269,7 @@ func TestError_ErrorEnvelopeFormat(t *testing.T) {
 
 	result = runArgusJSON(t, projectDir, "workflow", "start", "does-not-exist")
 	data := requireError(t, result)
-	assert.Contains(t, data["message"].(string), "does-not-exist")
+	assert.Contains(t, mustJSONString(t, data["message"]), "does-not-exist")
 }
 
 func TestError_InvariantCheckNotFound(t *testing.T) {
@@ -283,7 +283,7 @@ func TestError_InvariantCheckNotFound(t *testing.T) {
 
 	result = runArgusJSON(t, projectDir, "invariant", "check", "nonexistent-inv")
 	data := requireError(t, result)
-	assert.Contains(t, data["message"].(string), "invariant not found")
+	assert.Contains(t, mustJSONString(t, data["message"]), "invariant not found")
 }
 
 func TestError_WorkflowMissingFile(t *testing.T) {
@@ -303,7 +303,7 @@ jobs:
 
 	result = runArgusJSON(t, projectDir, "workflow", "start", "missing-ref")
 	data := requireError(t, result)
-	assert.Contains(t, data["message"].(string), "loading shared definitions")
+	assert.Contains(t, mustJSONString(t, data["message"]), "loading shared definitions")
 }
 
 func TestError_JobDoneAfterPipelineCompleted(t *testing.T) {

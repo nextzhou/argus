@@ -189,6 +189,68 @@ func requireError(t *testing.T, result cmdResult) map[string]any {
 	return data
 }
 
+func requireJSONArray(t *testing.T, value any, field string) []any {
+	t.Helper()
+
+	parsed, ok := value.([]any)
+	require.True(t, ok, "%s should be an array", field)
+	return parsed
+}
+
+func requireJSONObject(t *testing.T, value any, field string) map[string]any {
+	t.Helper()
+
+	parsed, ok := value.(map[string]any)
+	require.True(t, ok, "%s should be an object", field)
+	return parsed
+}
+
+func requireJSONString(t *testing.T, value any, field string) string {
+	t.Helper()
+
+	parsed, ok := value.(string)
+	require.True(t, ok, "%s should be a string", field)
+	return parsed
+}
+
+func mustJSONArray(t *testing.T, value any) []any {
+	t.Helper()
+	return requireJSONArray(t, value, "value")
+}
+
+func mustJSONObject(t *testing.T, value any) map[string]any {
+	t.Helper()
+	return requireJSONObject(t, value, "value")
+}
+
+func mustJSONString(t *testing.T, value any) string {
+	t.Helper()
+	return requireJSONString(t, value, "value")
+}
+
+func mustJSONNumber(t *testing.T, value any) float64 {
+	t.Helper()
+
+	parsed, ok := value.(float64)
+	require.True(t, ok, "value should be a number")
+	return parsed
+}
+
+func requireEntryByBaseName(t *testing.T, entries []any, baseName string) map[string]any {
+	t.Helper()
+
+	for index, rawEntry := range entries {
+		entry := requireJSONObject(t, rawEntry, fmt.Sprintf("entries[%d]", index))
+		source := requireJSONObject(t, entry["source"], fmt.Sprintf("entries[%d].source", index))
+		if filepath.Base(requireJSONString(t, source["raw"], fmt.Sprintf("entries[%d].source.raw", index))) == baseName {
+			return entry
+		}
+	}
+
+	t.Fatalf("entry with base name %q not found", baseName)
+	return nil
+}
+
 // fileExists checks whether a file or directory exists at the given path.
 func fileExists(t *testing.T, path string) bool {
 	t.Helper()

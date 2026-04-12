@@ -432,7 +432,7 @@ func teardownGlobalHooksForAgent(homeDir, agent string, tracker *mutationTracker
 func releaseGlobalSkill(skillName string, targetRoots []string, tracker *mutationTracker) error {
 	sourceDir := filepath.Join("skills", skillName)
 
-	return assets.WalkAssets(sourceDir, func(path string, d fs.DirEntry, err error) error {
+	if err := assets.WalkAssets(sourceDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return fmt.Errorf("walking %s assets: %w", sourceDir, err)
 		}
@@ -456,17 +456,20 @@ func releaseGlobalSkill(skillName string, targetRoots []string, tracker *mutatio
 
 		data, err := assets.ReadAsset(path)
 		if err != nil {
-			return err
+			return fmt.Errorf("reading asset %s: %w", path, err)
 		}
 
 		for _, targetRoot := range targetRoots {
 			if err := writeFileTracked(filepath.Join(targetRoot, skillName, relPath), data, tracker); err != nil {
-				return err
+				return fmt.Errorf("writing skill file %s for %s: %w", relPath, targetRoot, err)
 			}
 		}
 
 		return nil
-	})
+	}); err != nil {
+		return fmt.Errorf("releasing global skill %s: %w", skillName, err)
+	}
+	return nil
 }
 
 func resolveUserHomeDir() (string, error) {

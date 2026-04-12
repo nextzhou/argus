@@ -142,18 +142,18 @@ prompt: "Fix it"
 
 	var payload map[string]any
 	require.NoError(t, json.Unmarshal(data, &payload))
-	checks := payload["checks"].([]any)
+	checks := mustJSONArray(t, payload["checks"])
 	found := false
 	for _, raw := range checks {
-		check := raw.(map[string]any)
+		check := mustJSONObject(t, raw)
 		if check["name"] != "automatic-invariant-diagnostics" {
 			continue
 		}
 		found = true
-		detail := check["detail"].(map[string]any)
-		auto := detail["automatic_invariant_diagnostics"].(map[string]any)
+		detail := mustJSONObject(t, check["detail"])
+		auto := mustJSONObject(t, detail["automatic_invariant_diagnostics"])
 		assert.Equal(t, true, auto["enabled"])
-		invariants := auto["invariants"].([]any)
+		invariants := mustJSONArray(t, auto["invariants"])
 		require.Len(t, invariants, 1)
 		break
 	}

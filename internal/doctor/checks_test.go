@@ -1,6 +1,7 @@
 package doctor
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -70,6 +71,40 @@ func TestCheckHookConfig_SkipMissingAgents(t *testing.T) {
 	assert.NotContains(t, result.Summary, "codex invalid")
 }
 
+func TestCheckHookConfig_AcceptsDirectArgusTickCommand(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	projectRoot := t.TempDir()
+	installFakeArgusBinary(t)
+
+	writeRepoFile(t, projectRoot, filepath.Join(".claude", "settings.json"), `{
+	  "hooks": {
+	    "UserPromptSubmit": [{"hooks": [{"type": "command", "command": "/tmp/bin/argus tick --agent claude-code"}]}]
+	  }
+	}`)
+
+	result := CheckHookConfig(projectRoot)
+
+	assert.Equal(t, "pass", result.Status)
+	assert.Contains(t, result.Summary, "claude-code")
+}
+
+func TestCheckHookConfig_RejectsCustomWrapperThatMentionsArgus(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	projectRoot := t.TempDir()
+	installFakeArgusBinary(t)
+
+	writeRepoFile(t, projectRoot, filepath.Join(".claude", "settings.json"), `{
+	  "hooks": {
+	    "UserPromptSubmit": [{"hooks": [{"type": "command", "command": "bash -lc 'argus tick --agent claude-code'"}]}]
+	  }
+	}`)
+
+	result := CheckHookConfig(projectRoot)
+
+	assert.Equal(t, "fail", result.Status)
+	assert.Contains(t, result.Summary, "claude-code: missing argus tick entry")
+}
+
 func TestCheckWorkflowFiles_Valid(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	projectRoot := t.TempDir()
@@ -132,7 +167,7 @@ func TestCheckBuiltinInvariants_NoInvariants(t *testing.T) {
 	projectRoot := t.TempDir()
 	createArgusDir(t, projectRoot, "invariants")
 
-	result := CheckBuiltinInvariants(projectRoot)
+	result := CheckBuiltinInvariants(context.Background(), projectRoot)
 
 	assert.Equal(t, "builtin-invariants", result.Name)
 	assert.Equal(t, "pass", result.Status)
@@ -146,7 +181,7 @@ func TestCheckBuiltinInvariants_SkipsMisnamedBuiltinFile(t *testing.T) {
 
 	writeInvariantFile(t, projectRoot, "wrong-name.yaml", "argus-project-init", "argus-project-init")
 
-	result := CheckBuiltinInvariants(projectRoot)
+	result := CheckBuiltinInvariants(context.Background(), projectRoot)
 
 	assert.Equal(t, "builtin-invariants", result.Name)
 	assert.Equal(t, "pass", result.Status)
@@ -159,7 +194,7 @@ func TestCheckAutomaticInvariantDiagnostics_DefaultSkip(t *testing.T) {
 	createArgusDir(t, projectRoot, "invariants")
 	writeInvariantFileWithAuto(t, projectRoot, "slow-check.yaml", "slow-check", "always", ":")
 
-	result := CheckAutomaticInvariantDiagnostics(nil, RunOptions{})
+	result := CheckAutomaticInvariantDiagnostics(context.Background(), nil, RunOptions{})
 
 	assert.Equal(t, checkAutomaticInvariantDiagnostics, result.Name)
 	assert.Equal(t, "skip", result.Status)
@@ -178,7 +213,7 @@ func TestCheckAutomaticInvariantDiagnostics_WithFlagReportsStepTiming(t *testing
 	createArgusDir(t, projectRoot, "invariants")
 	writeInvariantFileWithAuto(t, projectRoot, "slow-check.yaml", "slow-check", "always", "sleep 3")
 
-	result := CheckAutomaticInvariantDiagnostics(scope.NewProjectScope(projectRoot), RunOptions{CheckInvariants: true})
+	result := CheckAutomaticInvariantDiagnostics(context.Background(), scope.NewProjectScope(projectRoot), RunOptions{CheckInvariants: true})
 
 	assert.Equal(t, checkAutomaticInvariantDiagnostics, result.Name)
 	assert.Equal(t, "fail", result.Status)
@@ -197,6 +232,51 @@ func TestCheckAutomaticInvariantDiagnostics_WithFlagReportsStepTiming(t *testing
 	require.Len(t, detail.Invariants[0].Steps, 1)
 	assert.Equal(t, "pass", detail.Invariants[0].Steps[0].Status)
 	assert.GreaterOrEqual(t, detail.Invariants[0].Steps[0].DurationMS, int64(3000))
+}
+
+func TestCheckBuiltinInvariants_UsesProvidedContext(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	projectRoot := t.TempDir()
+	createArgusDir(t, projectRoot, "invariants")
+	writeRepoFile(t, projectRoot, filepath.Join(".argus", "invariants", "argus-project-init.yaml"), `version: v0.1.0
+id: argus-project-init
+order: 10
+workflow: argus-project-init
+check:
+  - description: should not run when context is cancelled
+    shell: exit 1
+prompt: Fix it
+`)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	result := CheckBuiltinInvariants(ctx, projectRoot)
+
+	assert.Equal(t, "fail", result.Status)
+	assert.Contains(t, result.Summary, "context canceled")
+	assert.NotContains(t, result.Summary, "builtin_invariant_failed")
+}
+
+func TestCheckAutomaticInvariantDiagnostics_UsesProvidedContext(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	projectRoot := t.TempDir()
+	createArgusDir(t, projectRoot, "invariants")
+	writeInvariantFileWithAuto(t, projectRoot, "cancelled.yaml", "cancelled", "always", "exit 1")
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	result := CheckAutomaticInvariantDiagnostics(ctx, scope.NewProjectScope(projectRoot), RunOptions{
+		CheckInvariants: true,
+	})
+
+	assert.Equal(t, "pass", result.Status)
+	require.NotNil(t, result.Detail)
+	require.NotNil(t, result.Detail.AutomaticInvariantDiagnostics)
+	require.Len(t, result.Detail.AutomaticInvariantDiagnostics.Invariants, 1)
+	require.Len(t, result.Detail.AutomaticInvariantDiagnostics.Invariants[0].Steps, 1)
+	assert.Equal(t, "skip", result.Detail.AutomaticInvariantDiagnostics.Invariants[0].Steps[0].Status)
 }
 
 func TestCheckSkillIntegrity_Present(t *testing.T) {
@@ -237,6 +317,17 @@ func TestCheckGitignore_Complete(t *testing.T) {
 	assert.Equal(t, "pass", result.Status)
 }
 
+func TestCheckGitignore_AcceptsEquivalentRules(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	projectRoot := t.TempDir()
+
+	writeRepoFile(t, projectRoot, ".gitignore", "# Argus local state\n/.argus/pipelines\n.argus/logs/\n/.argus/tmp/\n")
+
+	result := CheckGitignore(projectRoot)
+
+	assert.Equal(t, "pass", result.Status)
+}
+
 func TestCheckGitignore_MissingEntries(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	projectRoot := t.TempDir()
@@ -250,6 +341,20 @@ func TestCheckGitignore_MissingEntries(t *testing.T) {
 	assert.Contains(t, result.Summary, ".argus/tmp/")
 	require.NotEmpty(t, result.Findings)
 	assert.Equal(t, core.SourceFile, result.Findings[0].Source.Kind)
+}
+
+func TestCheckGitignore_NegatedRulesDoNotCount(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	projectRoot := t.TempDir()
+
+	writeRepoFile(t, projectRoot, ".gitignore", "!.argus/pipelines/\n!.argus/logs/\n!.argus/tmp/\n")
+
+	result := CheckGitignore(projectRoot)
+
+	assert.Equal(t, "fail", result.Status)
+	assert.Contains(t, result.Summary, ".argus/pipelines/")
+	assert.Contains(t, result.Summary, ".argus/logs/")
+	assert.Contains(t, result.Summary, ".argus/tmp/")
 }
 
 func TestCheckLogHealth_NoLog(t *testing.T) {
@@ -377,7 +482,7 @@ func TestRunAllChecks_InstalledProject(t *testing.T) {
 	writeHomeFile(t, homeDir, filepath.Join(".codex", "hooks.json"), "{}")
 	writeHomeFile(t, homeDir, filepath.Join(".config", "opencode", "plugins", "argus.ts"), "export default {}\n")
 
-	results := RunAllChecks(projectRoot, scope.NewProjectScope(projectRoot), RunOptions{CheckInvariants: true})
+	results := RunAllChecks(context.Background(), projectRoot, scope.NewProjectScope(projectRoot), RunOptions{CheckInvariants: true})
 	require.Len(t, results, 14)
 
 	for _, result := range results {

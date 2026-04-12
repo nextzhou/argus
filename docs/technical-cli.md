@@ -111,6 +111,7 @@ argus toolbox touch-timestamp .argus/data/lint-passed
 ### Design Choices
 
 - stdout, stderr, and exit codes are forwarded directly from the underlying implementation
+- implementation is intentionally allowed to passthrough process-global stdio and direct exit codes instead of following normal Cobra command-wrapping conventions
 - primary use cases are invariant shell checks and hook wrappers parsing Argus output
 - new tools can be added later without changing the user-facing invocation model
 

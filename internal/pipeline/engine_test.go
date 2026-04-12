@@ -22,6 +22,7 @@ func TestEngineTransitions(t *testing.T) {
 		{
 			name: "create pipeline initializes first job",
 			run: func(t *testing.T) {
+				t.Helper()
 				dir := t.TempDir()
 				wf := testWorkflow("lint", "test")
 
@@ -38,6 +39,7 @@ func TestEngineTransitions(t *testing.T) {
 		{
 			name: "create pipeline rejects active pipeline",
 			run: func(t *testing.T) {
+				t.Helper()
 				dir := t.TempDir()
 				wf := testWorkflow("lint", "test")
 				writeRunningPipeline(t, dir, now.Add(-time.Minute))
@@ -50,6 +52,7 @@ func TestEngineTransitions(t *testing.T) {
 		{
 			name: "advance middle job starts next job",
 			run: func(t *testing.T) {
+				t.Helper()
 				wf := testWorkflow("lint", "test", "deploy")
 				p := testRunningPipeline(now, wf, "lint")
 
@@ -69,6 +72,7 @@ func TestEngineTransitions(t *testing.T) {
 		{
 			name: "advance last job completes pipeline",
 			run: func(t *testing.T) {
+				t.Helper()
 				wf := testWorkflow("lint")
 				p := testRunningPipeline(now, wf, "lint")
 
@@ -83,6 +87,7 @@ func TestEngineTransitions(t *testing.T) {
 		{
 			name: "advance with end pipeline completes early",
 			run: func(t *testing.T) {
+				t.Helper()
 				wf := testWorkflow("lint", "test")
 				p := testRunningPipeline(now, wf, "lint")
 
@@ -98,6 +103,7 @@ func TestEngineTransitions(t *testing.T) {
 		{
 			name: "advance with fail marks pipeline failed",
 			run: func(t *testing.T) {
+				t.Helper()
 				wf := testWorkflow("lint", "test")
 				p := testRunningPipeline(now, wf, "lint")
 
@@ -113,6 +119,7 @@ func TestEngineTransitions(t *testing.T) {
 		{
 			name: "advance with fail and end pipeline behaves as failure",
 			run: func(t *testing.T) {
+				t.Helper()
 				wf := testWorkflow("lint", "test")
 				p := testRunningPipeline(now, wf, "lint")
 
@@ -128,6 +135,7 @@ func TestEngineTransitions(t *testing.T) {
 		{
 			name: "advance returns error when current job missing from workflow",
 			run: func(t *testing.T) {
+				t.Helper()
 				wf := testWorkflow("lint", "test")
 				p := testRunningPipeline(now, wf, "missing")
 
@@ -139,6 +147,7 @@ func TestEngineTransitions(t *testing.T) {
 		{
 			name: "cancel pipeline preserves current job runtime data",
 			run: func(t *testing.T) {
+				t.Helper()
 				wf := testWorkflow("lint", "test")
 				p := testRunningPipeline(now, wf, "lint")
 
@@ -174,11 +183,13 @@ func TestCreatePipeline(t *testing.T) {
 			name: "creates and persists first job",
 			setup: func(t *testing.T, _ string) {
 				t.Helper()
+				t.Helper()
 			},
 		},
 		{
 			name: "returns active pipeline exists when running pipeline already present",
 			setup: func(t *testing.T, dir string) {
+				t.Helper()
 				t.Helper()
 				writeRunningPipeline(t, dir, now.Add(-time.Minute))
 			},
@@ -252,7 +263,7 @@ func TestAdvanceJob(t *testing.T) {
 			},
 			opts:             pipeline.AdvanceOpts{Message: &message, Now: now.Add(time.Minute)},
 			wantStatus:       pipeline.StatusRunning,
-			wantCurrentJob:   stringPtr("test"),
+			wantCurrentJob:   new("test"),
 			wantStartedJobID: "test",
 		},
 		{
@@ -286,7 +297,7 @@ func TestAdvanceJob(t *testing.T) {
 			},
 			opts:            pipeline.AdvanceOpts{Fail: true, Message: &message, Now: now.Add(time.Minute)},
 			wantStatus:      pipeline.StatusFailed,
-			wantCurrentJob:  stringPtr("lint"),
+			wantCurrentJob:  new("lint"),
 			wantPipelineEnd: true,
 		},
 		{
@@ -298,7 +309,7 @@ func TestAdvanceJob(t *testing.T) {
 			},
 			opts:            pipeline.AdvanceOpts{Fail: true, EndPipeline: true, Message: &message, Now: now.Add(time.Minute)},
 			wantStatus:      pipeline.StatusFailed,
-			wantCurrentJob:  stringPtr("lint"),
+			wantCurrentJob:  new("lint"),
 			wantPipelineEnd: true,
 		},
 		{
@@ -484,7 +495,7 @@ func testRunningPipeline(now time.Time, wf *workflow.Workflow, currentJob string
 func testTerminalPipeline(status string, now time.Time, wf *workflow.Workflow, currentJob string) *pipeline.Pipeline {
 	p := testRunningPipeline(now, wf, currentJob)
 	p.Status = status
-	p.EndedAt = stringPtr(core.FormatTimestamp(now.Add(time.Minute)))
+	p.EndedAt = new(core.FormatTimestamp(now.Add(time.Minute)))
 	return p
 }
 
@@ -494,15 +505,11 @@ func writeRunningPipeline(t *testing.T, dir string, now time.Time) {
 		Version:    core.SchemaVersion,
 		WorkflowID: "existing",
 		Status:     pipeline.StatusRunning,
-		CurrentJob: stringPtr("job1"),
+		CurrentJob: new("job1"),
 		StartedAt:  core.FormatTimestamp(now),
 		Jobs: map[string]*pipeline.JobData{
 			"job1": {StartedAt: core.FormatTimestamp(now)},
 		},
 	})
 	require.NoError(t, err)
-}
-
-func stringPtr(s string) *string {
-	return &s
 }

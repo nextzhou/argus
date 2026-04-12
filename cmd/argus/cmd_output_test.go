@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
+	"slices"
 	"testing"
 
 	"github.com/spf13/cobra"
@@ -11,10 +12,8 @@ import (
 )
 
 func withJSONFlag(args ...string) []string {
-	for _, arg := range args {
-		if arg == "--json" {
-			return append([]string(nil), args...)
-		}
+	if slices.Contains(args, "--json") {
+		return append([]string(nil), args...)
 	}
 
 	withFlag := append([]string(nil), args...)
@@ -74,4 +73,36 @@ func mustJSONInput(t *testing.T, payload map[string]string) string {
 	data, err := json.Marshal(payload)
 	require.NoError(t, err)
 	return string(data)
+}
+
+func mustJSONArray(t *testing.T, value any) []any {
+	t.Helper()
+
+	parsed, ok := value.([]any)
+	require.True(t, ok, "value should be an array")
+	return parsed
+}
+
+func mustJSONObject(t *testing.T, value any) map[string]any {
+	t.Helper()
+
+	parsed, ok := value.(map[string]any)
+	require.True(t, ok, "value should be an object")
+	return parsed
+}
+
+func mustJSONString(t *testing.T, value any) string {
+	t.Helper()
+
+	parsed, ok := value.(string)
+	require.True(t, ok, "value should be a string")
+	return parsed
+}
+
+func mustJSONBool(t *testing.T, value any) bool {
+	t.Helper()
+
+	parsed, ok := value.(bool)
+	require.True(t, ok, "value should be a bool")
+	return parsed
 }

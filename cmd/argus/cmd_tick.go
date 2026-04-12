@@ -31,7 +31,7 @@ func newTickCmdWithSessionStore(store session.Store) *cobra.Command {
 			}
 
 			global, _ := cmd.Flags().GetBool("global")
-			if err := hook.HandleTickWithSessionStore(agentFlag, global, cmd.InOrStdin(), w, cwd, store); err != nil {
+			if err := hook.HandleTickWithSessionStore(cmd.Context(), agentFlag, global, cmd.InOrStdin(), w, cwd, store); err != nil {
 				_, _ = fmt.Fprintf(w, "Argus warning: internal error: %v\n", err)
 			}
 			return nil

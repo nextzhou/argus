@@ -30,8 +30,8 @@ func TestWorkflowList(t *testing.T) {
 			setupFiles: nil,
 			wantStatus: "ok",
 			checkJSON: func(t *testing.T, data map[string]any) {
-				workflows, ok := data["workflows"].([]any)
-				require.True(t, ok, "workflows should be an array")
+				t.Helper()
+				workflows := mustJSONArray(t, data["workflows"])
 				assert.Empty(t, workflows)
 			},
 		},
@@ -57,16 +57,16 @@ jobs:
 			},
 			wantStatus: "ok",
 			checkJSON: func(t *testing.T, data map[string]any) {
-				workflows, ok := data["workflows"].([]any)
-				require.True(t, ok, "workflows should be an array")
+				t.Helper()
+				workflows := mustJSONArray(t, data["workflows"])
 				require.Len(t, workflows, 2)
 
-				wf0 := workflows[0].(map[string]any)
+				wf0 := mustJSONObject(t, workflows[0])
 				assert.Equal(t, "deploy", wf0["id"])
 				assert.Equal(t, "Deploy to production", wf0["description"])
 				assert.InDelta(t, 1, wf0["jobs"], 0)
 
-				wf1 := workflows[1].(map[string]any)
+				wf1 := mustJSONObject(t, workflows[1])
 				assert.Equal(t, "release", wf1["id"])
 				assert.Equal(t, "Release workflow", wf1["description"])
 				assert.InDelta(t, 2, wf1["jobs"], 0)
@@ -89,11 +89,11 @@ jobs:
 			},
 			wantStatus: "ok",
 			checkJSON: func(t *testing.T, data map[string]any) {
-				workflows, ok := data["workflows"].([]any)
-				require.True(t, ok, "workflows should be an array")
+				t.Helper()
+				workflows := mustJSONArray(t, data["workflows"])
 				require.Len(t, workflows, 1)
 
-				wf0 := workflows[0].(map[string]any)
+				wf0 := mustJSONObject(t, workflows[0])
 				assert.Equal(t, "release", wf0["id"])
 			},
 		},
@@ -102,8 +102,8 @@ jobs:
 			setupFiles: nil,
 			wantStatus: "ok",
 			checkJSON: func(t *testing.T, data map[string]any) {
-				workflows, ok := data["workflows"].([]any)
-				require.True(t, ok, "workflows should be an array")
+				t.Helper()
+				workflows := mustJSONArray(t, data["workflows"])
 				assert.Empty(t, workflows)
 			},
 		},
@@ -174,7 +174,7 @@ jobs:
 	require.NoError(t, json.Unmarshal(output, &data))
 	assert.Equal(t, "ok", data["status"])
 
-	workflows := data["workflows"].([]any)
+	workflows := mustJSONArray(t, data["workflows"])
 	require.Len(t, workflows, 1)
-	assert.Equal(t, "release", workflows[0].(map[string]any)["id"])
+	assert.Equal(t, "release", mustJSONObject(t, workflows[0])["id"])
 }

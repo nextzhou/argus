@@ -23,6 +23,7 @@ func TestResolveScopeForTick(t *testing.T) {
 			global: false,
 			setup: func(t *testing.T, homeDir string) *workspace.ProjectRoot {
 				t.Helper()
+				t.Helper()
 				projectDir := filepath.Join(homeDir, "project-set-up")
 				createResolveTestProject(t, projectDir, true)
 				return &workspace.ProjectRoot{Path: projectDir, HasArgus: true, HasGit: true}
@@ -34,6 +35,7 @@ func TestResolveScopeForTick(t *testing.T) {
 			global: false,
 			setup: func(t *testing.T, homeDir string) *workspace.ProjectRoot {
 				t.Helper()
+				t.Helper()
 				projectDir := filepath.Join(homeDir, "project-not-set-up")
 				createResolveTestProject(t, projectDir, false)
 				return &workspace.ProjectRoot{Path: projectDir, HasArgus: false, HasGit: true}
@@ -44,6 +46,7 @@ func TestResolveScopeForTick(t *testing.T) {
 			name:   "global tick resolves to project scope when repository is set up",
 			global: true,
 			setup: func(t *testing.T, homeDir string) *workspace.ProjectRoot {
+				t.Helper()
 				t.Helper()
 				workspaceDir := filepath.Join(homeDir, "work", "company")
 				writeResolveWorkspaceConfig(t, homeDir, []string{normalizeResolveWorkspacePath(t, workspaceDir)})
@@ -58,6 +61,7 @@ func TestResolveScopeForTick(t *testing.T) {
 			global: true,
 			setup: func(t *testing.T, homeDir string) *workspace.ProjectRoot {
 				t.Helper()
+				t.Helper()
 				workspaceDir := filepath.Join(homeDir, "work", "company")
 				writeResolveWorkspaceConfig(t, homeDir, []string{normalizeResolveWorkspacePath(t, workspaceDir)})
 				projectDir := filepath.Join(workspaceDir, "argus")
@@ -70,6 +74,7 @@ func TestResolveScopeForTick(t *testing.T) {
 			name:   "global tick skips project outside workspace",
 			global: true,
 			setup: func(t *testing.T, homeDir string) *workspace.ProjectRoot {
+				t.Helper()
 				t.Helper()
 				workspaceDir := filepath.Join(homeDir, "work", "company")
 				writeResolveWorkspaceConfig(t, homeDir, []string{normalizeResolveWorkspacePath(t, workspaceDir)})
@@ -84,6 +89,7 @@ func TestResolveScopeForTick(t *testing.T) {
 			global: true,
 			setup: func(t *testing.T, homeDir string) *workspace.ProjectRoot {
 				t.Helper()
+				t.Helper()
 				projectDir := filepath.Join(homeDir, "missing-config-project")
 				createResolveTestProject(t, projectDir, false)
 				return &workspace.ProjectRoot{Path: projectDir, HasArgus: false, HasGit: true}
@@ -94,6 +100,7 @@ func TestResolveScopeForTick(t *testing.T) {
 			name:   "global tick returns error for invalid workspace config",
 			global: true,
 			setup: func(t *testing.T, homeDir string) *workspace.ProjectRoot {
+				t.Helper()
 				t.Helper()
 				projectDir := filepath.Join(homeDir, "invalid-config-project")
 				createResolveTestProject(t, projectDir, false)
@@ -106,6 +113,7 @@ func TestResolveScopeForTick(t *testing.T) {
 			name:   "global tick skips when workspace list is empty",
 			global: true,
 			setup: func(t *testing.T, homeDir string) *workspace.ProjectRoot {
+				t.Helper()
 				t.Helper()
 				writeResolveWorkspaceConfig(t, homeDir, []string{})
 				projectDir := filepath.Join(homeDir, "empty-workspaces-project")
@@ -146,6 +154,7 @@ func TestResolveScope(t *testing.T) {
 			name: "project with argus uses project scope",
 			setup: func(t *testing.T, homeDir string) resolveScopeTestInput {
 				t.Helper()
+				t.Helper()
 				projectDir := filepath.Join(homeDir, "project-set-up")
 				createResolveTestProject(t, projectDir, true)
 				cwd := filepath.Join(projectDir, "nested", "dir")
@@ -157,6 +166,7 @@ func TestResolveScope(t *testing.T) {
 		{
 			name: "project without argus in workspace uses global scope",
 			setup: func(t *testing.T, homeDir string) resolveScopeTestInput {
+				t.Helper()
 				t.Helper()
 				workspaceDir := filepath.Join(homeDir, "work", "company")
 				writeResolveWorkspaceConfig(t, homeDir, []string{normalizeResolveWorkspacePath(t, workspaceDir)})
@@ -172,6 +182,7 @@ func TestResolveScope(t *testing.T) {
 			name: "project without argus outside workspace returns nil",
 			setup: func(t *testing.T, homeDir string) resolveScopeTestInput {
 				t.Helper()
+				t.Helper()
 				workspaceDir := filepath.Join(homeDir, "work", "company")
 				writeResolveWorkspaceConfig(t, homeDir, []string{normalizeResolveWorkspacePath(t, workspaceDir)})
 				projectDir := filepath.Join(homeDir, "personal-project")
@@ -185,6 +196,7 @@ func TestResolveScope(t *testing.T) {
 		{
 			name: "no project root returns nil",
 			setup: func(t *testing.T, homeDir string) resolveScopeTestInput {
+				t.Helper()
 				t.Helper()
 				cwd := filepath.Join(homeDir, "not-a-project")
 				require.NoError(t, os.MkdirAll(cwd, 0o700))

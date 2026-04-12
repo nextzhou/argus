@@ -49,19 +49,15 @@ func parseLifecycleOutput(t *testing.T, output []byte) map[string]any {
 func assertLifecycleReportShape(t *testing.T, data map[string]any, expectedAffectedPaths ...string) {
 	t.Helper()
 
-	changes, ok := data["changes"].(map[string]any)
-	require.True(t, ok, "changes should be an object")
+	changes := mustJSONObject(t, data["changes"])
 	for _, key := range []string{"created", "updated", "removed"} {
-		_, ok := changes[key].([]any)
-		require.True(t, ok, "%s should be an array", key)
+		mustJSONArray(t, changes[key])
 	}
 
-	affected, ok := data["affected_paths"].([]any)
-	require.True(t, ok, "affected_paths should be an array")
+	affected := mustJSONArray(t, data["affected_paths"])
 	gotAffected := make([]string, 0, len(affected))
 	for _, value := range affected {
-		asString, ok := value.(string)
-		require.True(t, ok, "affected_paths values should be strings")
+		asString := mustJSONString(t, value)
 		gotAffected = append(gotAffected, asString)
 	}
 
@@ -73,11 +69,9 @@ func assertLifecycleReportShape(t *testing.T, data map[string]any, expectedAffec
 func assertEmptyLifecycleChanges(t *testing.T, data map[string]any) {
 	t.Helper()
 
-	changes, ok := data["changes"].(map[string]any)
-	require.True(t, ok, "changes should be an object")
+	changes := mustJSONObject(t, data["changes"])
 	for _, key := range []string{"created", "updated", "removed"} {
-		entries, ok := changes[key].([]any)
-		require.True(t, ok, "%s should be an array", key)
+		entries := mustJSONArray(t, changes[key])
 		assert.Empty(t, entries, "%s should be empty", key)
 	}
 }
@@ -170,8 +164,7 @@ func TestSetupEdgeCases(t *testing.T) {
 		data := parseLifecycleOutput(t, output)
 		assert.Equal(t, "error", data["status"])
 
-		msg, ok := data["message"].(string)
-		require.True(t, ok, "message should be a string")
+		msg := mustJSONString(t, data["message"])
 		assert.Contains(t, strings.ToLower(msg), "git",
 			"error message should mention git, got: %s", msg)
 	})
@@ -194,8 +187,7 @@ func TestSetupEdgeCases(t *testing.T) {
 		data := parseLifecycleOutput(t, output)
 		assert.Equal(t, "error", data["status"])
 
-		msg, ok := data["message"].(string)
-		require.True(t, ok, "message should be a string")
+		msg := mustJSONString(t, data["message"])
 		assert.Contains(t, msg, ".argus", "error should mention ancestor .argus/")
 	})
 
@@ -222,11 +214,9 @@ func TestSetupEdgeCases(t *testing.T) {
 		var settings map[string]any
 		require.NoError(t, json.Unmarshal(settingsData, &settings))
 
-		hooks, ok := settings["hooks"].(map[string]any)
-		require.True(t, ok, "hooks should be an object")
+		hooks := mustJSONObject(t, settings["hooks"])
 
-		userPromptEntries, ok := hooks["UserPromptSubmit"].([]any)
-		require.True(t, ok, "UserPromptSubmit should be an array")
+		userPromptEntries := mustJSONArray(t, hooks["UserPromptSubmit"])
 
 		argusCount := 0
 		for _, entry := range userPromptEntries {
@@ -320,11 +310,9 @@ func TestSetupEdgeCases(t *testing.T) {
 		var settings map[string]any
 		require.NoError(t, json.Unmarshal(settingsData, &settings))
 
-		hooks, ok := settings["hooks"].(map[string]any)
-		require.True(t, ok, "hooks should be an object")
+		hooks := mustJSONObject(t, settings["hooks"])
 
-		entries, ok := hooks["UserPromptSubmit"].([]any)
-		require.True(t, ok, "UserPromptSubmit should be an array")
+		entries := mustJSONArray(t, hooks["UserPromptSubmit"])
 
 		settingsStr := string(settingsData)
 		assert.Contains(t, settingsStr, "my-other-tool", "non-argus hook should be present after setup")
@@ -339,8 +327,7 @@ func TestSetupEdgeCases(t *testing.T) {
 
 		require.NoError(t, json.Unmarshal(settingsData, &settings))
 
-		_, ok = settings["hooks"].(map[string]any)
-		require.True(t, ok, "hooks should still be an object")
+		mustJSONObject(t, settings["hooks"])
 
 		settingsStr = string(settingsData)
 		assert.Contains(t, settingsStr, "my-other-tool", "non-argus hook should be preserved after teardown")

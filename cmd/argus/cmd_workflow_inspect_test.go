@@ -41,15 +41,15 @@ jobs:
 `,
 			},
 			checkJSON: func(t *testing.T, data map[string]any) {
-				assert.True(t, data["valid"].(bool))
+				t.Helper()
+				assert.True(t, mustJSONBool(t, data["valid"]))
 				entries := inspectEntries(t, data)
 				require.Len(t, entries, 1)
 
 				buildFile := inspectEntryByBaseName(t, data, "build.yaml")
-				assert.True(t, buildFile["valid"].(bool))
+				assert.True(t, mustJSONBool(t, buildFile["valid"]))
 
-				workflow, ok := buildFile["workflow"].(map[string]any)
-				require.True(t, ok, "workflow metadata should exist")
+				workflow := mustJSONObject(t, buildFile["workflow"])
 				assert.Equal(t, "build", workflow["id"])
 				assert.InDelta(t, 2, workflow["jobs"], 0)
 			},
@@ -68,10 +68,11 @@ jobs:
 `,
 			},
 			checkJSON: func(t *testing.T, data map[string]any) {
-				assert.False(t, data["valid"].(bool))
+				t.Helper()
+				assert.False(t, mustJSONBool(t, data["valid"]))
 
 				badFile := inspectEntryByBaseName(t, data, "bad.yaml")
-				assert.False(t, badFile["valid"].(bool))
+				assert.False(t, mustJSONBool(t, badFile["valid"]))
 				findings := inspectFindings(t, badFile)
 				require.NotEmpty(t, findings)
 			},
@@ -97,13 +98,14 @@ jobs:
 `,
 			},
 			checkJSON: func(t *testing.T, data map[string]any) {
-				assert.False(t, data["valid"].(bool))
+				t.Helper()
+				assert.False(t, mustJSONBool(t, data["valid"]))
 
 				validFile := inspectEntryByBaseName(t, data, "valid.yaml")
-				assert.True(t, validFile["valid"].(bool))
+				assert.True(t, mustJSONBool(t, validFile["valid"]))
 
 				invalidFile := inspectEntryByBaseName(t, data, "invalid.yaml")
-				assert.False(t, invalidFile["valid"].(bool))
+				assert.False(t, mustJSONBool(t, invalidFile["valid"]))
 				findings := inspectFindings(t, invalidFile)
 				require.NotEmpty(t, findings)
 			},
@@ -113,7 +115,8 @@ jobs:
 			wantStatus: "ok",
 			setupFiles: nil,
 			checkJSON: func(t *testing.T, data map[string]any) {
-				assert.True(t, data["valid"].(bool))
+				t.Helper()
+				assert.True(t, mustJSONBool(t, data["valid"]))
 				assert.Empty(t, inspectEntries(t, data))
 			},
 		},
@@ -138,13 +141,14 @@ jobs:
 `,
 			},
 			checkJSON: func(t *testing.T, data map[string]any) {
-				assert.False(t, data["valid"].(bool))
+				t.Helper()
+				assert.False(t, mustJSONBool(t, data["valid"]))
 
 				firstFile := inspectEntryByBaseName(t, data, "first.yaml")
-				assert.False(t, firstFile["valid"].(bool))
+				assert.False(t, mustJSONBool(t, firstFile["valid"]))
 
 				secondFile := inspectEntryByBaseName(t, data, "second.yaml")
-				assert.False(t, secondFile["valid"].(bool))
+				assert.False(t, mustJSONBool(t, secondFile["valid"]))
 			},
 		},
 		{
@@ -161,10 +165,11 @@ jobs:
 `,
 			},
 			checkJSON: func(t *testing.T, data map[string]any) {
-				assert.False(t, data["valid"].(bool))
+				t.Helper()
+				assert.False(t, mustJSONBool(t, data["valid"]))
 
 				reservedFile := inspectEntryByBaseName(t, data, "reserved.yaml")
-				assert.False(t, reservedFile["valid"].(bool))
+				assert.False(t, mustJSONBool(t, reservedFile["valid"]))
 				findings := inspectFindings(t, reservedFile)
 				require.NotEmpty(t, findings)
 				assert.Contains(t, findings[0]["message"], "reserved")
@@ -183,10 +188,11 @@ jobs:
 `,
 			},
 			checkJSON: func(t *testing.T, data map[string]any) {
-				assert.True(t, data["valid"].(bool))
+				t.Helper()
+				assert.True(t, mustJSONBool(t, data["valid"]))
 
 				builtinFile := inspectEntryByBaseName(t, data, "argus-project-init.yaml")
-				assert.True(t, builtinFile["valid"].(bool))
+				assert.True(t, mustJSONBool(t, builtinFile["valid"]))
 			},
 		},
 		{
@@ -203,10 +209,11 @@ jobs:
 `,
 			},
 			checkJSON: func(t *testing.T, data map[string]any) {
-				assert.False(t, data["valid"].(bool))
+				t.Helper()
+				assert.False(t, mustJSONBool(t, data["valid"]))
 
 				file := inspectEntryByBaseName(t, data, "wrong-name.yaml")
-				assert.False(t, file["valid"].(bool))
+				assert.False(t, mustJSONBool(t, file["valid"]))
 				findings := inspectFindings(t, file)
 				require.NotEmpty(t, findings)
 				assert.Contains(t, findings[0]["message"], `expected "release.yaml"`)
@@ -226,10 +233,11 @@ jobs:
 `,
 			},
 			checkJSON: func(t *testing.T, data map[string]any) {
-				assert.False(t, data["valid"].(bool))
+				t.Helper()
+				assert.False(t, mustJSONBool(t, data["valid"]))
 
 				badFile := inspectEntryByBaseName(t, data, "bad-template.yaml")
-				assert.False(t, badFile["valid"].(bool))
+				assert.False(t, mustJSONBool(t, badFile["valid"]))
 				findings := inspectFindings(t, badFile)
 				require.NotEmpty(t, findings)
 				assert.Contains(t, findings[0]["message"], "template")
@@ -254,10 +262,11 @@ jobs:
 `,
 			},
 			checkJSON: func(t *testing.T, data map[string]any) {
-				assert.False(t, data["valid"].(bool))
+				t.Helper()
+				assert.False(t, mustJSONBool(t, data["valid"]))
 
 				buildFile := inspectEntryByBaseName(t, data, "build.yaml")
-				assert.False(t, buildFile["valid"].(bool))
+				assert.False(t, mustJSONBool(t, buildFile["valid"]))
 				findings := inspectFindings(t, buildFile)
 				require.NotEmpty(t, findings)
 				assert.Contains(t, findings[0]["message"], "not found")
@@ -319,6 +328,7 @@ jobs:
 `,
 			},
 			checkOutput: func(t *testing.T, output string) {
+				t.Helper()
 				assert.Contains(t, output, "# Workflow Inspect")
 				assert.Contains(t, output, "All workflows valid")
 			},
@@ -335,6 +345,7 @@ jobs:
 `,
 			},
 			checkOutput: func(t *testing.T, output string) {
+				t.Helper()
 				assert.Contains(t, output, "# Workflow Inspect")
 				assert.Contains(t, output, "Validation errors found")
 				assert.Contains(t, output, "bad.yaml")
@@ -344,6 +355,7 @@ jobs:
 			name:       "empty directory default text output",
 			setupFiles: nil,
 			checkOutput: func(t *testing.T, output string) {
+				t.Helper()
 				assert.Contains(t, output, "# Workflow Inspect")
 				assert.Contains(t, output, "All workflows valid")
 			},

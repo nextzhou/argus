@@ -39,5 +39,8 @@ func ListAssets(subdir string) ([]string, error) {
 
 // WalkAssets walks the embedded filesystem under subdir, calling fn for each entry.
 func WalkAssets(subdir string, fn fs.WalkDirFunc) error {
-	return fs.WalkDir(embedded, subdir, fn)
+	if err := fs.WalkDir(embedded, subdir, fn); err != nil {
+		return fmt.Errorf("walking assets in %q: %w", subdir, err)
+	}
+	return nil
 }

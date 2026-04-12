@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/pelletier/go-toml/v2"
 )
@@ -492,10 +491,15 @@ func isArgusHook(value any) bool {
 		return false
 	}
 
+	hookType, ok := hook["type"].(string)
+	if !ok || hookType != "command" {
+		return false
+	}
+
 	command, ok := hook["command"].(string)
 	if !ok {
 		return false
 	}
 
-	return strings.Contains(command, "argus tick") || strings.Contains(command, "argus trap")
+	return IsArgusCommand(command)
 }

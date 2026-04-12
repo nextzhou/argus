@@ -192,6 +192,7 @@ For every implementation task:
 - Use `testing` standard library for M0; `testify/assert` and `testify/require` from M1+
 - Test both happy path and error paths
 - For CLI commands, prefer `cmd.InOrStdin()` / `cmd.OutOrStdout()` over direct `os.Stdin` / `os.Stdout` access. If interactivity depends on TTY detection, detect TTY from the injected input stream rather than from process-global stdin.
+  Exception: hidden passthrough utility commands under `argus toolbox` may intentionally forward process-global stdin/stdout/stderr to preserve their busybox-style contract.
 - For structured persisted state such as YAML or JSON, tests should assert by parsing the artifact into typed data rather than by substring matching on serialized text. String matching is acceptable only as a secondary check for human-facing output.
 - Integration test helpers must make output mode explicit. Do not hide command contracts behind helpers that infer flags such as `--json` from the command shape.
 - The default `go test ./...` baseline must not depend on optional third-party binaries being installed. Extra validation that shells out to external tools should be explicitly gated and must not be required for the default test suite.
@@ -207,6 +208,39 @@ For every implementation task:
 
 **Context Propagation**:
 - In cobra `RunE` functions, use `cmd.Context()` when calling context-aware APIs, not `context.Background()`. This maintains proper cancellation propagation even in CLI commands.
+
+### Lint Policy
+
+The authoritative enforced lint set lives in `.golangci.yml` and CI. Treat lint as a way to encode repository-wide engineering constraints, not as a collection of personal style preferences.
+
+- Prefer linters that catch correctness bugs, contract violations, architectural boundary breaks, insecure defaults, deprecated APIs, or maintainability hazards that recur across the codebase.
+- Prefer rules that express **"do not do this"** over brittle allowlists that merely snapshot today's import graph or coding shape.
+- A linter is worth adding when it encodes a durable project invariant, produces mostly actionable findings, and does not require routine suppression churn to stay usable.
+- Do not add or keep a linter solely because it is available. If a rule mostly creates local style noise, forces arbitrary rewrites, or repeatedly fights intentional Argus design, it is the wrong rule for this repository.
+- When a repository convention and a linter disagree, first ask whether the convention should be tightened, the code should be clarified, or the linter should be reconfigured. Do not cargo-cult the linter output.
+
+### `nolint` Usage
+
+`nolint` is an escape hatch for narrow, justified exceptions. It is not a normal way to resolve lint findings.
+
+- Prefer changing the code, tests, naming, comments, or helper structure so the lint issue disappears without suppression.
+- Suppress only when the code is intentionally correct but the linter cannot reasonably model that fact.
+- Typical acceptable cases:
+  - product contracts that intentionally look risky to a generic linter, such as executing user-authored invariant shell checks
+  - host-tool integration contracts that require patterns we normally avoid
+  - passthrough utility commands under `argus toolbox`, where preserving the external utility contract is more important than normal CLI abstractions
+  - narrowly-scoped false positives where a rewrite would make the code less clear
+  - temporary migration exceptions, but only when the follow-up work is explicit and bounded
+- Requirements for every suppression:
+  - use the smallest possible scope, ideally one line
+  - name the exact linter: `//nolint:<linter>`
+  - explain why the code is safe or why the exception is intentional
+  - keep the surrounding code readable enough that future reviewers can re-evaluate the suppression
+- Unacceptable uses:
+  - bare `//nolint`
+  - file-wide or directory-wide suppression for convenience
+  - suppressing a warning without understanding it
+  - using suppression to preserve unclear code when a small refactor would remove the ambiguity
 
 ### Anti-Patterns (Prohibited)
 
@@ -292,6 +326,7 @@ The following patterns emerged from the test coverage backfill effort and should
 - **Two output capture patterns**: Use `executeXxxCmd` with `os.Pipe` for JSON output (which redirects `os.Stdout` globally), and `cmd.SetOut(buf)` with `bytes.Buffer` for markdown or plain text output. Do not mix these: `os.Pipe` captures all writes to `os.Stdout`, while `SetOut` only captures output sent through cobra's `cmd.OutOrStdout()`.
 - **Fixture helper reuse**: Fixture helpers (e.g., `writeWorkflowFixture`, `writePipelineFixture`, `writeInvariantFixture`) defined in any `_test.go` file within a package are accessible to all other test files in that same package. Do not redeclare these helpers.
 - **Untestable patterns to avoid**: Functions reading from `os.Stdin` directly are difficult to test; use an `io.Reader` parameter or `cmd.InOrStdin()` instead. Similarly, cobra commands using `Run` with `os.Exit` cannot be tested for error paths; use `RunE` for all new commands to allow returning errors to the test runner.
+  Exception: the hidden `argus toolbox` passthrough subcommands may keep `Run` + direct exit-code forwarding because their contract is to proxy utility behavior rather than follow the normal Argus command envelope.
 - **Test directory context**: Tests in `internal/hook/` typically use an explicit `projectRoot := t.TempDir()` and pass it to fixtures and functions. CLI tests in `cmd/argus/` prefer `t.Chdir(t.TempDir())` to establish an implicit directory context for the duration of the test.
 - **t.Parallel() prohibition**: In addition to sequence tests, any test using the `os.Pipe` pattern to capture `os.Stdout` MUST NOT call `t.Parallel()`, as `os.Stdout` is a process-global resource.
 - **Session test hygiene**: In `cmd/argus`, same-process session tests should use `sessiontest.NewSessionID(...)` with `sessiontest.NewMemoryStore()`. In `tests/integration`, tests that hit the default session files should use the shared session ID and cleanup helpers. Keep explicit session literals only when the literal itself is the assertion target.

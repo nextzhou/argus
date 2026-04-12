@@ -35,7 +35,11 @@ func (s *PipelineStore) Create(workflowID string, wf *workflow.Workflow, now tim
 	if s == nil {
 		return nil, "", fmt.Errorf("pipeline store is nil")
 	}
-	return pipeline.CreatePipeline(s.dir, workflowID, wf, now)
+	p, instanceID, err := pipeline.CreatePipeline(s.dir, workflowID, wf, now)
+	if err != nil {
+		return nil, "", fmt.Errorf("creating pipeline for workflow %q: %w", workflowID, err)
+	}
+	return p, instanceID, nil
 }
 
 // Save persists pipeline state for an existing instance.
@@ -43,7 +47,10 @@ func (s *PipelineStore) Save(instanceID string, p *pipeline.Pipeline) error {
 	if s == nil {
 		return fmt.Errorf("pipeline store is nil")
 	}
-	return pipeline.SavePipeline(s.dir, instanceID, p)
+	if err := pipeline.SavePipeline(s.dir, instanceID, p); err != nil {
+		return fmt.Errorf("saving pipeline %q: %w", instanceID, err)
+	}
+	return nil
 }
 
 // Load loads pipeline state for one instance.
@@ -51,7 +58,11 @@ func (s *PipelineStore) Load(instanceID string) (*pipeline.Pipeline, error) {
 	if s == nil {
 		return nil, fmt.Errorf("pipeline store is nil")
 	}
-	return pipeline.LoadPipeline(s.dir, instanceID)
+	p, err := pipeline.LoadPipeline(s.dir, instanceID)
+	if err != nil {
+		return nil, fmt.Errorf("loading pipeline %q: %w", instanceID, err)
+	}
+	return p, nil
 }
 
 // ScanActive scans for currently running pipeline instances.
@@ -59,5 +70,9 @@ func (s *PipelineStore) ScanActive() ([]pipeline.ActivePipeline, []pipeline.Scan
 	if s == nil {
 		return nil, nil, fmt.Errorf("pipeline store is nil")
 	}
-	return pipeline.ScanActivePipelines(s.dir)
+	active, warnings, err := pipeline.ScanActivePipelines(s.dir)
+	if err != nil {
+		return nil, nil, fmt.Errorf("scanning active pipelines in %s: %w", s.dir, err)
+	}
+	return active, warnings, nil
 }

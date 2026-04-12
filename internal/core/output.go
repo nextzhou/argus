@@ -17,7 +17,7 @@ func marshalNoHTMLEscape(v any) ([]byte, error) {
 	enc := json.NewEncoder(&buf)
 	enc.SetEscapeHTML(false)
 	if err := enc.Encode(v); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("encoding JSON: %w", err)
 	}
 	// Encode appends a trailing newline; trim it to match json.Marshal behavior
 	return bytes.TrimSuffix(buf.Bytes(), []byte("\n")), nil

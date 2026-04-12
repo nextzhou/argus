@@ -79,13 +79,13 @@ func TestPipelineNullableFields(t *testing.T) {
 	}{
 		{
 			name:       "running pipeline with current job",
-			currentJob: strPtr("build"),
+			currentJob: new("build"),
 			endedAt:    nil,
 		},
 		{
 			name:       "completed pipeline with null current job",
 			currentJob: nil,
-			endedAt:    strPtr("20240115T104000Z"),
+			endedAt:    new("20240115T104000Z"),
 		},
 	}
 
@@ -105,8 +105,4 @@ func TestPipelineNullableFields(t *testing.T) {
 			assert.Equal(t, tt.endedAt, p.EndedAt)
 		})
 	}
-}
-
-func strPtr(s string) *string {
-	return &s
 }

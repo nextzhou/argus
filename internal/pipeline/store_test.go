@@ -54,7 +54,7 @@ func TestSavePipelineCreatesDir(t *testing.T) {
 		Version:    "v0.1.0",
 		WorkflowID: "release",
 		Status:     "running",
-		CurrentJob: strPtr("lint"),
+		CurrentJob: new("lint"),
 		StartedAt:  "20240115T103000Z",
 		Jobs:       map[string]*JobData{},
 	}
@@ -77,7 +77,7 @@ func TestSaveAndLoadPipelineRoundTrip(t *testing.T) {
 		Version:    "v0.1.0",
 		WorkflowID: "release",
 		Status:     "running",
-		CurrentJob: strPtr("run_tests"),
+		CurrentJob: new("run_tests"),
 		StartedAt:  "20240115T103000Z",
 		EndedAt:    nil,
 		Jobs: map[string]*JobData{
@@ -215,7 +215,7 @@ func TestScanActivePipelinesRunning(t *testing.T) {
 		Version:    "v0.1.0",
 		WorkflowID: "release",
 		Status:     "running",
-		CurrentJob: strPtr("lint"),
+		CurrentJob: new("lint"),
 		StartedAt:  "20240115T103000Z",
 		Jobs:       map[string]*JobData{},
 	}
@@ -229,7 +229,7 @@ func TestScanActivePipelinesRunning(t *testing.T) {
 		Status:     "completed",
 		CurrentJob: nil,
 		StartedAt:  "20240115T100000Z",
-		EndedAt:    strPtr("20240115T101000Z"),
+		EndedAt:    new("20240115T101000Z"),
 		Jobs:       map[string]*JobData{},
 	}
 	err = SavePipeline(dir, "build-20240115T100000Z", completed)
@@ -251,7 +251,7 @@ func TestScanActivePipelinesCorruptFile(t *testing.T) {
 		Version:    "v0.1.0",
 		WorkflowID: "release",
 		Status:     "running",
-		CurrentJob: strPtr("lint"),
+		CurrentJob: new("lint"),
 		StartedAt:  "20240115T103000Z",
 		Jobs:       map[string]*JobData{},
 	}
@@ -301,7 +301,7 @@ func TestScanActivePipelinesMultipleRunning(t *testing.T) {
 			Version:    "v0.1.0",
 			WorkflowID: "test",
 			Status:     "running",
-			CurrentJob: strPtr("job1"),
+			CurrentJob: new("job1"),
 			StartedAt:  "20240115T103000Z",
 			Jobs:       map[string]*JobData{},
 		}

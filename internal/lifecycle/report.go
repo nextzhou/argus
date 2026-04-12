@@ -3,6 +3,7 @@ package lifecycle
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 )
@@ -381,12 +382,7 @@ func anyOfRule(paths []string, summary string) summaryRule {
 	return summaryRule{
 		summary: summary,
 		match: func(candidate string) bool {
-			for _, path := range paths {
-				if candidate == path {
-					return true
-				}
-			}
-			return false
+			return slices.Contains(paths, candidate)
 		},
 	}
 }

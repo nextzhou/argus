@@ -57,7 +57,7 @@ func newDoctorCmd() *cobra.Command {
 				return fmt.Errorf("resolving scope: %w", err)
 			}
 
-			results := doctor.RunAllChecks(projectRoot, currentScope, doctor.RunOptions{
+			results := doctor.RunAllChecks(cmd.Context(), projectRoot, currentScope, doctor.RunOptions{
 				CheckInvariants: checkInvariants,
 			})
 			summary := summarizeDoctorResults(results)

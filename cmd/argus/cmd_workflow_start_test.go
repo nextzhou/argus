@@ -55,12 +55,12 @@ jobs:
 `,
 			wantStatus: "ok",
 			checkJSON: func(t *testing.T, data map[string]any) {
+				t.Helper()
 				assert.Equal(t, "running", data["pipeline_status"])
 				assert.Equal(t, "1/1", data["progress"])
-				nextJob, ok := data["next_job"].(map[string]any)
-				require.True(t, ok, "next_job should be an object")
+				nextJob := mustJSONObject(t, data["next_job"])
 				assert.Equal(t, "build", nextJob["id"])
-				assert.Contains(t, nextJob["prompt"].(string), "Build the project")
+				assert.Contains(t, mustJSONString(t, nextJob["prompt"]), "Build the project")
 				assert.Equal(t, "argus-build", nextJob["skill"])
 			},
 		},
@@ -75,8 +75,8 @@ jobs:
 `,
 			wantStatus: "ok",
 			checkJSON: func(t *testing.T, data map[string]any) {
-				nextJob, ok := data["next_job"].(map[string]any)
-				require.True(t, ok)
+				t.Helper()
+				nextJob := mustJSONObject(t, data["next_job"])
 				assert.Nil(t, nextJob["skill"], "skill should be null when not set")
 			},
 		},
@@ -95,9 +95,9 @@ jobs:
 `,
 			wantStatus: "ok",
 			checkJSON: func(t *testing.T, data map[string]any) {
+				t.Helper()
 				assert.Equal(t, "1/3", data["progress"])
-				nextJob, ok := data["next_job"].(map[string]any)
-				require.True(t, ok)
+				nextJob := mustJSONObject(t, data["next_job"])
 				assert.Equal(t, "lint", nextJob["id"])
 			},
 		},
@@ -208,6 +208,22 @@ jobs:
 	assert.NotContains(t, stdout, "Skill:")
 }
 
+func TestWorkflowStartTemplateWarningsGoToCommandStderr(t *testing.T) {
+	t.Chdir(t.TempDir())
+	writeWorkflowFixture(t, "warn-start", `version: v0.1.0
+id: warn-start
+jobs:
+  - id: review
+    prompt: "Review {{.jobs.missing.message}}"
+`)
+
+	stdout, stderr, err := executeTextCommand(t, newWorkflowStartCmd(), "warn-start")
+	require.NoError(t, err)
+	assert.Contains(t, stdout, "Review {{.jobs.missing.message}}")
+	assert.Contains(t, stderr, "Argus warning:")
+	assert.Contains(t, stderr, ".jobs.missing.message")
+}
+
 func TestWorkflowStartBuiltinProjectInitStartsWithBootstrapJob(t *testing.T) {
 	t.Chdir(t.TempDir())
 
@@ -224,8 +240,7 @@ func TestWorkflowStartBuiltinProjectInitStartsWithBootstrapJob(t *testing.T) {
 	assert.Equal(t, "running", payload["pipeline_status"])
 	assert.Equal(t, "1/6", payload["progress"])
 
-	nextJob, ok := payload["next_job"].(map[string]any)
-	require.True(t, ok)
+	nextJob := mustJSONObject(t, payload["next_job"])
 	assert.Equal(t, "bootstrap_argus", nextJob["id"])
 	assert.Nil(t, nextJob["skill"])
 }
@@ -252,8 +267,7 @@ jobs:
 	assert.Equal(t, "ok", payload["status"])
 	assert.Equal(t, "running", payload["pipeline_status"])
 
-	nextJob, ok := payload["next_job"].(map[string]any)
-	require.True(t, ok)
+	nextJob := mustJSONObject(t, payload["next_job"])
 	assert.Equal(t, "build_job", nextJob["id"])
 	assert.Equal(t, "Build from shared", nextJob["prompt"])
 	assert.Equal(t, "argus-build", nextJob["skill"])

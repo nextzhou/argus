@@ -57,12 +57,12 @@ func (p *WorkflowProvider) Load(id string) (*workflow.Workflow, error) {
 
 	wf, err := workflow.ParseWorkflowFile(workflowPath)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("parsing workflow %q: %w", workflowPath, err)
 	}
 
 	resolved, err := resolveWorkflowRefs(p.dir, workflowPath, wf)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("resolving workflow refs for %q: %w", workflowPath, err)
 	}
 
 	return resolved, nil
@@ -145,7 +145,11 @@ func (p *WorkflowProvider) Inspect(allowReservedID func(id string) bool) (*workf
 	if p == nil {
 		return nil, fmt.Errorf("workflow provider is nil")
 	}
-	return workflow.InspectDirectory(p.projectRoot, p.dir, allowReservedID)
+	report, err := workflow.InspectDirectory(p.projectRoot, p.dir, allowReservedID)
+	if err != nil {
+		return nil, fmt.Errorf("inspecting workflows in %s: %w", p.dir, err)
+	}
+	return report, nil
 }
 
 func resolveWorkflowRefs(workflowsDir, workflowPath string, wf *workflow.Workflow) (*workflow.Workflow, error) {

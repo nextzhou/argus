@@ -96,12 +96,12 @@ func TestJobDone(t *testing.T) {
 			args:         []string{"--message", "tests passed"},
 			wantStatus:   "ok",
 			checkJSON: func(t *testing.T, data map[string]any) {
+				t.Helper()
 				assert.Equal(t, "running", data["pipeline_status"])
 				assert.Equal(t, "2/5", data["progress"])
-				nextJob, ok := data["next_job"].(map[string]any)
-				require.True(t, ok, "next_job should be an object")
+				nextJob := mustJSONObject(t, data["next_job"])
 				assert.Equal(t, "build", nextJob["id"])
-				assert.Contains(t, nextJob["prompt"].(string), "Build the project")
+				assert.Contains(t, mustJSONString(t, nextJob["prompt"]), "Build the project")
 				assert.Nil(t, nextJob["skill"])
 				assert.Nil(t, data["early_exit"])
 				assert.Nil(t, data["failed_job"])
@@ -112,6 +112,7 @@ func TestJobDone(t *testing.T) {
 			pipelineYAML: pipelineAtVerify,
 			wantStatus:   "ok",
 			checkJSON: func(t *testing.T, data map[string]any) {
+				t.Helper()
 				assert.Equal(t, "completed", data["pipeline_status"])
 				assert.Equal(t, "5/5", data["progress"])
 				assert.Nil(t, data["next_job"])
@@ -125,6 +126,7 @@ func TestJobDone(t *testing.T) {
 			args:         []string{"--end-pipeline"},
 			wantStatus:   "ok",
 			checkJSON: func(t *testing.T, data map[string]any) {
+				t.Helper()
 				assert.Equal(t, "completed", data["pipeline_status"])
 				assert.Equal(t, "2/5", data["progress"])
 				assert.Nil(t, data["next_job"])
@@ -138,6 +140,7 @@ func TestJobDone(t *testing.T) {
 			args:         []string{"--fail"},
 			wantStatus:   "ok",
 			checkJSON: func(t *testing.T, data map[string]any) {
+				t.Helper()
 				assert.Equal(t, "failed", data["pipeline_status"])
 				assert.Equal(t, "2/5", data["progress"])
 				assert.Nil(t, data["next_job"])
@@ -150,8 +153,8 @@ func TestJobDone(t *testing.T) {
 			wantErr:    true,
 			wantStatus: "error",
 			checkJSON: func(t *testing.T, data map[string]any) {
-				msg, ok := data["message"].(string)
-				require.True(t, ok)
+				t.Helper()
+				msg := mustJSONString(t, data["message"])
 				assert.Contains(t, msg, "No active pipeline")
 			},
 		},
@@ -161,6 +164,7 @@ func TestJobDone(t *testing.T) {
 			args:         []string{"--fail", "--end-pipeline"},
 			wantStatus:   "ok",
 			checkJSON: func(t *testing.T, data map[string]any) {
+				t.Helper()
 				assert.Equal(t, "failed", data["pipeline_status"])
 				assert.Equal(t, "2/5", data["progress"])
 				assert.Nil(t, data["next_job"])
@@ -241,6 +245,33 @@ jobs:
 
 	assert.Contains(t, stdout, "Next job: step2")
 	assert.Contains(t, stdout, "Skill: argus-deploy")
+}
+
+func TestJobDoneTemplateWarningsGoToCommandStderr(t *testing.T) {
+	t.Chdir(t.TempDir())
+	writeWorkflowFixture(t, "warn-job-done", `version: v0.1.0
+id: warn-job-done
+jobs:
+  - id: step1
+    prompt: "Do step 1"
+  - id: step2
+    prompt: "Use {{.jobs.missing.message}}"
+`)
+	writePipelineFixture(t, "warn-job-done-20240101T000000Z", `version: v0.1.0
+workflow_id: warn-job-done
+status: running
+current_job: step1
+started_at: "20240101T000000Z"
+jobs:
+  step1:
+    started_at: "20240101T000000Z"
+`)
+
+	stdout, stderr, err := executeTextCommand(t, newJobDoneCmd())
+	require.NoError(t, err)
+	assert.Contains(t, stdout, "Use {{.jobs.missing.message}}")
+	assert.Contains(t, stderr, "Argus warning:")
+	assert.Contains(t, stderr, ".jobs.missing.message")
 }
 
 func TestJobDoneDefaultTextCompleted(t *testing.T) {
@@ -340,8 +371,7 @@ jobs:
 	assert.Equal(t, "ok", payload["status"])
 	assert.Equal(t, "4/6", payload["progress"])
 
-	nextJob, ok := payload["next_job"].(map[string]any)
-	require.True(t, ok)
+	nextJob := mustJSONObject(t, payload["next_job"])
 	assert.Equal(t, "generate_workflows", nextJob["id"])
 	assert.Equal(t, "argus-configure-workflow", nextJob["skill"])
 }
@@ -382,8 +412,7 @@ jobs:
 	assert.Equal(t, "ok", payload["status"])
 	assert.Equal(t, "5/6", payload["progress"])
 
-	nextJob, ok := payload["next_job"].(map[string]any)
-	require.True(t, ok)
+	nextJob := mustJSONObject(t, payload["next_job"])
 	assert.Equal(t, "generate_invariant_examples", nextJob["id"])
 	assert.Equal(t, "argus-configure-invariant", nextJob["skill"])
 }

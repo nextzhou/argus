@@ -58,5 +58,9 @@ func (p *InvariantProvider) Inspect(workflowChecker func(id string) bool, allowR
 	if p == nil {
 		return nil, fmt.Errorf("invariant provider is nil")
 	}
-	return invariant.InspectDirectory(p.projectRoot, p.dir, workflowChecker, allowReservedID)
+	report, err := invariant.InspectDirectory(p.projectRoot, p.dir, workflowChecker, allowReservedID)
+	if err != nil {
+		return nil, fmt.Errorf("inspecting invariants in %s: %w", p.dir, err)
+	}
+	return report, nil
 }

@@ -36,8 +36,7 @@ func TestTrapWithAgentAndStdin(t *testing.T) {
 	var result map[string]any
 	require.NoError(t, json.Unmarshal(out, &result))
 
-	hookOutput, ok := result["hookSpecificOutput"].(map[string]any)
-	require.True(t, ok, "hookSpecificOutput should be a map")
+	hookOutput := mustJSONObject(t, result["hookSpecificOutput"])
 
 	assert.Equal(t, "PreToolUse", hookOutput["hookEventName"])
 	assert.Equal(t, "allow", hookOutput["permissionDecision"])
@@ -50,8 +49,7 @@ func TestTrapWithEmptyStdin(t *testing.T) {
 	var result map[string]any
 	require.NoError(t, json.Unmarshal(out, &result))
 
-	hookOutput, ok := result["hookSpecificOutput"].(map[string]any)
-	require.True(t, ok, "hookSpecificOutput should be a map")
+	hookOutput := mustJSONObject(t, result["hookSpecificOutput"])
 
 	assert.Equal(t, "PreToolUse", hookOutput["hookEventName"])
 	assert.Equal(t, "allow", hookOutput["permissionDecision"])
@@ -68,8 +66,7 @@ func TestTrapWithDifferentAgents(t *testing.T) {
 			var result map[string]any
 			require.NoError(t, json.Unmarshal(out, &result))
 
-			hookOutput, ok := result["hookSpecificOutput"].(map[string]any)
-			require.True(t, ok, "hookSpecificOutput should be a map")
+			hookOutput := mustJSONObject(t, result["hookSpecificOutput"])
 
 			assert.Equal(t, "PreToolUse", hookOutput["hookEventName"])
 			assert.Equal(t, "allow", hookOutput["permissionDecision"])

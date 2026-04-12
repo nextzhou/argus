@@ -27,7 +27,7 @@ func newSetupCmd() *cobra.Command {
 				preview, err := lifecycle.PrepareWorkspaceSetup(workspacePath)
 				if err != nil {
 					writeCommandError(cmd, jsonFlag, err.Error())
-					return err
+					return fmt.Errorf("preparing workspace setup: %w", err)
 				}
 
 				if !yesFlag {
@@ -49,7 +49,7 @@ func newSetupCmd() *cobra.Command {
 				result, err := lifecycle.SetupWorkspaceWithReport(workspacePath)
 				if err != nil {
 					writeCommandError(cmd, jsonFlag, err.Error())
-					return err
+					return fmt.Errorf("setting up workspace: %w", err)
 				}
 
 				message := "workspace registered"
@@ -78,7 +78,7 @@ func newSetupCmd() *cobra.Command {
 			projectRoot, isSubdir, err := lifecycle.CheckSetupPreconditions()
 			if err != nil {
 				writeCommandError(cmd, jsonFlag, err.Error())
-				return err
+				return fmt.Errorf("checking setup preconditions: %w", err)
 			}
 
 			if isSubdir && !yesFlag {
@@ -97,7 +97,7 @@ func newSetupCmd() *cobra.Command {
 			result, err := lifecycle.SetupWithReport(projectRoot)
 			if err != nil {
 				writeCommandError(cmd, jsonFlag, err.Error())
-				return err
+				return fmt.Errorf("setting up project: %w", err)
 			}
 
 			output := lifecycleOutput{

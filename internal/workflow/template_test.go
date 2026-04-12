@@ -60,13 +60,13 @@ func TestBuildContextWithRuntime(t *testing.T) {
 			jobs: map[string]*PipelineJobData{
 				"prepare": {
 					StartedAt: "20240115T103000Z",
-					EndedAt:   strPtr("20240115T103100Z"),
-					Message:   strPtr("prepared"),
+					EndedAt:   new("20240115T103100Z"),
+					Message:   new("prepared"),
 				},
 				"run_tests": {
 					StartedAt: "20240115T103101Z",
-					EndedAt:   strPtr("20240115T103200Z"),
-					Message:   strPtr("tests passed"),
+					EndedAt:   new("20240115T103200Z"),
+					Message:   new("tests passed"),
 				},
 				"deploy": {
 					StartedAt: "20240115T103201Z",
@@ -75,8 +75,8 @@ func TestBuildContextWithRuntime(t *testing.T) {
 				},
 				"notify": {
 					StartedAt: "20240115T103201Z",
-					EndedAt:   strPtr("20240115T103250Z"),
-					Message:   strPtr(""),
+					EndedAt:   new("20240115T103250Z"),
+					Message:   new(""),
 				},
 			},
 			wantJobID:         "deploy",
@@ -214,8 +214,4 @@ func TestTemplateRenderPrompt(t *testing.T) {
 			}
 		})
 	}
-}
-
-func strPtr(s string) *string {
-	return &s
 }
