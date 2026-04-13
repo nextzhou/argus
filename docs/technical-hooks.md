@@ -166,16 +166,19 @@ If `argus` is unavailable, the shell wrappers print the installation hint and ex
 Example full-context output:
 
 ```text
-Argus: Pipeline: release-20240405T103000Z | Workflow: release | Progress: 2/5
+Argus: Continue the active pipeline.
+Pipeline: release-20240405T103000Z | Workflow: release | Progress: 2/5
 
 Current Job: run_tests
 Skill: argus-run-tests
 
 Run all tests and only continue if they pass.
 
+Default behavior: execute this job now. Only stop to ask the user if the job prompt explicitly requires approval, or you lack critical information, permissions, or irreversible-action confirmation.
+
 When done: argus job-done [--message "summary"]
-To snooze: argus workflow snooze --session abc-123
-To cancel: argus workflow cancel
+If the user wants to pause this pipeline for the current session: argus workflow snooze --session abc-123
+If the user wants to stop this pipeline: argus workflow cancel
 ```
 
 #### Developer Prompt Debugging with `tick --mock`

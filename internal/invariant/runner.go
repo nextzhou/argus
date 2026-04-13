@@ -17,6 +17,11 @@ const (
 	stepStatusFail = "fail"
 	stepStatusSkip = "skip"
 
+	stepFailureExit     = "exit"
+	stepFailureTimeout  = "timeout"
+	stepFailureCanceled = "canceled"
+	stepFailureExec     = "exec"
+
 	stepTimeout = 5 * time.Second
 	// SlowCheckThreshold is the aggregate automatic-check runtime above which
 	// Argus surfaces a slow-check warning or diagnostic finding.
@@ -28,14 +33,23 @@ type checkRuntime struct {
 	now         func() time.Time
 	stepTimeout time.Duration
 	slowCheckAt time.Duration
-	runStep     func(ctx context.Context, script string, projectRoot string) (string, string)
+	runStep     func(ctx context.Context, script string, projectRoot string) stepExecutionResult
+}
+
+type stepExecutionResult struct {
+	output      string
+	status      string
+	exitCode    *int
+	failureKind string
 }
 
 // StepResult records the outcome of a single invariant shell check step.
 type StepResult struct {
-	Description string
+	Check       CheckStep
 	Status      string
 	Output      string
+	ExitCode    *int
+	FailureKind string
 	Duration    time.Duration
 }
 
@@ -64,7 +78,7 @@ func runCheckWithRuntime(ctx context.Context, inv *Invariant, projectRoot string
 		runtime.slowCheckAt = SlowCheckThreshold
 	}
 	if runtime.runStep == nil {
-		runtime.runStep = func(ctx context.Context, script string, projectRoot string) (string, string) {
+		runtime.runStep = func(ctx context.Context, script string, projectRoot string) stepExecutionResult {
 			return runStep(ctx, script, projectRoot, runtime.stepTimeout)
 		}
 	}
@@ -86,7 +100,9 @@ func runCheckWithRuntime(ctx context.Context, inv *Invariant, projectRoot string
 	skipRemaining := false
 
 	for _, step := range inv.Check {
-		stepResult := StepResult{Description: step.Description}
+		stepResult := StepResult{
+			Check: step,
+		}
 
 		if skipRemaining || ctx.Err() != nil {
 			stepResult.Status = stepStatusSkip
@@ -96,15 +112,17 @@ func runCheckWithRuntime(ctx context.Context, inv *Invariant, projectRoot string
 
 		stepCtx, cancel := context.WithTimeout(ctx, runtime.stepTimeout)
 		stepStartedAt := runtime.now()
-		output, status := runtime.runStep(stepCtx, step.Shell, absProjectRoot)
+		execution := runtime.runStep(stepCtx, step.Shell, absProjectRoot)
 		stepResult.Duration = runtime.now().Sub(stepStartedAt)
 		cancel()
 
-		stepResult.Status = status
-		stepResult.Output = output
+		stepResult.Status = execution.status
+		stepResult.Output = execution.output
+		stepResult.ExitCode = execution.exitCode
+		stepResult.FailureKind = execution.failureKind
 		result.Steps = append(result.Steps, stepResult)
 
-		if status == stepStatusFail {
+		if execution.status == stepStatusFail {
 			result.Passed = false
 			skipRemaining = true
 		}
@@ -115,7 +133,7 @@ func runCheckWithRuntime(ctx context.Context, inv *Invariant, projectRoot string
 	return result
 }
 
-func runStep(ctx context.Context, script string, projectRoot string, timeout time.Duration) (string, string) {
+func runStep(ctx context.Context, script string, projectRoot string, timeout time.Duration) stepExecutionResult {
 	//nolint:gosec // Argus intentionally executes user-authored invariant shell checks; this is the product contract.
 	cmd := exec.CommandContext(ctx, "/usr/bin/env", "bash", "-c", script)
 	cmd.Dir = projectRoot
@@ -127,23 +145,49 @@ func runStep(ctx context.Context, script string, projectRoot string, timeout tim
 
 	err := cmd.Run()
 	if err == nil {
-		return "", stepStatusPass
+		return stepExecutionResult{status: stepStatusPass}
 	}
 
-	return buildFailureOutput(ctx, output.String(), err, timeout), stepStatusFail
+	return buildFailureResult(ctx, output.String(), err, timeout)
 }
 
-func buildFailureOutput(ctx context.Context, output string, err error, timeout time.Duration) string {
+func buildFailureResult(ctx context.Context, output string, err error, timeout time.Duration) stepExecutionResult {
 	trimmedOutput := strings.TrimSpace(output)
+	result := stepExecutionResult{status: stepStatusFail}
 
 	switch {
 	case errors.Is(ctx.Err(), context.DeadlineExceeded):
-		return appendDiagnostic(trimmedOutput, fmt.Sprintf("command timeout after %s", timeout))
+		result.failureKind = stepFailureTimeout
+		result.output = appendDiagnostic(trimmedOutput, fmt.Sprintf("command timeout after %s", timeout))
 	case errors.Is(ctx.Err(), context.Canceled):
-		return appendDiagnostic(trimmedOutput, fmt.Sprintf("command canceled: %v", ctx.Err()))
+		result.failureKind = stepFailureCanceled
+		result.output = appendDiagnostic(trimmedOutput, fmt.Sprintf("command canceled: %v", ctx.Err()))
 	default:
-		return appendDiagnostic(trimmedOutput, err.Error())
+		if exitCode, ok := extractExitCode(err); ok {
+			result.failureKind = stepFailureExit
+			result.exitCode = &exitCode
+			result.output = trimOutput(trimmedOutput)
+		} else {
+			result.failureKind = stepFailureExec
+			result.output = appendDiagnostic(trimmedOutput, err.Error())
+		}
 	}
+
+	return result
+}
+
+func extractExitCode(err error) (int, bool) {
+	var exitErr *exec.ExitError
+	if !errors.As(err, &exitErr) {
+		return 0, false
+	}
+
+	exitCode := exitErr.ExitCode()
+	if exitCode < 0 {
+		return 0, false
+	}
+
+	return exitCode, true
 }
 
 func appendDiagnostic(output string, diagnostic string) string {

@@ -1,5 +1,6 @@
 {{- /* Keep docs/technical-tick.md in sync with user-visible contract changes in this template. */ -}}
-Argus: Pipeline: {{.PipelineID}} | Workflow: {{.WorkflowID}} | Progress: {{.Progress}}
+Argus: Continue the active pipeline.
+Pipeline: {{.PipelineID}} | Workflow: {{.WorkflowID}} | Progress: {{.Progress}}
 
 Current Job: {{.JobID}}
 {{- if .Skill}}
@@ -8,6 +9,8 @@ Skill: {{.Skill}}
 
 {{.Prompt}}
 
+Default behavior: execute this job now. Only stop to ask the user if the job prompt explicitly requires approval, or you lack critical information, permissions, or irreversible-action confirmation.
+
 When done: argus job-done [--message "summary"]
-To snooze: argus workflow snooze --session {{.SessionID}}
-To cancel: argus workflow cancel
+If the user wants to pause this pipeline for the current session: argus workflow snooze --session {{.SessionID}}
+If the user wants to stop this pipeline: argus workflow cancel

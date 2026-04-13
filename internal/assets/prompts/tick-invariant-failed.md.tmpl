@@ -1,9 +1,48 @@
 {{- /* Keep docs/technical-tick.md in sync with user-visible contract changes in this template. */ -}}
-Argus: Invariant check failed:
-  - {{.Failure.ID}}: {{.Failure.Description}}
-{{- if .Failure.Prompt }}
-    Prompt: {{.Failure.Prompt}}
+Argus: Pause the current task for a moment. Invariant check failed, and I found a project issue that should be handled before you continue.
+
+{{- if .Failure.Invariant }}
+Invariant: {{.Failure.Invariant.ID}}
+{{- if .Failure.Invariant.Description }}
+The overall expectation for this project is: {{.Failure.Invariant.Description}}
+{{- else }}
+Argus expected this invariant to pass.
 {{- end }}
-{{- if .Failure.WorkflowID }}
-    Workflow: Start the remediation workflow with `argus workflow start {{.Failure.WorkflowID}}`
 {{- end }}
+{{- if .Failure.FailedStep }}
+
+{{- if .Failure.FailedStep.Check.Description }}
+Argus says this check is not currently satisfied: {{.Failure.FailedStep.Check.Description}}{{if .Failure.FailedStep.Check.Shell}}. It checked this by running `{{.Failure.FailedStep.Check.Shell}}`.{{end}}
+{{- else if .Failure.FailedStep.Check.Shell }}
+Argus checked this invariant by running `{{.Failure.FailedStep.Check.Shell}}`.
+{{- end }}
+{{- if or .Failure.FailedStep.ExitCode .Failure.FailedStep.FailureKind .Failure.FailedStep.Output }}
+Argus concluded that this check failed{{if .Failure.FailedStep.ExitCode}} because the command exited with code {{.Failure.FailedStep.ExitCode}}{{end}}{{if and .Failure.FailedStep.ExitCode .Failure.FailedStep.FailureKind}} and reported failure kind `{{.Failure.FailedStep.FailureKind}}`{{else if .Failure.FailedStep.FailureKind}} with failure kind `{{.Failure.FailedStep.FailureKind}}`{{end}}.
+{{- if .Failure.FailedStep.Output }}
+Observed output:
+```
+{{.Failure.FailedStep.Output}}
+```
+{{- end }}
+{{- end }}
+{{- end }}
+{{- if and .Failure.Invariant .Failure.Invariant.Prompt }}
+
+The recommended way to fix it is: {{.Failure.Invariant.Prompt}}
+{{- end }}
+{{- if and .Failure.Invariant .Failure.Invariant.Workflow }}
+If you want to handle it through Argus, the primary workflow is `argus workflow start {{.Failure.Invariant.Workflow}}`.
+{{- end }}
+
+Before you answer the user's original request or continue the current task, stop and ask the user how to proceed.
+Prefer the agent's structured choice input tool when available. Otherwise ask the same question in normal text.
+
+Offer exactly 3-5 options total:
+1. Handle this issue now.{{if and .Failure.Invariant .Failure.Invariant.Workflow}} If a remediation workflow exists, this means starting `argus workflow start {{.Failure.Invariant.Workflow}}`.{{end}}
+2. Explain the overall expectation, the failed check, how Argus checked it, why it failed, and what the remediation will do.
+3. Ignore this reminder for now and continue the current task.
+
+If the invariant prompt contains explicit alternative actions, merge them into the option set, deduplicate, and keep the final set at 3-5 options.
+Do not continue the user's original task, do not start remediation, and do not choose an option on the user's behalf until the user selects one.
+If the user chooses to ignore this reminder for now, continue the task normally and do not resurface the same reminder again in this conversation unless the user asks about it.
+Use the invariant prompt as remediation input, not as final UX copy.

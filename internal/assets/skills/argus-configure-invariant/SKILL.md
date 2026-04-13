@@ -18,16 +18,16 @@ Invariant files go in `.argus/invariants/` with `.yaml` extension. Each file mus
 version: v0.1.0
 id: my-invariant          # lowercase letters, digits, hyphens
 order: 10                # positive integer, lower numbers run first
-description: "Optional human-readable description"
+description: "Optional goal state description"
 auto: never               # when to run: always | session_start | never
 
 check:
   - shell: "test -f some-file.txt"
-    description: "Optional description of what this step verifies"
+    description: "Optional condition that should hold at this step"
   - shell: "grep -q expected-pattern config.yaml"
-    description: "Config contains expected pattern"
+    description: "Config contains the expected pattern"
 
-prompt: "Remediation instructions for the agent when check fails"
+prompt: "How to remediate when this invariant fails"
 workflow: remediation-workflow-id
 ```
 
@@ -49,7 +49,10 @@ Unique invariant identifier.
 
 ### `description` (optional)
 
-Human-readable description of what the invariant checks.
+Describe the invariant's expected goal state.
+
+- This should answer "what should be true when the invariant passes?"
+- Keep it outcome-focused; `tick` may surface this as the invariant's goal.
 
 ### `order` (required)
 
@@ -75,7 +78,16 @@ Controls when the invariant is automatically checked during `tick`.
 At least one check step is required. Each step has:
 
 - `shell` (required): Shell command to execute. Exit code 0 = pass, non-zero = fail.
-- `description` (optional): Describes what this step verifies.
+- `description` (optional): Describes the condition that should hold for this step.
+
+Field roles on failure:
+
+- `description`: overall goal state
+- `check[].description`: the expected condition for each concrete check step
+- failed check output: factual evidence about what went wrong
+- `prompt`: how to remediate
+
+Do not put user-facing option menus, conversation flow, or agent behavior policy into `prompt`. `tick` owns the stable user-facing guidance and choice UX.
 
 Checks are pure shell commands — no LLM involvement. Keep them fast and deterministic. For complex semantic checks, convert to timestamp-based freshness checks (e.g., `find .argus/data/reviewed -mtime -7 | grep -q .`).
 
@@ -83,8 +95,14 @@ Checks are pure shell commands — no LLM involvement. Keep them fast and determ
 
 Must have `prompt` or `workflow` or both. These define what happens when the check fails:
 
-- `prompt`: Remediation instructions injected to the agent.
+- `prompt`: How to remediate the failed invariant. Keep this focused on the fix itself.
 - `workflow`: ID of a workflow to suggest for remediation.
+
+Design guidance:
+
+- Use `prompt` for "how to fix it", not for "why this matters" or "which option should the user choose".
+- If you need to explain the desired state, prefer `description` and `check[].description`.
+- If the best fix is to run a workflow, set `workflow` and keep `prompt` concise.
 
 ## Template
 
@@ -94,14 +112,14 @@ Copy-pasteable starting point:
 version: v0.1.0
 id: my-check
 order: 10
-description: "Describe what should be true"
+description: "The required file exists"
 auto: session_start
 
 check:
   - shell: "test -f required-file.txt"
-    description: "Required file exists"
+    description: "required-file.txt exists"
 
-prompt: "The required file is missing. Please create it with the expected content."
+prompt: "Create `required-file.txt` with the expected content."
 workflow: setup-project
 ```
 

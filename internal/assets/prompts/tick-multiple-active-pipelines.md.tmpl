@@ -1,0 +1,13 @@
+{{- /* Keep docs/technical-tick.md in sync with user-visible contract changes in this template. */ -}}
+Argus: Multiple active pipelines detected.
+
+Running pipelines:
+{{- range .InstanceIDs}}
+  - {{.}}
+{{- end}}
+
+Do not continue or start another workflow until the ambiguity is resolved.
+Guide the user with a concise choice set:
+1. Cancel all running pipelines with `argus workflow cancel`.
+2. Snooze all running pipelines for this session with `argus workflow snooze --session {{.SessionID}}` and continue the current task.
+3. Diagnose the anomaly with `argus doctor`.

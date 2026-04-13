@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/nextzhou/argus/internal/invariant"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -27,10 +28,10 @@ func TestFormatNoPipeline(t *testing.T) {
 
 	require.NoError(t, err)
 	assertHookSafeTickText(t, output)
-	assert.Contains(t, output, "Argus:")
-	assert.Contains(t, output, "No active pipeline")
 	assert.Contains(t, output, "release")
+	assert.Contains(t, output, "Release workflow")
 	assert.Contains(t, output, "argus-project-init")
+	assert.Contains(t, output, "Initialize Argus config")
 	assert.Contains(t, output, "argus workflow start")
 }
 
@@ -39,10 +40,7 @@ func TestFormatNoPipeline_Empty(t *testing.T) {
 
 	require.NoError(t, err)
 	assertHookSafeTickText(t, output)
-	assert.Contains(t, output, "Argus:")
-	assert.Contains(t, output, "No active pipeline")
 	assert.Contains(t, output, "argus workflow start")
-	assert.Contains(t, output, "(none)")
 }
 
 func TestFormatFullContext(t *testing.T) {
@@ -121,28 +119,76 @@ func TestFormatSnoozed(t *testing.T) {
 	output, err := FormatSnoozed(workflows)
 
 	require.NoError(t, err)
-	// Should be identical to FormatNoPipeline
-	expected, err := FormatNoPipeline(workflows)
-	require.NoError(t, err)
-	assert.Equal(t, expected, output)
+	assertHookSafeTickText(t, output)
+	assert.Contains(t, output, "release")
+	assert.Contains(t, output, "Release workflow")
+	assert.NotContains(t, output, "argus job-done")
 }
 
 func TestFormatInvariantFailure(t *testing.T) {
+	exitCode := 1
 	output, err := FormatInvariantFailure(InvariantFailure{
-		ID:          "argus-project-init",
-		Description: "Project not initialized",
-		Prompt:      "<<<ARGUS_INIT_REQUIRED>>> initialize argus first",
-		WorkflowID:  "argus-project-init",
+		Invariant: &invariant.Invariant{
+			ID:          "argus-project-init",
+			Description: "Project not initialized",
+			Prompt:      "Run `argus setup --yes` to initialize project-level Argus.",
+			Workflow:    "argus-project-init",
+		},
+		FailedStep: &invariant.StepResult{
+			Check: invariant.CheckStep{
+				Description: "Project-level Argus directory exists",
+				Shell:       "test -d .argus",
+			},
+			Status:      "fail",
+			ExitCode:    &exitCode,
+			FailureKind: "exit",
+		},
 	})
 
 	require.NoError(t, err)
 	assertHookSafeTickText(t, output)
-	assert.Contains(t, output, "Argus: Invariant check failed:")
 	assert.Contains(t, output, "argus-project-init")
 	assert.Contains(t, output, "Project not initialized")
-	assert.Contains(t, output, "Prompt: <<<ARGUS_INIT_REQUIRED>>> initialize argus first")
-	assert.Contains(t, output, "Workflow: Start the remediation workflow with `argus workflow start argus-project-init`")
-	assert.Less(t, strings.Index(output, "Prompt:"), strings.Index(output, "Workflow:"))
-	assert.NotContains(t, output, "No active pipeline")
+	assert.Contains(t, output, "Project-level Argus directory exists")
+	assert.Contains(t, output, "test -d .argus")
+	assert.Contains(t, output, "exited with code 1")
+	assert.Contains(t, output, "Run `argus setup --yes` to initialize project-level Argus.")
+	assert.Contains(t, output, "argus workflow start argus-project-init")
+	assert.NotContains(t, output, "argus job-done")
 	assert.NotContains(t, output, "---")
+}
+
+func TestFormatActivePipelineIssue(t *testing.T) {
+	output, err := FormatActivePipelineIssue(ActivePipelineIssue{
+		PipelineID:          "release-20240405T103000Z",
+		WorkflowID:          "release",
+		Issue:               "current job deploy was not found in workflow release",
+		InvestigateCommand:  "argus status",
+		InvestigateGuidance: "inspect the current pipeline state",
+		SessionID:           "ses-123",
+	})
+
+	require.NoError(t, err)
+	assertHookSafeTickText(t, output)
+	assert.Contains(t, output, "release-20240405T103000Z")
+	assert.Contains(t, output, "release")
+	assert.Contains(t, output, "current job deploy was not found in workflow release")
+	assert.Contains(t, output, "argus status")
+	assert.Contains(t, output, "argus workflow cancel")
+	assert.Contains(t, output, "argus workflow snooze --session ses-123")
+}
+
+func TestFormatMultipleActivePipelines(t *testing.T) {
+	output, err := FormatMultipleActivePipelines([]string{
+		"release-20240405T103000Z",
+		"hotfix-20240405T104500Z",
+	}, "ses-456")
+
+	require.NoError(t, err)
+	assertHookSafeTickText(t, output)
+	assert.Contains(t, output, "release-20240405T103000Z")
+	assert.Contains(t, output, "hotfix-20240405T104500Z")
+	assert.Contains(t, output, "argus workflow cancel")
+	assert.Contains(t, output, "argus workflow snooze --session ses-456")
+	assert.Contains(t, output, "argus doctor")
 }

@@ -81,15 +81,24 @@ Typical collaboration loop:
 | `version` | Yes | Schema version, currently `v0.1.0` |
 | `id` | Yes | Unique identifier. Must match `^[a-z0-9]+(-[a-z0-9]+)*$`. The `argus-` prefix is reserved |
 | `order` | Yes | Global runtime order for valid invariants in the current scope. Must be a positive integer, unique within the scope, and lower numbers run first |
-| `description` | No | Human-readable description |
+| `description` | No | Goal state that should hold when the invariant passes |
 | `auto` | No | Automatic execution mode: `always`, `session_start`, or `never` (default) |
 | `check` | Yes | List of shell steps; must contain at least one step |
 | `check[].shell` | Yes | Bash command. Exit code 0 means pass |
-| `check[].description` | No | Per-step description used in reporting |
-| `prompt` | No | Guidance text injected on failure |
+| `check[].description` | No | Per-step condition that should hold and can be surfaced as failed-fact context |
+| `prompt` | No | Remediation guidance describing how to fix the failure |
 | `workflow` | No | Suggested remediation workflow ID |
 
-`prompt` and `workflow` may not both be empty. They may coexist, in which case `tick` injects both a `Prompt:` line and a `Workflow:` action line.
+`prompt` and `workflow` may not both be empty.
+
+Field-role guidance:
+
+- `description` answers "what goal state should be true?"
+- `check[].description` answers "which concrete condition failed?"
+- failed shell output supplies factual evidence from the check itself
+- `prompt` answers "how should the agent remediate this?"
+
+`tick` owns the stable user-facing interaction pattern. Invariant `prompt` should not carry option menus, conversation-flow policy, or agent-behavior rules.
 
 Invariant file names are also part of the contract: each file must be named `<invariant-id>.yaml`.
 
@@ -139,7 +148,7 @@ check:
   - shell: "find .argus/data/lint-passed -mtime -1 | grep -q ."
     description: "Lint passed within the last 24 hours"
 
-prompt: "Lint may be stale. Please confirm the codebase still passes lint."
+prompt: "Run the lint workflow or rerun lint and refresh the freshness marker."
 workflow: run-lint
 ```
 
@@ -156,7 +165,7 @@ check:
   - shell: "grep -q '.argus/logs' .gitignore"
     description: ".gitignore contains .argus/logs"
 
-prompt: "Please add .argus/logs/ to .gitignore."
+prompt: "Add `.argus/logs/` to `.gitignore`."
 ```
 
 #### Manual-Only Freshness Check
@@ -218,6 +227,13 @@ Each check step runs in an isolated Bash process:
 
 When an automatic check fails, Argus does not auto-start a repair workflow. Instead, it stops at the first failing invariant in `order` and injects that failure's remediation guidance as the exclusive `tick` primary output. The agent explains the issue to the user and guides the next decision.
 
+`tick` builds that guidance from four inputs:
+
+1. invariant `description` as the goal state
+2. failed `check[].description` plus shell output as facts
+3. invariant `prompt` as remediation instructions
+4. invariant `workflow` as the primary executable fix when present
+
 If some invariant files are invalid, Argus excludes them from the ordered runtime evaluation set. `tick` emits only a summary warning in its secondary warning lane and points the agent to `argus invariant inspect`; `status`, `invariant list`, and `invariant check` continue operating on valid invariants while surfacing invalid-definition issues separately.
 
 ### Three-State Step Output
@@ -228,7 +244,7 @@ Each invariant step can be:
 - **fail**
 - **skip** because a previous step already failed and the check short-circuited
 
-Only failed invariants attach `workflow` and `prompt` remediation information. In `tick`, both are rendered when present, with `Prompt:` shown before `Workflow:`.
+Only failed invariants attach `workflow` and `prompt` remediation information. In `tick`, these are inputs to the invariant-failure guidance template rather than a verbatim user-facing menu.
 
 ### Manual Checks
 

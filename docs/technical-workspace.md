@@ -123,7 +123,7 @@ Because global scope intentionally ships no workflows by default, a workspace ti
 - surface the first failing global invariant, such as `argus-project-setup`
 - return no output when no global invariant needs attention
 
-When `argus-project-setup` fails, the injected guidance asks the agent to stop before answering the user's original task and to present the setup / explain / ignore choices, preferably through the agent's question tool or another structured-choice input tool when available.
+When `argus-project-setup` fails, the injected guidance now comes from the shared invariant-failure `tick` template. The template presents a stable small choice set built from invariant facts plus remediation instructions, while the invariant's own `prompt` only supplies how-to guidance.
 
 ### 10.5 Relationship to Project-Level Setup
 

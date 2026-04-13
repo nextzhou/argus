@@ -112,6 +112,10 @@ internal/assets/
   prompts/                       # Runtime-only templates
     tick-full-context.md.tmpl
     tick-minimal.md.tmpl
+    tick-snoozed.md.tmpl
+    tick-invariant-failed.md.tmpl
+    tick-active-pipeline-issue.md.tmpl
+    tick-multiple-active-pipelines.md.tmpl
     ...
   hooks/                         # Runtime-only hook wrapper templates
 ```

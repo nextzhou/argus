@@ -1,6 +1,8 @@
 // Package hook provides hook command handlers for multi-agent integration.
 package hook
 
+import "github.com/nextzhou/argus/internal/invariant"
+
 // WorkflowSummary contains minimal workflow information for tick output.
 type WorkflowSummary struct {
 	ID          string
@@ -9,10 +11,18 @@ type WorkflowSummary struct {
 
 // InvariantFailure contains information about a failed invariant check.
 type InvariantFailure struct {
-	ID          string
-	Description string
-	Prompt      string
-	WorkflowID  string
+	Invariant  *invariant.Invariant
+	FailedStep *invariant.StepResult
+}
+
+// ActivePipelineIssue captures one active-pipeline anomaly that needs user input.
+type ActivePipelineIssue struct {
+	PipelineID          string
+	WorkflowID          string
+	Issue               string
+	InvestigateCommand  string
+	InvestigateGuidance string
+	SessionID           string
 }
 
 // FormatNoPipeline returns readable text listing available workflows when no pipeline is active.
@@ -77,11 +87,16 @@ func FormatMinimalSummary(workflowID, jobID, progress string) (string, error) {
 }
 
 // FormatSnoozed returns readable text for a snoozed pipeline.
-// A snoozed pipeline is invisible to the user, so this returns the same output as FormatNoPipeline.
 func FormatSnoozed(workflows []WorkflowSummary) (string, error) {
-	// The snoozed=no-pipeline mapping is part of the documented tick contract.
-	// Keep docs/technical-tick.md in sync if this routing changes.
-	return FormatNoPipeline(workflows)
+	data := struct {
+		Workflows []WorkflowSummary
+	}{
+		Workflows: workflows,
+	}
+
+	// Keep docs/technical-tick.md in sync with user-visible contract changes in
+	// this template or its injected fields.
+	return renderTemplate("prompts/tick-snoozed.md.tmpl", data)
 }
 
 // FormatInvariantFailure returns readable text for a failed invariant when no
@@ -96,4 +111,32 @@ func FormatInvariantFailure(failure InvariantFailure) (string, error) {
 	// Keep docs/technical-tick.md in sync with user-visible contract changes in
 	// this template or its injected fields.
 	return renderTemplate("prompts/tick-invariant-failed.md.tmpl", data)
+}
+
+// FormatActivePipelineIssue returns guidance for one active-pipeline anomaly.
+func FormatActivePipelineIssue(issue ActivePipelineIssue) (string, error) {
+	data := struct {
+		Issue ActivePipelineIssue
+	}{
+		Issue: issue,
+	}
+
+	// Keep docs/technical-tick.md in sync with user-visible contract changes in
+	// this template or its injected fields.
+	return renderTemplate("prompts/tick-active-pipeline-issue.md.tmpl", data)
+}
+
+// FormatMultipleActivePipelines returns guidance for the multi-active anomaly.
+func FormatMultipleActivePipelines(instanceIDs []string, sessionID string) (string, error) {
+	data := struct {
+		InstanceIDs []string
+		SessionID   string
+	}{
+		InstanceIDs: instanceIDs,
+		SessionID:   sessionID,
+	}
+
+	// Keep docs/technical-tick.md in sync with user-visible contract changes in
+	// this template or its injected fields.
+	return renderTemplate("prompts/tick-multiple-active-pipelines.md.tmpl", data)
 }

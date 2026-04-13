@@ -92,7 +92,14 @@ func HandleTickInputWithSessionStore(ctx context.Context, global bool, input *Ag
 		return nil
 	}
 	if len(activePipelines) > 1 {
-		writeTickWarningf(stdout, "multiple active pipelines detected; run argus workflow cancel or argus doctor")
+		output, formatErr := FormatMultipleActivePipelines(activePipelineIDs(activePipelines), input.SessionID)
+		if formatErr != nil {
+			writeTickWarningf(stdout, "multiple active pipelines detected; run argus workflow cancel or argus doctor")
+			return nil
+		}
+		if _, err := io.WriteString(stdout, output); err != nil {
+			return fmt.Errorf("writing tick output: %w", err)
+		}
 		return nil
 	}
 
@@ -159,9 +166,6 @@ func buildActivePipelineOutput(
 	active := activePipelines[0]
 	if session.IsSnoozed(sess, active.InstanceID) {
 		workflows := loadTickWorkflowSummaries(s)
-		if len(workflows) == 0 {
-			return "", logDetails + " scenario=snoozed-no-output", "", ""
-		}
 		output, err := FormatSnoozed(workflows)
 		if err != nil {
 			return formatErrorOutput(err, "", "")
@@ -170,12 +174,18 @@ func buildActivePipelineOutput(
 	}
 
 	if active.Pipeline.CurrentJob == nil {
-		workflows := loadTickWorkflowSummaries(s)
-		output, err := FormatNoPipeline(workflows)
+		output, err := FormatActivePipelineIssue(ActivePipelineIssue{
+			PipelineID:          active.InstanceID,
+			WorkflowID:          active.Pipeline.WorkflowID,
+			Issue:               "The active pipeline is missing current job state.",
+			InvestigateCommand:  "argus status",
+			InvestigateGuidance: "inspect the current pipeline state",
+			SessionID:           sessionID,
+		})
 		if err != nil {
 			return formatErrorOutput(err, active.InstanceID, "")
 		}
-		return appendTickWarningText(output, "active pipeline is missing current job state"), logDetails + " scenario=missing-current-job", active.InstanceID, ""
+		return output, logDetails + " scenario=missing-current-job", active.InstanceID, ""
 	}
 
 	currentJobID := *active.Pipeline.CurrentJob
@@ -184,24 +194,34 @@ func buildActivePipelineOutput(
 
 	wf, err := s.Artifacts().Workflows().Load(active.Pipeline.WorkflowID)
 	if err != nil {
-		warning := fmt.Sprintf("could not load workflow %s: %v", active.Pipeline.WorkflowID, err)
-		workflows := loadTickWorkflowSummaries(s)
-		output, formatErr := FormatNoPipeline(workflows)
+		output, formatErr := FormatActivePipelineIssue(ActivePipelineIssue{
+			PipelineID:          snapshotPipelineID,
+			WorkflowID:          active.Pipeline.WorkflowID,
+			Issue:               fmt.Sprintf("could not load workflow %s: %v", active.Pipeline.WorkflowID, err),
+			InvestigateCommand:  "argus doctor",
+			InvestigateGuidance: "diagnose the broken workflow reference or local Argus state",
+			SessionID:           sessionID,
+		})
 		if formatErr != nil {
 			return formatErrorOutput(formatErr, snapshotPipelineID, snapshotJobID)
 		}
-		return appendTickWarningText(output, warning), logDetails + " scenario=workflow-load-error", snapshotPipelineID, snapshotJobID
+		return output, logDetails + " scenario=workflow-load-error", snapshotPipelineID, snapshotJobID
 	}
 
 	jobIndex, found := pipeline.FindJobIndex(wf, currentJobID)
 	if !found {
-		warning := fmt.Sprintf("current job %s was not found in workflow %s", currentJobID, active.Pipeline.WorkflowID)
-		workflows := loadTickWorkflowSummaries(s)
-		output, err := FormatNoPipeline(workflows)
+		output, err := FormatActivePipelineIssue(ActivePipelineIssue{
+			PipelineID:          snapshotPipelineID,
+			WorkflowID:          active.Pipeline.WorkflowID,
+			Issue:               fmt.Sprintf("current job %s was not found in workflow %s", currentJobID, active.Pipeline.WorkflowID),
+			InvestigateCommand:  "argus status",
+			InvestigateGuidance: "inspect the current pipeline state before deciding whether to cancel it",
+			SessionID:           sessionID,
+		})
 		if err != nil {
 			return formatErrorOutput(err, snapshotPipelineID, snapshotJobID)
 		}
-		return appendTickWarningText(output, warning), logDetails + " scenario=workflow-mismatch", snapshotPipelineID, snapshotJobID
+		return output, logDetails + " scenario=workflow-mismatch", snapshotPipelineID, snapshotJobID
 	}
 
 	progress := fmt.Sprintf("%d/%d", jobIndex+1, len(wf.Jobs))
@@ -243,7 +263,11 @@ func buildNoActivePipelineOutput(ctx context.Context, s *scope.Resolved, sess *s
 		if warning != "" {
 			output = appendTickWarningText(output, warning)
 		}
-		return output, logDetails + " scenario=invariant-failed invariant=" + result.Failure.ID
+		invariantID := ""
+		if result.Failure.Invariant != nil {
+			invariantID = result.Failure.Invariant.ID
+		}
+		return output, logDetails + " scenario=invariant-failed invariant=" + invariantID
 	}
 
 	slowWarning := ""
@@ -381,12 +405,7 @@ func runTickInvariants(ctx context.Context, catalog *invariant.Catalog, projectR
 			continue
 		}
 
-		run.Failure = &InvariantFailure{
-			ID:          inv.ID,
-			Description: describeInvariant(inv),
-			Prompt:      inv.Prompt,
-			WorkflowID:  inv.Workflow,
-		}
+		run.Failure = buildInvariantFailure(inv, result)
 		return run
 	}
 
@@ -405,19 +424,42 @@ func shouldRunInvariantAuto(inv *invariant.Invariant, firstTick bool) bool {
 	return inv.Auto == "always"
 }
 
-func describeInvariant(inv *invariant.Invariant) string {
+func buildInvariantFailure(inv *invariant.Invariant, result *invariant.CheckResult) *InvariantFailure {
 	if inv == nil {
-		return ""
-	}
-	if inv.Description != "" {
-		return inv.Description
+		return nil
 	}
 
-	shells := make([]string, 0, len(inv.Check))
-	for _, step := range inv.Check {
-		shells = append(shells, step.Shell)
+	return &InvariantFailure{
+		Invariant:  inv,
+		FailedStep: firstFailedInvariantStep(result),
 	}
-	return strings.Join(shells, "; ")
+}
+
+func firstFailedInvariantStep(result *invariant.CheckResult) *invariant.StepResult {
+	if result == nil {
+		return nil
+	}
+
+	for i := range result.Steps {
+		if result.Steps[i].Status != "fail" {
+			continue
+		}
+		return &result.Steps[i]
+	}
+
+	return nil
+}
+
+func activePipelineIDs(activePipelines []pipeline.ActivePipeline) []string {
+	if len(activePipelines) == 0 {
+		return nil
+	}
+
+	instanceIDs := make([]string, 0, len(activePipelines))
+	for _, active := range activePipelines {
+		instanceIDs = append(instanceIDs, active.InstanceID)
+	}
+	return instanceIDs
 }
 
 func writeTickWarningf(stdout io.Writer, format string, args ...any) {

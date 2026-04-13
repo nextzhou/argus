@@ -1,0 +1,12 @@
+{{- /* Keep docs/technical-tick.md in sync with user-visible contract changes in this template. */ -}}
+Argus: Active pipeline needs attention.
+Pipeline: {{.Issue.PipelineID}} | Workflow: {{.Issue.WorkflowID}}
+
+Issue: {{.Issue.Issue}}
+
+Guide the user with a concise choice set before taking action:
+1. Investigate first with `{{.Issue.InvestigateCommand}}` to {{.Issue.InvestigateGuidance}}.
+2. Cancel the broken pipeline with `argus workflow cancel`.
+3. Snooze this pipeline for the current session with `argus workflow snooze --session {{.Issue.SessionID}}` and continue the current task.
+
+Prefer cancel when the user wants to get unstuck quickly. Prefer investigate first when they want to understand the problem before changing state.

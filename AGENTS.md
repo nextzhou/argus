@@ -131,7 +131,7 @@ All independent schema files (workflow YAML, invariant YAML, pipeline data) incl
 
 ### tick injection strategy
 
-- Primary output carries the current orchestration context: either full job context, minimal reminder, no-pipeline workflow list, or the first failing invariant's remediation guidance
+- Primary output carries the current orchestration context: full job context, minimal reminder, no-pipeline workflow guidance, snoozed guidance, invariant remediation guidance, or active-pipeline anomaly guidance depending on the current route
 - Secondary warning lane may append short non-blocking warnings after the primary output, for example invalid invariant summaries or slow automatic-check notices
 - State changed (new job, new pipeline): primary output injects full context (prompt, skill, detailed guidance)
 - State unchanged: primary output injects minimal summary (current job id + status + job-done reminder)

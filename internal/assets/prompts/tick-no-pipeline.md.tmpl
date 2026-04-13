@@ -10,4 +10,9 @@ Available workflows:
 {{- end}}
 {{- end}}
 
-To start: argus workflow start <workflow-id>
+Use workflow-first judgment for the current request:
+- If one workflow is a uniquely strong match to the user's request, briefly say why and run `argus workflow start <workflow-id>` immediately.
+- If several workflows are strong matches, briefly compare the best options and let the user choose.
+- If no workflow is a strong match, continue the current task without surfacing the workflow list.
+
+Start command: argus workflow start <workflow-id>

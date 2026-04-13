@@ -9,20 +9,5 @@ check:
     description: "Project-level Argus directory exists"
 
 prompt: |
-  This repository does not have project-level Argus set up yet.
-
-  Before answering the user's original request or exploring the repository, stop and ask the user to choose how to proceed.
-
-  Prefer using the agent's question tool or other structured choice input tool to present these options. If no such tool is available, ask the same question in a normal text response.
-
-  Offer exactly these options:
-  1. Set up project-level Argus now, using `argus setup --yes` or the `argus-setup` skill for guided setup.
-  2. Explain what Argus is, why this reminder appeared, and what setup would change, using the `argus-intro` skill.
-  3. Ignore this reminder for now and continue the current task without setting up Argus.
-
-  Do not answer the user's original task until the user chooses option 1, 2, or 3.
-
-  If the user chooses option 3, continue the task normally and do not repeat this reminder again in the same conversation unless the user asks about it.
-
-  Do not set up Argus automatically without the user's confirmation.
+  Set up project-level Argus in this repository with `argus setup --yes`. Use the `argus-setup` skill if guided setup is more appropriate.
 workflow: ""

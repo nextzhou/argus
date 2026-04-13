@@ -70,10 +70,12 @@ jobs:
 			assert: func(t *testing.T, output string, sessionBaseDir string) {
 				t.Helper()
 				t.Helper()
-				assertHookSafeTickText(t, output)
-				assert.Contains(t, output, "No active pipeline")
-				assert.Contains(t, output, "argus-project-init")
-				assert.NotContains(t, output, "argus-project-setup")
+				expected, err := FormatNoPipeline([]WorkflowSummary{{
+					ID:          "argus-project-init",
+					Description: "Complete project-specific Argus initialization",
+				}})
+				require.NoError(t, err)
+				assert.Equal(t, expected, output)
 				assert.True(t, session.Exists(sessionBaseDir, "ses-set-up"))
 			},
 		},
@@ -95,13 +97,9 @@ jobs:
 				t.Helper()
 				t.Helper()
 				assertHookSafeTickText(t, output)
-				assert.Contains(t, output, "Argus: Invariant check failed:")
 				assert.Contains(t, output, "argus-project-setup")
 				assert.Contains(t, output, "Project-level Argus setup exists")
-				assert.Contains(t, output, "question tool")
 				assert.Contains(t, output, "argus-setup")
-				assert.Contains(t, output, "argus-intro")
-				assert.NotContains(t, output, "No active pipeline")
 				assert.True(t, session.Exists(sessionBaseDir, "ses-workspace"))
 			},
 		},

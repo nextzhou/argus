@@ -256,8 +256,6 @@ func TestWorkspace_GlobalTickGuidesMention(t *testing.T) {
 		"guidance should mention argus setup command")
 	assert.Contains(t, result.Stdout, "argus-setup",
 		"guidance should mention argus-setup skill")
-	assert.Contains(t, result.Stdout, "argus-intro",
-		"guidance should mention argus-intro skill")
 }
 
 func TestWorkspace_SubAgentSkipGlobalTick(t *testing.T) {

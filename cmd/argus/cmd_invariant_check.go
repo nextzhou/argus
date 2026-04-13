@@ -12,8 +12,11 @@ import (
 )
 
 type checkStepOutput struct {
+	Shell       string `json:"shell,omitempty"`
 	Description string `json:"description"`
 	Status      string `json:"status"`
+	ExitCode    *int   `json:"exit_code,omitempty"`
+	FailureKind string `json:"failure_kind,omitempty"`
 	Output      string `json:"output,omitempty"`
 }
 
@@ -117,8 +120,11 @@ func buildCheckOutput(inv *invariant.Invariant, result *invariant.CheckResult) c
 	steps := make([]checkStepOutput, 0, len(result.Steps))
 	for _, s := range result.Steps {
 		steps = append(steps, checkStepOutput{
-			Description: s.Description,
+			Shell:       s.Check.Shell,
+			Description: invariantStepDescription(s.Check),
 			Status:      s.Status,
+			ExitCode:    s.ExitCode,
+			FailureKind: s.FailureKind,
 			Output:      s.Output,
 		})
 	}
@@ -157,6 +163,14 @@ func invariantDescription(inv *invariant.Invariant) string {
 		shells = append(shells, step.Shell)
 	}
 	return strings.Join(shells, "; ")
+}
+
+func invariantStepDescription(step invariant.CheckStep) string {
+	if step.Description != "" {
+		return step.Description
+	}
+
+	return step.Shell
 }
 
 func writeCheckOutput(cmd *cobra.Command, jsonOutput bool, results []checkResultOutput, invalidInvariants []invariant.Issue) error {
@@ -215,6 +229,15 @@ func renderInvariantCheckText(w io.Writer, out invariantCheckOutput) {
 			_, _ = fmt.Fprintf(w, "- #%d %s: %s\n", result.Order, result.ID, result.Description)
 			for _, step := range result.Steps {
 				_, _ = fmt.Fprintf(w, "  Step [%s]: %s\n", step.Status, step.Description)
+				if step.Shell != "" {
+					_, _ = fmt.Fprintf(w, "  Command: %s\n", step.Shell)
+				}
+				if step.ExitCode != nil {
+					_, _ = fmt.Fprintf(w, "  Exit code: %d\n", *step.ExitCode)
+				}
+				if step.FailureKind != "" {
+					_, _ = fmt.Fprintf(w, "  Failure kind: %s\n", step.FailureKind)
+				}
 				if step.Output != "" {
 					_, _ = fmt.Fprintf(w, "  Output: %s\n", step.Output)
 				}

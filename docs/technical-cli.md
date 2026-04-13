@@ -185,7 +185,7 @@ The canonical runtime routing contract lives in [technical-tick.md](technical-ti
 |----------|-----------------|
 | active pipeline and state changed since `last_tick` | full-context output |
 | active pipeline and state unchanged | minimal reminder |
-| active pipeline but snoozed in this session | no-pipeline view, or empty output if nothing should be shown |
+| active pipeline but snoozed in this session | snoozed output |
 | no active pipeline and first automatic invariant fails | invariant-failed output |
 | no active pipeline, automatic invariants pass, workflows available | no-pipeline output |
 | no active pipeline, automatic invariants pass, no workflows available | no primary output |

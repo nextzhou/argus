@@ -25,21 +25,6 @@ check:
     description: "Initialization verification has been recorded"
 
 prompt: |
-  This repository has project-level Argus set up, but it has not completed `argus-project-init` yet, so the project-specific Argus collaboration model is still missing.
-
-  Prefer using the agent's question tool or other structured choice input tool to present these options. If no such tool is available, ask the same question in a normal text response.
-
-  Offer exactly these options:
-  1. Start `argus-project-init` now by running `argus workflow start argus-project-init`.
-  2. Explain what `argus-project-init` will do, which repo-managed `.argus/` files it may create or refresh, and which minimal `.gitignore` or collaboration-doc updates it may propose before asking for explicit approval. Reuse the `argus-setup` skill if it helps, or explain in concise plain text.
-  3. Ignore this reminder for now and continue the current task.
-
-  This is a soft reminder. Offer the options briefly, then continue the user's current task unless they choose option 1 or want to talk more about Argus first.
-
-  If the user chooses option 2, explain the workflow briefly and then restate that they can either start `argus-project-init` now or ignore the reminder for this conversation.
-
-  If the user chooses option 3, continue the task normally and do not repeat this reminder again in the same conversation unless the user asks about Argus.
-
-  Do not start `argus-project-init` automatically without the user's confirmation.
+  Run `argus workflow start argus-project-init` to build the project-specific Argus collaboration model. Follow the workflow's approval checkpoints before making repo-managed changes.
 
 workflow: argus-project-init

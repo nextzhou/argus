@@ -68,7 +68,6 @@ func TestTickLifecycle_Complete(t *testing.T) {
 	require.NoError(t, err)
 	output := string(out)
 	assertHookSafeTickText(t, output)
-	assert.Contains(t, output, "Argus:")
 	assert.Contains(t, output, "step_one")
 	assert.Contains(t, output, "Do step one")
 	assert.Contains(t, output, "Current Job:")
@@ -106,8 +105,6 @@ func TestTickLifecycle_Complete(t *testing.T) {
 	require.NoError(t, err)
 	output = string(out)
 	assertHookSafeTickText(t, output)
-	assert.Contains(t, output, "Argus:")
-	assert.Contains(t, output, "No active pipeline")
 	assert.Contains(t, output, "argus workflow start")
 }
 
@@ -148,7 +145,7 @@ func TestTickLifecycle_MinimalSummary(t *testing.T) {
 }
 
 // TestTickLifecycle_Snooze verifies that snoozing a pipeline makes tick
-// produce no-pipeline output (available workflows) instead of job context.
+// produce dedicated snooze guidance instead of job context.
 func TestTickLifecycle_Snooze(t *testing.T) {
 	t.Chdir(t.TempDir())
 	writeWorkflowFixture(t, "tick-lifecycle", tickLifecycleWorkflow)
@@ -175,16 +172,13 @@ func TestTickLifecycle_Snooze(t *testing.T) {
 	snoozed := mustJSONArray(t, data["snoozed"])
 	require.Len(t, snoozed, 1)
 
-	// Tick after snooze — shows available workflows, no pipeline context
+	// Tick after snooze — shows dedicated snooze guidance, no pipeline context
 	out, err = executeTickCmd(t, store, stdinJSON, "--agent", "claude-code")
 	require.NoError(t, err)
 	output := string(out)
 	assertHookSafeTickText(t, output)
-	assert.Contains(t, output, "Argus:")
-	assert.Contains(t, output, "No active pipeline")
-	assert.Contains(t, output, "argus workflow start")
-	assert.Contains(t, output, "tick-lifecycle")
 	assert.NotContains(t, output, "Current Job:")
+	assert.NotContains(t, output, "argus job-done")
 }
 
 // TestTickLifecycle_FirstTickInvariant verifies that no-pipeline invariant checks
@@ -240,8 +234,8 @@ prompt: "<<<ARGUS_INIT_REQUIRED>>> initialize argus first"
 	output := string(out)
 	assert.Contains(t, output, "Invariant check failed")
 	assert.Contains(t, output, "tick-prompt-only-inv")
-	assert.Contains(t, output, "Prompt: <<<ARGUS_INIT_REQUIRED>>> initialize argus first")
-	assert.NotContains(t, output, "Workflow:")
+	assert.Contains(t, output, "<<<ARGUS_INIT_REQUIRED>>> initialize argus first")
+	assert.NotContains(t, output, "Primary workflow:")
 }
 
 func TestTickLifecycle_WorkflowOnlyInvariantRemediation(t *testing.T) {
@@ -268,7 +262,7 @@ workflow: remediation-flow
 	output := string(out)
 	assert.Contains(t, output, "Invariant check failed")
 	assert.Contains(t, output, "tick-workflow-only-inv")
-	assert.Contains(t, output, "Workflow: Start the remediation workflow with `argus workflow start remediation-flow`")
+	assert.Contains(t, output, "argus workflow start remediation-flow")
 	assert.NotContains(t, output, "<<<ARGUS_INIT_REQUIRED>>>")
 }
 
@@ -297,9 +291,9 @@ prompt: "<<<ARGUS_INIT_REQUIRED>>> initialize argus first"
 	output := string(out)
 	assert.Contains(t, output, "Invariant check failed")
 	assert.Contains(t, output, "tick-workflow-priority-inv")
-	assert.Contains(t, output, "Prompt: <<<ARGUS_INIT_REQUIRED>>> initialize argus first")
-	assert.Contains(t, output, "Workflow: Start the remediation workflow with `argus workflow start preferred-remediation`")
-	assert.Less(t, strings.Index(output, "Prompt:"), strings.Index(output, "Workflow:"))
+	assert.Contains(t, output, "<<<ARGUS_INIT_REQUIRED>>> initialize argus first")
+	assert.Contains(t, output, "argus workflow start preferred-remediation")
+	assert.Less(t, strings.Index(output, "<<<ARGUS_INIT_REQUIRED>>> initialize argus first"), strings.Index(output, "argus workflow start preferred-remediation"))
 }
 
 func TestTickLifecycle_PassingInvariantDoesNotAppendFailure(t *testing.T) {

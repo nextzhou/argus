@@ -498,7 +498,7 @@ func CheckAutomaticInvariantDiagnostics(ctx context.Context, currentScope *scope
 		steps := make([]InvariantStepTiming, 0, len(result.Steps))
 		for _, step := range result.Steps {
 			steps = append(steps, InvariantStepTiming{
-				Description: step.Description,
+				Description: invariantStepDescription(step.Check),
 				Status:      step.Status,
 				DurationMS:  step.Duration.Milliseconds(),
 			})
@@ -1188,12 +1188,27 @@ func describeInvariantFailure(invariantID string, check *invariant.CheckResult) 
 			continue
 		}
 		output := strings.TrimSpace(step.Output)
-		if output == "" {
-			return fmt.Sprintf("%s: step %q failed", invariantID, step.Description)
+		description := invariantStepDescription(step.Check)
+		if step.ExitCode != nil {
+			if output == "" {
+				return fmt.Sprintf("%s: step %q failed with exit code %d", invariantID, description, *step.ExitCode)
+			}
+			return fmt.Sprintf("%s: step %q failed with exit code %d: %s", invariantID, description, *step.ExitCode, output)
 		}
-		return fmt.Sprintf("%s: step %q failed: %s", invariantID, step.Description, output)
+		if output == "" {
+			return fmt.Sprintf("%s: step %q failed", invariantID, description)
+		}
+		return fmt.Sprintf("%s: step %q failed: %s", invariantID, description, output)
 	}
 	return fmt.Sprintf("%s: invariant check failed", invariantID)
+}
+
+func invariantStepDescription(step invariant.CheckStep) string {
+	if step.Description != "" {
+		return step.Description
+	}
+
+	return step.Shell
 }
 
 func readDoctorLog(projectRoot string) (string, []byte, error) {

@@ -1,0 +1,14 @@
+{{- /* Keep docs/technical-tick.md in sync with user-visible contract changes in this template. */ -}}
+Argus: The active pipeline is snoozed for this session.
+
+Do not resurface or resume it unless the user asks to return to it.
+Do not auto-start another workflow just because one is available.
+{{- if .Workflows }}
+
+Available workflows if the user explicitly wants a different workflow:
+{{- range .Workflows}}
+  - {{.ID}}: {{.Description}}
+{{- end}}
+{{- end}}
+
+Otherwise continue the current task.

@@ -37,10 +37,10 @@ func TestRunCheckWithRuntime(t *testing.T) {
 					now:         fakeNow(base, base.Add(1*time.Millisecond), base.Add(3*time.Millisecond), base.Add(4*time.Millisecond), base.Add(7*time.Millisecond), base.Add(8*time.Millisecond)),
 					stepTimeout: stepTimeout,
 					slowCheckAt: SlowCheckThreshold,
-					runStep: func(_ context.Context, script string, projectRoot string) (string, string) {
+					runStep: func(_ context.Context, script string, projectRoot string) stepExecutionResult {
 						seen = append(seen, script)
 						assert.Equal(t, "/tmp/project", projectRoot)
-						return "", stepStatusPass
+						return stepExecutionResult{status: stepStatusPass}
 					},
 				}
 			},
@@ -60,6 +60,8 @@ func TestRunCheckWithRuntime(t *testing.T) {
 				assert.False(t, result.SlowCheck)
 				require.Len(t, result.Steps, 2)
 				assertStepStatuses(t, result, []string{"pass", "pass"})
+				assert.Equal(t, CheckStep{Description: "step one", Shell: "echo 1"}, result.Steps[0].Check)
+				assert.Equal(t, CheckStep{Description: "step two", Shell: "echo 2"}, result.Steps[1].Check)
 				assert.Equal(t, 2*time.Millisecond, result.Steps[0].Duration)
 				assert.Equal(t, 3*time.Millisecond, result.Steps[1].Duration)
 				assert.Equal(t, 8*time.Millisecond, result.TotalTime)
@@ -78,16 +80,22 @@ func TestRunCheckWithRuntime(t *testing.T) {
 
 				base := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 				call := 0
+				exitCode := 2
 				return checkRuntime{
 					now:         fakeNow(base, base.Add(1*time.Millisecond), base.Add(2*time.Millisecond), base.Add(3*time.Millisecond), base.Add(5*time.Millisecond), base.Add(6*time.Millisecond)),
 					stepTimeout: stepTimeout,
 					slowCheckAt: SlowCheckThreshold,
-					runStep: func(_ context.Context, _ string, _ string) (string, string) {
+					runStep: func(_ context.Context, _ string, _ string) stepExecutionResult {
 						call++
 						if call == 1 {
-							return "", stepStatusPass
+							return stepExecutionResult{status: stepStatusPass}
 						}
-						return "boom", stepStatusFail
+						return stepExecutionResult{
+							output:      "boom",
+							status:      stepStatusFail,
+							exitCode:    &exitCode,
+							failureKind: stepFailureExit,
+						}
 					},
 				}
 			},
@@ -106,7 +114,11 @@ func TestRunCheckWithRuntime(t *testing.T) {
 				assert.False(t, result.Passed)
 				require.Len(t, result.Steps, 3)
 				assertStepStatuses(t, result, []string{"pass", "fail", "skip"})
+				assert.Equal(t, CheckStep{Description: "fail second", Shell: "exit 2"}, result.Steps[1].Check)
 				assert.Equal(t, "boom", result.Steps[1].Output)
+				require.NotNil(t, result.Steps[1].ExitCode)
+				assert.Equal(t, 2, *result.Steps[1].ExitCode)
+				assert.Equal(t, stepFailureExit, result.Steps[1].FailureKind)
 				assert.Empty(t, result.Steps[2].Output)
 			},
 		},
@@ -129,15 +141,19 @@ func TestRunCheckWithRuntime(t *testing.T) {
 					now:         fakeNow(base, base.Add(1*time.Millisecond), base.Add(2*time.Millisecond), base.Add(3*time.Millisecond), base.Add(4*time.Millisecond), base.Add(5*time.Millisecond)),
 					stepTimeout: stepTimeout,
 					slowCheckAt: SlowCheckThreshold,
-					runStep: func(ctx context.Context, _ string, _ string) (string, string) {
+					runStep: func(ctx context.Context, _ string, _ string) stepExecutionResult {
 						call++
 						if call == 1 {
-							return "", stepStatusPass
+							return stepExecutionResult{status: stepStatusPass}
 						}
 						cancel, ok := ctx.Value(cancelKey{}).(context.CancelFunc)
 						require.True(t, ok, "context should carry cancel func")
 						cancel()
-						return buildFailureOutput(ctx, "", context.Canceled, stepTimeout), stepStatusFail
+						return stepExecutionResult{
+							output:      buildFailureResult(ctx, "", context.Canceled, stepTimeout).output,
+							status:      stepStatusFail,
+							failureKind: stepFailureCanceled,
+						}
 					},
 				}
 			},
@@ -157,6 +173,7 @@ func TestRunCheckWithRuntime(t *testing.T) {
 				require.Len(t, result.Steps, 3)
 				assertStepStatuses(t, result, []string{"pass", "fail", "skip"})
 				assert.Contains(t, result.Steps[1].Output, "command canceled")
+				assert.Equal(t, stepFailureCanceled, result.Steps[1].FailureKind)
 			},
 		},
 		{
@@ -175,8 +192,8 @@ func TestRunCheckWithRuntime(t *testing.T) {
 					now:         fakeNow(base, base.Add(1*time.Second), base.Add(4*time.Second), base.Add(4*time.Second)),
 					stepTimeout: stepTimeout,
 					slowCheckAt: 2 * time.Second,
-					runStep: func(_ context.Context, _ string, _ string) (string, string) {
-						return "", stepStatusPass
+					runStep: func(_ context.Context, _ string, _ string) stepExecutionResult {
+						return stepExecutionResult{status: stepStatusPass}
 					},
 				}
 			},
@@ -210,8 +227,8 @@ func TestRunCheckWithRuntime(t *testing.T) {
 					now:         fakeNow(base, base.Add(time.Millisecond), base.Add(2*time.Millisecond), base.Add(2*time.Millisecond)),
 					stepTimeout: stepTimeout,
 					slowCheckAt: SlowCheckThreshold,
-					runStep: func(_ context.Context, _ string, _ string) (string, string) {
-						return "", stepStatusPass
+					runStep: func(_ context.Context, _ string, _ string) stepExecutionResult {
+						return stepExecutionResult{status: stepStatusPass}
 					},
 				}
 			},
@@ -279,14 +296,35 @@ func TestRunCheckRealShell(t *testing.T) {
 		assert.Contains(t, result.Steps[0].Output, "boom")
 		assert.LessOrEqual(t, len(result.Steps[0].Output), outputCap)
 	})
+
+	t.Run("records exit code for ordinary shell failure", func(t *testing.T) {
+		projectRoot := t.TempDir()
+		inv := &Invariant{
+			ID: "exit-code",
+			Check: []CheckStep{{
+				Description: "returns one",
+				Shell:       `exit 1`,
+			}},
+		}
+
+		result := RunCheck(t.Context(), inv, projectRoot)
+
+		require.NotNil(t, result)
+		assert.False(t, result.Passed)
+		require.Len(t, result.Steps, 1)
+		require.NotNil(t, result.Steps[0].ExitCode)
+		assert.Equal(t, 1, *result.Steps[0].ExitCode)
+		assert.Equal(t, stepFailureExit, result.Steps[0].FailureKind)
+		assert.Empty(t, result.Steps[0].Output)
+	})
 }
 
-func TestBuildFailureOutput(t *testing.T) {
+func TestBuildFailureResultOutput(t *testing.T) {
 	t.Run("timeout appends timeout diagnostic", func(t *testing.T) {
 		ctx, cancel := context.WithDeadline(t.Context(), time.Now().Add(-time.Second))
 		t.Cleanup(cancel)
 
-		output := buildFailureOutput(ctx, "partial output", errors.New("exit status 1"), 5*time.Second)
+		output := buildFailureResult(ctx, "partial output", errors.New("exit status 1"), 5*time.Second).output
 
 		assert.Contains(t, output, "partial output")
 		assert.Contains(t, strings.ToLower(output), "timeout")
@@ -297,16 +335,16 @@ func TestBuildFailureOutput(t *testing.T) {
 		ctx, cancel := context.WithCancel(t.Context())
 		cancel()
 
-		output := buildFailureOutput(ctx, "", errors.New("signal: killed"), stepTimeout)
+		output := buildFailureResult(ctx, "", errors.New("signal: killed"), stepTimeout).output
 
 		assert.Contains(t, output, "command canceled")
 	})
 
-	t.Run("generic error appends error message", func(t *testing.T) {
-		output := buildFailureOutput(t.Context(), "partial output", errors.New("exit status 2"), stepTimeout)
+	t.Run("generic exec error appends error message", func(t *testing.T) {
+		output := buildFailureResult(t.Context(), "partial output", errors.New("signal: killed"), stepTimeout).output
 
 		assert.Contains(t, output, "partial output")
-		assert.Contains(t, output, "exit status 2")
+		assert.Contains(t, output, "signal: killed")
 	})
 }
 
@@ -321,9 +359,10 @@ func TestCheckResultZeroValue(t *testing.T) {
 
 func TestStepResultZeroValue(t *testing.T) {
 	var result StepResult
-	assert.Empty(t, result.Description)
 	assert.Empty(t, result.Status)
 	assert.Empty(t, result.Output)
+	assert.Nil(t, result.ExitCode)
+	assert.Empty(t, result.FailureKind)
 	assert.Zero(t, result.Duration)
 }
 

@@ -401,8 +401,8 @@ func TestE2E_Snooze(t *testing.T) {
 	stdinJSON := fmt.Sprintf(`{"session_id":"%s","cwd":"%s"}`, sessionID, projectDir)
 	result = runArgusWithStdin(t, projectDir, stdinJSON, "tick", "--agent", "claude-code")
 	require.Equal(t, 0, result.ExitCode)
-	assert.Contains(t, result.Stdout, "No active pipeline")
 	assert.NotContains(t, result.Stdout, "step_one")
+	assert.NotContains(t, result.Stdout, "argus job-done")
 }
 
 func TestE2E_DefaultTextOutput(t *testing.T) {

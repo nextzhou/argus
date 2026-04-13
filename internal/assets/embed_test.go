@@ -106,9 +106,6 @@ func TestBuiltinInvariant(t *testing.T) {
 	assert.Equal(t, "argus-project-init", inv.Workflow)
 	assert.NotEmpty(t, inv.Check)
 	assert.NotEmpty(t, inv.Prompt)
-	assert.Contains(t, inv.Prompt, "argus workflow start argus-project-init")
-	assert.Contains(t, inv.Prompt, "Explain what `argus-project-init` will do")
-	assert.Contains(t, inv.Prompt, "Ignore this reminder for now and continue the current task")
 }
 
 func TestBuiltinInvariantProjectInit(t *testing.T) {
@@ -139,7 +136,10 @@ func TestPromptTemplates(t *testing.T) {
 		"prompts/tick-no-pipeline.md.tmpl",
 		"prompts/tick-full-context.md.tmpl",
 		"prompts/tick-minimal.md.tmpl",
+		"prompts/tick-snoozed.md.tmpl",
 		"prompts/tick-invariant-failed.md.tmpl",
+		"prompts/tick-active-pipeline-issue.md.tmpl",
+		"prompts/tick-multiple-active-pipelines.md.tmpl",
 	}
 
 	for _, name := range templates {
@@ -191,7 +191,21 @@ func TestPromptTemplatesEmptyData(t *testing.T) {
 		{"prompts/tick-minimal.md.tmpl", map[string]any{
 			"WorkflowID": "", "JobID": "", "Progress": "",
 		}},
-		{"prompts/tick-invariant-failed.md.tmpl", map[string]any{"Failures": nil}},
+		{"prompts/tick-snoozed.md.tmpl", map[string]any{"Workflows": nil}},
+		{"prompts/tick-invariant-failed.md.tmpl", map[string]any{
+			"Failure": map[string]any{
+				"ID": "", "Description": "", "Prompt": "", "WorkflowID": "", "Facts": nil,
+			},
+		}},
+		{"prompts/tick-active-pipeline-issue.md.tmpl", map[string]any{
+			"Issue": map[string]any{
+				"PipelineID": "", "WorkflowID": "", "Issue": "", "InvestigateCommand": "",
+				"InvestigateGuidance": "", "SessionID": "",
+			},
+		}},
+		{"prompts/tick-multiple-active-pipelines.md.tmpl", map[string]any{
+			"InstanceIDs": []string{}, "SessionID": "",
+		}},
 	}
 
 	for _, tt := range templates {
