@@ -22,6 +22,12 @@ Remove project-level Argus setup from a repository.
 
 - Default output is readable text and includes a summary plus affected paths.
 - Use `--json` only when another command or script needs structured change data.
+- `--json` is non-interactive. If confirmation would otherwise be required, pass `--yes` as well.
+
+## Confirmation
+
+- `argus teardown` and `argus teardown --workspace <path>` require confirmation unless `--yes` is provided.
+- In JSON mode, these commands return an error unless `--yes` is also provided.
 
 ## What Teardown Does
 

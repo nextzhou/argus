@@ -27,6 +27,14 @@ Set up project-level Argus in a repository and guide the follow-up initializatio
 
 - Default output is readable text and includes a summary plus affected paths.
 - Use `--json` only when another command or script needs structured change data.
+- `--json` is non-interactive. If confirmation would otherwise be required, pass `--yes` as well.
+
+## Confirmation
+
+- `argus setup` and `argus setup --workspace <path>` require confirmation unless `--yes` is provided.
+- Re-running `argus setup` still asks for confirmation because it refreshes managed project resources and managed global skills.
+- If `argus setup` is run from a Git subdirectory, the prompt explicitly states that project-level Argus will be set up in that subdirectory.
+- In JSON mode, these commands return an error unless `--yes` is also provided.
 
 ## What Setup Does
 

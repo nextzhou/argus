@@ -20,6 +20,12 @@ func executeSetupCmd(t *testing.T, args ...string) ([]byte, error) {
 	return executeJSONCommand(t, newSetupCmd(), args...)
 }
 
+func executeSetupCmdWithInput(t *testing.T, input *bytes.Buffer, args ...string) ([]byte, error) {
+	t.Helper()
+
+	return executeJSONCommandWithInput(t, newSetupCmd(), input, args...)
+}
+
 // executeTeardownCmd runs the teardown command and captures stdout output.
 func executeTeardownCmd(t *testing.T, args ...string) ([]byte, error) {
 	t.Helper()

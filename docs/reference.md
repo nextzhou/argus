@@ -256,7 +256,7 @@ Skill names follow the same convention as other identifiers: lowercase letters, 
 
 Run these directly in your terminal:
 
-These commands default to human-readable text. Add `--json` when you need structured output for scripts or field-level parsing.
+These commands default to human-readable text. Add `--json` when you need structured output for scripts or field-level parsing. In JSON mode, commands that require confirmation must also receive `--yes`; `--json` never prompts.
 
 | Command | Description |
 |---------|-------------|

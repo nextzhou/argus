@@ -329,7 +329,7 @@ func TestWorkspaceSetupDuplicateRegistrationRefreshesResources(t *testing.T) {
 	}
 }
 
-func TestWorkspaceSetupNonInteractiveWithoutYes(t *testing.T) {
+func TestWorkspaceSetupJSONWithoutYes(t *testing.T) {
 	homeDir := t.TempDir()
 	t.Setenv("HOME", homeDir)
 
@@ -338,14 +338,14 @@ func TestWorkspaceSetupNonInteractiveWithoutYes(t *testing.T) {
 
 	output, cmdErr := executeJSONCommandWithInput(t, newSetupCmd(), bytes.NewBuffer(nil), "--workspace", workspaceDir)
 	require.Error(t, cmdErr)
-	assert.Contains(t, cmdErr.Error(), "--yes")
+	assert.Equal(t, "workspace setup requires --yes when --json is used; --json is non-interactive", cmdErr.Error())
 
 	data := parseWorkspaceLifecycleOutput(t, output)
 	assert.Equal(t, "error", data["status"])
-	assert.Contains(t, data["message"], "use --yes")
+	assert.Equal(t, "workspace setup requires --yes when --json is used; --json is non-interactive", data["message"])
 }
 
-func TestWorkspaceSetupDuplicateNonInteractiveWithoutYes(t *testing.T) {
+func TestWorkspaceSetupDuplicateJSONWithoutYes(t *testing.T) {
 	homeDir := t.TempDir()
 	t.Setenv("HOME", homeDir)
 
@@ -356,14 +356,14 @@ func TestWorkspaceSetupDuplicateNonInteractiveWithoutYes(t *testing.T) {
 
 	output, cmdErr := executeJSONCommandWithInput(t, newSetupCmd(), bytes.NewBuffer(nil), "--workspace", workspaceDir)
 	require.Error(t, cmdErr)
-	assert.Contains(t, cmdErr.Error(), "--yes")
+	assert.Equal(t, "workspace setup requires --yes when --json is used; --json is non-interactive", cmdErr.Error())
 
 	data := parseWorkspaceLifecycleOutput(t, output)
 	assert.Equal(t, "error", data["status"])
-	assert.Contains(t, data["message"], "use --yes")
+	assert.Equal(t, "workspace setup requires --yes when --json is used; --json is non-interactive", data["message"])
 }
 
-func TestWorkspaceTeardownNonInteractiveWithoutYes(t *testing.T) {
+func TestWorkspaceTeardownJSONWithoutYes(t *testing.T) {
 	homeDir := t.TempDir()
 	t.Setenv("HOME", homeDir)
 
@@ -374,9 +374,9 @@ func TestWorkspaceTeardownNonInteractiveWithoutYes(t *testing.T) {
 
 	output, cmdErr := executeJSONCommandWithInput(t, newTeardownCmd(), bytes.NewBuffer(nil), "--workspace", workspaceDir)
 	require.Error(t, cmdErr)
-	assert.Contains(t, cmdErr.Error(), "--yes")
+	assert.Equal(t, "workspace teardown requires --yes when --json is used; --json is non-interactive", cmdErr.Error())
 
 	data := parseWorkspaceLifecycleOutput(t, output)
 	assert.Equal(t, "error", data["status"])
-	assert.Contains(t, data["message"], "use --yes")
+	assert.Equal(t, "workspace teardown requires --yes when --json is used; --json is non-interactive", data["message"])
 }

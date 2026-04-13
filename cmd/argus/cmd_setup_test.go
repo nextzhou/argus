@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestConfirmSubdirectorySetup(t *testing.T) {
+func TestConfirmProjectSetup(t *testing.T) {
 	tests := []struct {
 		name  string
 		input string
@@ -27,22 +27,40 @@ func TestConfirmSubdirectorySetup(t *testing.T) {
 		{"empty input declines", "\n", false},
 	}
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+		t.Run("git root/"+tt.name, func(t *testing.T) {
 			cmd := &cobra.Command{}
 			var buf bytes.Buffer
 			cmd.SetOut(&buf)
 
-			got, err := confirmSubdirectorySetup(cmd, "/fake/root", strings.NewReader(tt.input), true)
+			got, err := confirmProjectSetup(cmd, "/fake/root", false, strings.NewReader(tt.input), true)
 
 			require.NoError(t, err)
 			assert.Equal(t, tt.want, got)
+			assert.Contains(t, buf.String(), "This will set up project-level Argus in:")
+			assert.Contains(t, buf.String(), "/fake/root")
+			assert.Contains(t, buf.String(), "create or refresh .argus/")
+			assert.Contains(t, buf.String(), "managed global skills for this user account")
+		})
+
+		t.Run("git subdirectory/"+tt.name, func(t *testing.T) {
+			cmd := &cobra.Command{}
+			var buf bytes.Buffer
+			cmd.SetOut(&buf)
+
+			got, err := confirmProjectSetup(cmd, "/fake/root/subdir", true, strings.NewReader(tt.input), true)
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+			assert.Contains(t, buf.String(), "Current directory is not the Git root.")
+			assert.Contains(t, buf.String(), "This will set up project-level Argus in this subdirectory:")
+			assert.Contains(t, buf.String(), "/fake/root/subdir")
 		})
 	}
 }
 
-func TestConfirmSubdirectorySetup_NonTTY(t *testing.T) {
+func TestConfirmProjectSetup_NonTTY(t *testing.T) {
 	cmd := &cobra.Command{}
-	got, err := confirmSubdirectorySetup(cmd, "/fake/root", strings.NewReader("y\n"), false)
+	got, err := confirmProjectSetup(cmd, "/fake/root", false, strings.NewReader("y\n"), false)
 
 	assert.False(t, got)
 	require.Error(t, err)
@@ -170,7 +188,7 @@ func TestTeardownPreservesNonArgusSkills(t *testing.T) {
 	}
 }
 
-func TestTeardownNonInteractiveWithoutYes(t *testing.T) {
+func TestTeardownJSONWithoutYes(t *testing.T) {
 	t.Chdir(t.TempDir())
 	t.Setenv("HOME", t.TempDir())
 	initGitRepo(t)
@@ -181,13 +199,56 @@ func TestTeardownNonInteractiveWithoutYes(t *testing.T) {
 	output, cmdErr := executeTeardownCmdWithInput(t, bytes.NewBuffer(nil))
 
 	require.Error(t, cmdErr)
-	assert.Contains(t, cmdErr.Error(), "--yes")
+	assert.Equal(t, "project teardown requires --yes when --json is used; --json is non-interactive", cmdErr.Error())
 
 	var data map[string]any
 	require.NoError(t, json.Unmarshal(output, &data), "output should be valid JSON: %s", string(output))
 	assert.Equal(t, "error", data["status"])
-	assert.Contains(t, data["message"], "use --yes")
+	assert.Equal(t, "project teardown requires --yes when --json is used; --json is non-interactive", data["message"])
 
 	_, err := os.Stat(".argus")
 	assert.NoError(t, err, ".argus/ should still exist after refused teardown")
+}
+
+func TestSetupJSONWithoutYes(t *testing.T) {
+	t.Chdir(t.TempDir())
+	t.Setenv("HOME", t.TempDir())
+	initGitRepo(t)
+
+	output, cmdErr := executeSetupCmdWithInput(t, bytes.NewBuffer(nil))
+
+	require.Error(t, cmdErr)
+	assert.Equal(t, "project setup requires --yes when --json is used; --json is non-interactive", cmdErr.Error())
+
+	var data map[string]any
+	require.NoError(t, json.Unmarshal(output, &data), "output should be valid JSON: %s", string(output))
+	assert.Equal(t, "error", data["status"])
+	assert.Equal(t, "project setup requires --yes when --json is used; --json is non-interactive", data["message"])
+
+	_, err := os.Stat(".argus")
+	assert.ErrorIs(t, err, os.ErrNotExist, ".argus/ should not be created after refused setup")
+}
+
+func TestSetupSubdirectoryJSONWithoutYes(t *testing.T) {
+	repoRoot := t.TempDir()
+	t.Chdir(repoRoot)
+	t.Setenv("HOME", t.TempDir())
+	initGitRepo(t)
+
+	subdir := filepath.Join(repoRoot, "subdir")
+	require.NoError(t, os.MkdirAll(subdir, 0o700))
+	t.Chdir(subdir)
+
+	output, cmdErr := executeSetupCmdWithInput(t, bytes.NewBuffer(nil))
+
+	require.Error(t, cmdErr)
+	assert.Equal(t, "project setup requires --yes when --json is used; --json is non-interactive", cmdErr.Error())
+
+	var data map[string]any
+	require.NoError(t, json.Unmarshal(output, &data), "output should be valid JSON: %s", string(output))
+	assert.Equal(t, "error", data["status"])
+	assert.Equal(t, "project setup requires --yes when --json is used; --json is non-interactive", data["message"])
+
+	_, err := os.Stat(filepath.Join(subdir, ".argus"))
+	assert.ErrorIs(t, err, os.ErrNotExist, "subdirectory setup should not create .argus/ after refused setup")
 }

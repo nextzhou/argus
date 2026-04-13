@@ -50,7 +50,7 @@ Before normalization, `setup --workspace <path>` validates that the expanded abs
 
 #### Confirmation
 
-Both `setup --workspace <path>` and `teardown --workspace <path>` require confirmation unless `--yes` is provided. This includes rerunning `setup --workspace <path>` for an already registered workspace, because refresh is still a mutating operation.
+Both `setup --workspace <path>` and `teardown --workspace <path>` require confirmation unless `--yes` is provided. This includes rerunning `setup --workspace <path>` for an already registered workspace, because refresh is still a mutating operation. When `--json` is used, these commands must receive `--yes`; JSON mode returns an error instead of prompting.
 
 #### Success Output
 
@@ -93,7 +93,7 @@ When `tick` fires from a nested subdirectory, Argus needs to determine the proje
 
 #### Subdirectory Setup Protection
 
-If the user runs `argus setup` from a non-root subdirectory of a Git repository, Argus checks whether an ancestor already contains `.argus/` or whether the current directory is the Git root. Depending on the situation, Argus either errors or asks for confirmation.
+If the user runs `argus setup` from a non-root subdirectory of a Git repository, Argus checks whether an ancestor already contains `.argus/` or whether the current directory is the Git root. Nested project-level setup under an ancestor `.argus/` still errors. Otherwise, project setup requires confirmation unless `--yes` is provided, and the prompt makes the subdirectory target explicit.
 
 ### 10.4 Runtime `tick` Behavior
 

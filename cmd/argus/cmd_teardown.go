@@ -43,6 +43,9 @@ func runWorkspaceTeardown(cmd *cobra.Command, workspacePath string, yesFlag bool
 		writeCommandError(cmd, jsonFlag, err.Error())
 		return fmt.Errorf("preparing workspace teardown: %w", err)
 	}
+	if err := requireYesForJSON(cmd, jsonFlag, yesFlag, "workspace teardown"); err != nil {
+		return err
+	}
 
 	if !yesFlag {
 		input := cmd.InOrStdin()
@@ -88,6 +91,9 @@ func runProjectTeardown(cmd *cobra.Command, yesFlag bool, jsonFlag bool) error {
 	if _, err := os.Stat(argusDir); os.IsNotExist(err) {
 		writeCommandError(cmd, jsonFlag, "no project-level Argus setup found in current directory")
 		return fmt.Errorf("no project-level Argus setup found")
+	}
+	if err := requireYesForJSON(cmd, jsonFlag, yesFlag, "project teardown"); err != nil {
+		return err
 	}
 
 	if !yesFlag {

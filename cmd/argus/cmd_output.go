@@ -12,6 +12,17 @@ func bindJSONFlag(cmd *cobra.Command, jsonFlag *bool) {
 	cmd.Flags().BoolVar(jsonFlag, "json", false, "Output structured JSON")
 }
 
+func requireYesForJSON(cmd *cobra.Command, jsonFlag bool, yesFlag bool, operation string) error {
+	if !jsonFlag || yesFlag {
+		return nil
+	}
+
+	msg := fmt.Sprintf("%s requires --yes when --json is used; --json is non-interactive", operation)
+	writeCommandError(cmd, true, msg)
+
+	return fmt.Errorf("%s", msg)
+}
+
 func writeJSONEnvelope(w io.Writer, envelope []byte) error {
 	if _, err := w.Write(envelope); err != nil {
 		return fmt.Errorf("writing JSON output: %w", err)

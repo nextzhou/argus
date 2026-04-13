@@ -29,6 +29,9 @@ func newSetupCmd() *cobra.Command {
 					writeCommandError(cmd, jsonFlag, err.Error())
 					return fmt.Errorf("preparing workspace setup: %w", err)
 				}
+				if err := requireYesForJSON(cmd, jsonFlag, yesFlag, "workspace setup"); err != nil {
+					return err
+				}
 
 				if !yesFlag {
 					confirmed, confirmErr := confirmWorkspaceSetup(cmd, preview.Path, preview.AlreadyRegistered, input, inputIsTTY(input))
@@ -80,9 +83,12 @@ func newSetupCmd() *cobra.Command {
 				writeCommandError(cmd, jsonFlag, err.Error())
 				return fmt.Errorf("checking setup preconditions: %w", err)
 			}
+			if err := requireYesForJSON(cmd, jsonFlag, yesFlag, "project setup"); err != nil {
+				return err
+			}
 
-			if isSubdir && !yesFlag {
-				confirmed, confirmErr := confirmSubdirectorySetup(cmd, projectRoot, input, inputIsTTY(input))
+			if !yesFlag {
+				confirmed, confirmErr := confirmProjectSetup(cmd, projectRoot, isSubdir, input, inputIsTTY(input))
 				if confirmErr != nil {
 					writeCommandError(cmd, jsonFlag, confirmErr.Error())
 					return confirmErr
@@ -123,11 +129,25 @@ func newSetupCmd() *cobra.Command {
 	return cmd
 }
 
-func confirmSubdirectorySetup(cmd *cobra.Command, projectRoot string, stdinReader io.Reader, isTTY bool) (bool, error) {
-	return confirmWithPrompt(cmd, []string{
-		"Current directory is not the Git root.",
-		"Set up project-level Argus in this subdirectory instead: " + projectRoot,
-	}, stdinReader, isTTY, "current directory is not the Git root — use --yes to set up here anyway")
+func confirmProjectSetup(cmd *cobra.Command, projectRoot string, isSubdir bool, stdinReader io.Reader, isTTY bool) (bool, error) {
+	lines := []string{}
+	if isSubdir {
+		lines = append(lines,
+			"Current directory is not the Git root.",
+			"This will set up project-level Argus in this subdirectory:",
+		)
+	} else {
+		lines = append(lines, "This will set up project-level Argus in:")
+	}
+
+	lines = append(lines,
+		"  "+projectRoot,
+		"",
+		"Argus will create or refresh .argus/, project hooks, and project-level skills in this directory.",
+		"Argus will also refresh the managed global skills for this user account.",
+	)
+
+	return confirmWithPrompt(cmd, lines, stdinReader, isTTY, "project setup requires confirmation in interactive mode; use --yes to skip confirmation")
 }
 
 func confirmWorkspaceSetup(cmd *cobra.Command, normalizedPath string, alreadyRegistered bool, stdinReader io.Reader, isTTY bool) (bool, error) {
