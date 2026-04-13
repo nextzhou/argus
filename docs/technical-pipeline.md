@@ -195,7 +195,7 @@ If scanning hits a YAML file that cannot be parsed, Argus should skip it and emi
 
 ---
 
-## 5.9 `tick` Injection Strategy and State-Change Detection
+## 5.9 `tick` State-Change Inputs
 
 To avoid repeating identical instructions on every conversation turn, Argus stores `last_tick` in the **session file**, not in the pipeline file. That way a new session still receives full context even when the pipeline itself did not change.
 
@@ -212,9 +212,8 @@ To avoid repeating identical instructions on every conversation turn, Argus stor
 | Active pipeline, `last_tick` missing | First tick in session or newly started pipeline | Inject full job context and guidance |
 | Active pipeline, state differs from `last_tick` | Job advanced | Inject the new job’s full context |
 | Active pipeline, state matches `last_tick` | No change | Inject only a minimal reminder |
-| No active pipeline, first failing auto invariant | No workflow is currently running | Inject only that invariant’s remediation guidance and stop checking later invariants |
-| No active pipeline, auto invariants passed, workflows available | No workflow is currently running | Show available workflows and how to start one |
-| No active pipeline, auto invariants passed, no workflows available | Nothing needs immediate guidance | Inject nothing |
+
+This section covers only the session and pipeline inputs that influence the active-pipeline path. The full `tick` routing contract, including no-pipeline, invariant-failure, warning-only, and empty-output cases, is documented in [technical-tick.md](technical-tick.md).
 
 ---
 

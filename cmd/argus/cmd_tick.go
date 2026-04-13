@@ -72,6 +72,8 @@ func newTickCmdWithSessionStore(store session.Store) *cobra.Command {
 			}
 
 			if printGeneratedSessionID {
+				// Keep docs/technical-tick.md and docs/technical-cli.md in sync with
+				// changes to this mock-only debug prefix.
 				_, _ = fmt.Fprintf(w, "Argus: Mock session: %s\n", sessionID)
 			}
 			if _, err := w.Write(tickOutput.Bytes()); err != nil {

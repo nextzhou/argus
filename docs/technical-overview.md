@@ -204,6 +204,7 @@ Use the following documents for subsystem-specific details:
 
 - [technical-cli.md](technical-cli.md): CLI command model, output contracts, and flags
 - [technical-hooks.md](technical-hooks.md): hook integration for Claude Code, Codex, and OpenCode
+- [technical-tick.md](technical-tick.md): `tick` output semantics, routing priority, and runtime control behavior
 - [technical-workflow.md](technical-workflow.md): workflow YAML schema and execution model
 - [technical-invariant.md](technical-invariant.md): invariant schema and check semantics
 - [technical-pipeline.md](technical-pipeline.md): pipeline state model and session tracking

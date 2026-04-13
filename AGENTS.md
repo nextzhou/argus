@@ -136,6 +136,7 @@ All independent schema files (workflow YAML, invariant YAML, pipeline data) incl
 - State changed (new job, new pipeline): primary output injects full context (prompt, skill, detailed guidance)
 - State unchanged: primary output injects minimal summary (current job id + status + job-done reminder)
 - Minimal summary is necessary: prevents Agent from forgetting to call job-done after multiple conversation turns
+- Treat changes to `tick`'s user-visible routing or output semantics as orchestration behavior changes, not copy-only edits. Keep `docs/technical-tick.md` in sync when those contracts change.
 
 ### job-done dual progression
 

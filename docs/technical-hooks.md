@@ -74,11 +74,15 @@ Rejected alternative:
 
 The primary role of `--agent` is therefore on the **input side**, not the output side. That distinction is why `--agent` remains required for real hook invocations while `tick --mock` can omit it.
 
+`tick` output is Argus's main runtime control surface for steering agent behavior. The canonical routing and output-family contract is documented in [technical-tick.md](technical-tick.md); this document focuses on how that text is transported through each host agent.
+
 ---
 
 ## 9.2 `tick` Implementation
 
 `tick` is the collaborative scheduling point. It is triggered passively whenever the user sends input to an agent.
+
+For the full user-visible output contract, including routing priority, output families, warning-only cases, and empty-output cases, see [technical-tick.md](technical-tick.md). The sections below focus on scope discovery, host integration, and debugging ergonomics.
 
 ### Bootstrap and Scope Discovery
 

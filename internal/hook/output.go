@@ -26,6 +26,8 @@ func FormatNoPipeline(workflows []WorkflowSummary) (string, error) {
 		Workflows: workflows,
 	}
 
+	// Keep docs/technical-tick.md in sync with user-visible contract changes in
+	// this template or its injected fields.
 	return renderTemplate("prompts/tick-no-pipeline.md.tmpl", data)
 }
 
@@ -51,6 +53,8 @@ func FormatFullContext(pipelineID, workflowID, progress, jobID, prompt, skill, s
 		SessionID:  sessionID,
 	}
 
+	// Keep docs/technical-tick.md in sync with user-visible contract changes in
+	// this template or its injected fields.
 	return renderTemplate("prompts/tick-full-context.md.tmpl", data)
 }
 
@@ -67,12 +71,16 @@ func FormatMinimalSummary(workflowID, jobID, progress string) (string, error) {
 		Progress:   progress,
 	}
 
+	// Keep docs/technical-tick.md in sync with user-visible contract changes in
+	// this template or its injected fields.
 	return renderTemplate("prompts/tick-minimal.md.tmpl", data)
 }
 
 // FormatSnoozed returns readable text for a snoozed pipeline.
 // A snoozed pipeline is invisible to the user, so this returns the same output as FormatNoPipeline.
 func FormatSnoozed(workflows []WorkflowSummary) (string, error) {
+	// The snoozed=no-pipeline mapping is part of the documented tick contract.
+	// Keep docs/technical-tick.md in sync if this routing changes.
 	return FormatNoPipeline(workflows)
 }
 
@@ -85,5 +93,7 @@ func FormatInvariantFailure(failure InvariantFailure) (string, error) {
 	}{
 		Failure: failure,
 	}
+	// Keep docs/technical-tick.md in sync with user-visible contract changes in
+	// this template or its injected fields.
 	return renderTemplate("prompts/tick-invariant-failed.md.tmpl", data)
 }

@@ -157,7 +157,7 @@ Specific commands define their own inner fields (see §8.2 `workflow start`, §8
 
 # 8. Output Formats
 
-## 8.1 `tick` Output (Six Scenarios)
+## 8.1 `tick` Output Summary
 
 `argus tick` returns plain text. Real hook invocations use `argus tick --agent <name>` so Argus can parse agent-specific stdin JSON. `argus tick --mock` is a debug path that bypasses stdin parsing and may omit `--agent`. Wrappers then inject the resulting text into each host agent’s own context mechanism.
 
@@ -179,59 +179,22 @@ argus tick --mock
 - Re-run with `argus tick --mock --mock-session-id <id>` to stay in the same session and debug repeated-tick behavior.
 - Add `--global` when the behavior under inspection depends on workspace or global scope resolution.
 
-The scenarios below describe the primary output. Secondary warnings may still be appended for issues such as invalid invariant definitions or slow automatic checks.
+The canonical runtime routing contract lives in [technical-tick.md](technical-tick.md). This section keeps only the command-level summary.
 
-### Scenario 1: No Active Pipeline, Invariants Passed, Workflows Available
+| Situation | Primary outcome |
+|----------|-----------------|
+| active pipeline and state changed since `last_tick` | full-context output |
+| active pipeline and state unchanged | minimal reminder |
+| active pipeline but snoozed in this session | no-pipeline view, or empty output if nothing should be shown |
+| no active pipeline and first automatic invariant fails | invariant-failed output |
+| no active pipeline, automatic invariants pass, workflows available | no-pipeline output |
+| no active pipeline, automatic invariants pass, no workflows available | no primary output |
 
-```markdown
-Argus: No active pipeline.
+Notes:
 
-Available workflows:
-  - release: Standard release process
-  - argus-project-init: Initialize Argus for the project
-
-To start: argus workflow start <workflow-id>
-```
-
-### Scenario 2: Active Pipeline, State Changed (Full Context)
-
-```markdown
-Argus: Pipeline: release-20240405T103000Z | Workflow: release | Progress: 2/5
-
-Current Job: run_tests
-Skill: argus-run-tests
-
-Run all tests and continue only if they pass.
-
-When done: argus job-done [--message "summary"]
-To snooze: argus workflow snooze --session ses_abc123
-To cancel: argus workflow cancel
-```
-
-### Scenario 3: Active Pipeline, State Unchanged (Minimal Summary)
-
-```markdown
-Argus: release | Job: run_tests | Progress: 2/5 — When done: argus job-done
-```
-
-### Scenario 4: Snoozed
-
-If the current pipeline has been snoozed in the current session, output becomes equivalent to the no-pipeline workflow-list case when workflows are available. If no workflows are available, output is empty.
-
-### Scenario 5: No Active Pipeline, First Failing Invariant
-
-When no active pipeline exists, `tick` evaluates valid auto invariants in ascending `order` and stops at the first failing one. Invalid invariant definitions are excluded from that runtime pool and summarized as a warning. The invariant failure becomes the only primary output:
-
-```markdown
-Argus: Invariant check failed:
-  - argus-project-init: The project has completed Argus initialization
-    Prompt: Generate workflow files for this project under .argus/workflows/.
-    Workflow: Start the remediation workflow with `argus workflow start argus-project-init`
-```
-
-### Scenario 6: No Active Pipeline, Invariants Passed, No Workflows Available
-
-`tick` emits no primary output. Secondary warnings may still appear when Argus needs to surface a non-blocking problem.
+- secondary warnings may still be appended after any primary output, or appear alone
+- `Argus: Mock session: <id>` is a debug-only prefix added by `tick --mock`, not one of the primary output families
+- active-pipeline anomaly fallbacks such as missing workflow data are documented in [technical-tick.md](technical-tick.md)
 
 ## 8.2 `workflow start` Output
 

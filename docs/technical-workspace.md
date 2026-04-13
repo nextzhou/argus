@@ -110,6 +110,8 @@ graph TD
     G --> H[If no active pipeline, run invariants then workflows]
 ```
 
+The shared engine still uses the same user-visible `tick` output families documented in [technical-tick.md](technical-tick.md). Scope only changes which artifact root feeds that routing.
+
 #### Key Design Changes
 
 1. **Shared engine**: global scope no longer uses a hardcoded bootstrap branch. It now runs real invariant checks and pipeline orchestration

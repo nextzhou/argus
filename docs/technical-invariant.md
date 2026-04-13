@@ -177,6 +177,8 @@ workflow: update-agents-md
 
 ## 4.4 Execution Model
 
+This section describes only how invariants participate in `tick`. The full `tick` routing contract lives in [technical-tick.md](technical-tick.md).
+
 ### Automatic Check Execution
 
 During `tick`, Argus only considers automatic invariants when no active pipeline is currently being surfaced. On that path, it decides whether to run an invariant based on `auto`:
@@ -214,7 +216,7 @@ Each check step runs in an isolated Bash process:
 
 ### Failure Handling
 
-When an automatic check fails, Argus does not auto-start a repair workflow. Instead, it stops at the first failing invariant in `order` and injects that failure's remediation guidance as the exclusive tick output. The agent explains the issue to the user and guides the next decision.
+When an automatic check fails, Argus does not auto-start a repair workflow. Instead, it stops at the first failing invariant in `order` and injects that failure's remediation guidance as the exclusive `tick` primary output. The agent explains the issue to the user and guides the next decision.
 
 If some invariant files are invalid, Argus excludes them from the ordered runtime evaluation set. `tick` emits only a summary warning in its secondary warning lane and points the agent to `argus invariant inspect`; `status`, `invariant list`, and `invariant check` continue operating on valid invariants while surfacing invalid-definition issues separately.
 
@@ -250,7 +252,7 @@ Possible future model: `tick` triggers long checks in the background, caches res
 If an invariant refers to a workflow that does not exist:
 
 1. **Static validation**: `inspect` or `doctor` should report the cross-reference problem
-2. **Runtime behavior**: `tick` should still surface the failure details and also explain that the remediation workflow is missing. The agent can then attempt a manual repair path
+2. **Runtime behavior**: `tick` still surfaces the failure using the invariant's configured remediation fields. The hot path does not re-resolve remediation workflow existence, so missing workflow references should be caught by `inspect` or `doctor` rather than relying on extra runtime explanation
 
 ## 4.7 `invariant inspect` Rules
 

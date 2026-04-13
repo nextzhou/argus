@@ -250,6 +250,8 @@ To avoid over-injecting during long conversations:
 - **when state changes** (new job or new pipeline): inject full context, including prompt, skill, and action guidance
 - **when state is unchanged**: inject a minimal summary with the current job ID and reminder so the agent does not forget to call `job-done`
 
+The complete `tick` routing contract, including no-pipeline and invariant-driven outputs, is documented in [technical-tick.md](technical-tick.md).
+
 ### 6.3 Human in the Loop
 
 Argus intentionally avoids fine-grained control fields:
