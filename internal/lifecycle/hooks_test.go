@@ -229,6 +229,74 @@ func TestCodexHooksJson(t *testing.T) {
 	assert.Equal(t, map[string]any{"codex_hooks": true}, requireTOMLMap(t, config["features"]))
 }
 
+func TestCodexPreserveNonArgusHooks(t *testing.T) {
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+	projectRoot := newTestProjectRoot(t)
+	hooksPath := filepath.Join(projectRoot, ".codex", "hooks.json")
+
+	writeTestFile(t, hooksPath, `{
+	  "schema": "user-managed",
+	  "hooks": {
+	    "UserPromptSubmit": [
+	      {
+	        "matcher": ".*",
+	        "hooks": [
+	          {
+	            "type": "command",
+	            "command": "custom prompt",
+	            "timeout": 5,
+	            "statusMessage": "Custom Prompt"
+	          },
+	          {
+	            "type": "command",
+	            "command": "/tmp/bin/argus tick --agent codex",
+	            "timeout": 5,
+	            "statusMessage": "Old Argus"
+	          }
+	        ]
+	      }
+	    ],
+	    "Stop": [
+	      {
+	        "hooks": [
+	          {
+	            "type": "command",
+	            "command": "custom stop",
+	            "timeout": 5,
+	            "statusMessage": "Custom Stop"
+	          },
+	          {
+	            "type": "command",
+	            "command": "/tmp/bin/argus trap --agent codex",
+	            "timeout": 5,
+	            "statusMessage": "Old Argus Stop"
+	          }
+	        ]
+	      }
+	    ]
+	  }
+	}`)
+
+	require.NoError(t, SetupHooks(projectRoot, []string{"codex"}))
+
+	hooks := readJSONFile(t, hooksPath)
+	assert.Equal(t, "user-managed", hooks["schema"])
+
+	commands := hookCommandsForEvent(t, hooks, "UserPromptSubmit")
+	require.Len(t, commands, 2)
+	assert.Equal(t, "custom prompt", commands[0])
+	assertArgusShellHookCommand(t, commands[1], "codex", false)
+	assert.Equal(t, []string{"custom stop"}, hookCommandsForEvent(t, hooks, "Stop"))
+
+	require.NoError(t, TeardownHooks(projectRoot, []string{"codex"}))
+
+	hooks = readJSONFile(t, hooksPath)
+	assert.Equal(t, "user-managed", hooks["schema"])
+	assert.Equal(t, []string{"custom prompt"}, hookCommandsForEvent(t, hooks, "UserPromptSubmit"))
+	assert.Equal(t, []string{"custom stop"}, hookCommandsForEvent(t, hooks, "Stop"))
+}
+
 func TestOpenCodePlugin(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	projectRoot := newTestProjectRoot(t)

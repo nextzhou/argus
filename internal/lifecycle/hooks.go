@@ -71,7 +71,7 @@ func teardownHooksForAgent(projectRoot string, agent string, tracker *mutationTr
 	case agentClaudeCode:
 		return teardownClaudeCodeHooks(projectRoot, tracker)
 	case agentCodex:
-		return removeIfExistsTracked(filepath.Join(projectRoot, codexHooksRelativePath), tracker)
+		return teardownCodexHooks(projectRoot, tracker)
 	case agentOpenCode:
 		return removeIfExistsTracked(filepath.Join(projectRoot, opencodePluginRelativePath), tracker)
 	default:
@@ -100,7 +100,7 @@ func setupClaudeCodeHooksAt(settingsPath string, global bool, tracker *mutationT
 		return fmt.Errorf("reading claude code hooks: %w", err)
 	}
 
-	for _, event := range managedClaudeCodeHookEvents() {
+	for _, event := range managedJSONHookEvents() {
 		existingEntries, err := getArray(hooks, event)
 		if err != nil {
 			return fmt.Errorf("reading claude code %s hooks: %w", event, err)
@@ -147,7 +147,7 @@ func teardownClaudeCodeHooksAt(settingsPath string, tracker *mutationTracker) er
 		return fmt.Errorf("reading claude code hooks: hooks must be an object")
 	}
 
-	for _, event := range managedClaudeCodeHookEvents() {
+	for _, event := range managedJSONHookEvents() {
 		existingEntries, err := getArray(hooks, event)
 		if err != nil {
 			return fmt.Errorf("reading claude code %s hooks: %w", event, err)
@@ -178,12 +178,41 @@ func setupCodexHooks(projectRoot string, tracker *mutationTracker) error {
 }
 
 func setupCodexHooksAt(hooksPath string, global bool, tracker *mutationTracker) error {
-	rendered, err := RenderHookTemplate(agentCodex, global)
+	hooksFile, err := loadJSONObject(hooksPath)
+	if err != nil {
+		return fmt.Errorf("parsing codex hooks: %w", err)
+	}
+
+	desiredEvents, err := loadTemplateHookEvents(agentCodex, global)
 	if err != nil {
 		return err
 	}
 
-	if err := writeFileTracked(hooksPath, rendered, tracker); err != nil {
+	hooks, err := ensureObject(hooksFile, "hooks")
+	if err != nil {
+		return fmt.Errorf("reading codex hooks: %w", err)
+	}
+
+	if err := cleanArgusHookEvents(hooks); err != nil {
+		return fmt.Errorf("cleaning codex hooks: %w", err)
+	}
+
+	for _, event := range managedJSONHookEvents() {
+		existingEntries, err := getArray(hooks, event)
+		if err != nil {
+			return fmt.Errorf("reading codex %s hooks: %w", event, err)
+		}
+
+		existingEntries = append(existingEntries, desiredEvents[event]...)
+		if len(existingEntries) == 0 {
+			delete(hooks, event)
+			continue
+		}
+
+		hooks[event] = existingEntries
+	}
+
+	if err := writeJSONObjectTracked(hooksPath, hooksFile, tracker); err != nil {
 		return fmt.Errorf("writing codex hooks: %w", err)
 	}
 
@@ -209,6 +238,43 @@ func setupOpenCodeHooksAt(pluginPath string, global bool, tracker *mutationTrack
 	}
 
 	return nil
+}
+
+func teardownCodexHooks(projectRoot string, tracker *mutationTracker) error {
+	return teardownCodexHooksAt(filepath.Join(projectRoot, codexHooksRelativePath), tracker)
+}
+
+func teardownCodexHooksAt(hooksPath string, tracker *mutationTracker) error {
+	hooksFile, err := loadJSONObjectIfExists(hooksPath)
+	if err != nil {
+		return fmt.Errorf("parsing codex hooks: %w", err)
+	}
+	if hooksFile == nil {
+		return nil
+	}
+
+	hooksValue, ok := hooksFile["hooks"]
+	if !ok {
+		return nil
+	}
+
+	hooks, ok := hooksValue.(map[string]any)
+	if !ok {
+		return fmt.Errorf("reading codex hooks: hooks must be an object")
+	}
+
+	if err := cleanArgusHookEvents(hooks); err != nil {
+		return fmt.Errorf("cleaning codex hooks: %w", err)
+	}
+
+	if len(hooks) == 0 {
+		delete(hooksFile, "hooks")
+	}
+	if len(hooksFile) == 0 {
+		return removeIfExistsTracked(hooksPath, tracker)
+	}
+
+	return writeJSONObjectTracked(hooksPath, hooksFile, tracker)
 }
 
 func ensureCodexHooksEnabled(tracker *mutationTracker) error {
@@ -265,7 +331,7 @@ func loadTemplateHookEvents(agent string, global bool) (map[string][]any, error)
 		return nil, fmt.Errorf("reading %s hook template: %w", agent, err)
 	}
 
-	managedEvents := managedClaudeCodeHookEvents()
+	managedEvents := managedJSONHookEvents()
 	events := make(map[string][]any, len(managedEvents))
 	for _, event := range managedEvents {
 		entries, err := getArray(hooks, event)
@@ -383,8 +449,31 @@ func removeIfExistsTracked(path string, tracker *mutationTracker) error {
 	return nil
 }
 
-func managedClaudeCodeHookEvents() []string {
+func managedJSONHookEvents() []string {
 	return []string{"UserPromptSubmit", "PreToolUse"}
+}
+
+func cleanArgusHookEvents(hooks map[string]any) error {
+	for event := range hooks {
+		existingEntries, err := getArray(hooks, event)
+		if err != nil {
+			return fmt.Errorf("%s hooks: %w", event, err)
+		}
+
+		cleanedEntries, err := removeArgusEntries(existingEntries)
+		if err != nil {
+			return fmt.Errorf("%s hooks: %w", event, err)
+		}
+
+		if len(cleanedEntries) == 0 {
+			delete(hooks, event)
+			continue
+		}
+
+		hooks[event] = cleanedEntries
+	}
+
+	return nil
 }
 
 func removeAllIfExists(path string, tracker *mutationTracker) error {

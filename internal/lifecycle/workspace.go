@@ -421,7 +421,7 @@ func teardownGlobalHooksForAgent(homeDir, agent string, tracker *mutationTracker
 	case agentClaudeCode:
 		return teardownClaudeCodeHooksAt(filepath.Join(homeDir, claudeSettingsRelativePath), tracker)
 	case agentCodex:
-		return removeIfExistsTracked(filepath.Join(homeDir, codexHooksRelativePath), tracker)
+		return teardownCodexHooksAt(filepath.Join(homeDir, codexHooksRelativePath), tracker)
 	case agentOpenCode:
 		return removeIfExistsTracked(globalOpenCodePluginPathForHome(homeDir), tracker)
 	default:

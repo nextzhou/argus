@@ -23,6 +23,7 @@ func TestWorkspace(t *testing.T) {
 	t.Run("SetupWorkspace_GlobalArtifacts", TestSetupWorkspace_GlobalArtifacts)
 	t.Run("SetupGlobalHooks_ClaudeCode", TestSetupGlobalHooks_ClaudeCode)
 	t.Run("SetupGlobalHooks_Codex", TestSetupGlobalHooks_Codex)
+	t.Run("SetupGlobalHooks_CodexPreserveNonArgusHooks", TestSetupGlobalHooks_CodexPreserveNonArgusHooks)
 	t.Run("SetupGlobalHooks_OpenCode", TestSetupGlobalHooks_OpenCode)
 	t.Run("SetupGlobalSkills", TestSetupGlobalSkills)
 	t.Run("GlobalSkillNames", TestGlobalSkillNames)
@@ -237,6 +238,72 @@ func TestSetupGlobalHooks_Codex(t *testing.T) {
 
 	config := readTOMLFile(t, filepath.Join(homeDir, codexConfigRelativePath))
 	assert.Equal(t, map[string]any{"codex_hooks": true}, requireTOMLMap(t, config["features"]))
+}
+
+func TestSetupGlobalHooks_CodexPreserveNonArgusHooks(t *testing.T) {
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+	hooksPath := filepath.Join(homeDir, codexHooksRelativePath)
+
+	writeTestFile(t, hooksPath, `{
+	  "schema": "user-managed",
+	  "hooks": {
+	    "UserPromptSubmit": [
+	      {
+	        "hooks": [
+	          {
+	            "type": "command",
+	            "command": "custom prompt",
+	            "timeout": 5,
+	            "statusMessage": "Custom Prompt"
+	          },
+	          {
+	            "type": "command",
+	            "command": "/tmp/bin/argus tick --agent codex --global",
+	            "timeout": 5,
+	            "statusMessage": "Old Argus"
+	          }
+	        ]
+	      }
+	    ],
+	    "Stop": [
+	      {
+	        "hooks": [
+	          {
+	            "type": "command",
+	            "command": "custom stop",
+	            "timeout": 5,
+	            "statusMessage": "Custom Stop"
+	          },
+	          {
+	            "type": "command",
+	            "command": "/tmp/bin/argus trap --agent codex --global",
+	            "timeout": 5,
+	            "statusMessage": "Old Argus Stop"
+	          }
+	        ]
+	      }
+	    ]
+	  }
+	}`)
+
+	require.NoError(t, SetupGlobalHooks([]string{agentCodex}))
+
+	hooks := readJSONFile(t, hooksPath)
+	assert.Equal(t, "user-managed", hooks["schema"])
+
+	commands := hookCommandsForEvent(t, hooks, "UserPromptSubmit")
+	require.Len(t, commands, 2)
+	assert.Equal(t, "custom prompt", commands[0])
+	assertArgusShellHookCommand(t, commands[1], "codex", true)
+	assert.Equal(t, []string{"custom stop"}, hookCommandsForEvent(t, hooks, "Stop"))
+
+	require.NoError(t, teardownGlobalHooks(homeDir, []string{agentCodex}, nil))
+
+	hooks = readJSONFile(t, hooksPath)
+	assert.Equal(t, "user-managed", hooks["schema"])
+	assert.Equal(t, []string{"custom prompt"}, hookCommandsForEvent(t, hooks, "UserPromptSubmit"))
+	assert.Equal(t, []string{"custom stop"}, hookCommandsForEvent(t, hooks, "Stop"))
 }
 
 func TestSetupGlobalHooks_OpenCode(t *testing.T) {
