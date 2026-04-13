@@ -312,7 +312,8 @@ Called automatically by configured agent hooks, or reserved for internal integra
 
 | Command | Description |
 |---------|-------------|
-| `argus tick --agent <name>` | Context injection (on every user message) |
+| `argus tick --agent <name>` | Context injection (on every user message). Debug mode `argus tick --mock` may omit `--agent`. |
+| `argus tick --mock [--mock-session-id <id>]` | Debug the exact plain-text prompt that `tick` would inject, without preparing hook stdin JSON. |
 | `argus trap --agent <name>` | Reserved operation-gating entry point; not wired by default in Phase 1 |
 
 ## Built-in Content

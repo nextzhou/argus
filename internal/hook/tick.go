@@ -34,6 +34,16 @@ func HandleTickWithSessionStore(ctx context.Context, agent string, global bool, 
 		return nil
 	}
 
+	return HandleTickInputWithSessionStore(ctx, global, input, stdout, projectRoot, store)
+}
+
+// HandleTickInputWithSessionStore orchestrates the tick command logic from a
+// caller-provided input instead of parsing stdin. It is used by debug paths such
+// as `argus tick --mock` so they can reuse the normal tick behavior.
+func HandleTickInputWithSessionStore(ctx context.Context, global bool, input *AgentInput, stdout io.Writer, projectRoot string, store session.Store) error {
+	if input == nil {
+		return fmt.Errorf("tick input is nil")
+	}
 	if IsSubAgent(input) {
 		return nil
 	}

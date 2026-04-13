@@ -59,6 +59,8 @@ When Codex eventually exposes an agent identifier (tracked in upstream issue `#1
 
 Different agents emit different JSON shapes. Argus uses pipe passthrough: the original JSON is forwarded over stdin and parsed inside Argus according to `--agent`.
 
+The internal debug path `argus tick --mock` bypasses stdin parsing entirely. In that mode `--agent` is optional and currently ignored.
+
 Rejected alternative:
 
 - **Argument normalization in the wrapper**: the wrapper could extract fields and pass them as many CLI flags instead of forwarding the original JSON payload. This was rejected because it makes each wrapper more complex and spreads parsing logic across agent-specific code. Passthrough keeps normalization centralized in Go.
@@ -70,7 +72,7 @@ Rejected alternative:
 - **Claude Code / Codex**: the text becomes `additionalContext`
 - **OpenCode**: the text is appended as a message part
 
-The primary role of `--agent` is therefore on the **input side**, not the output side.
+The primary role of `--agent` is therefore on the **input side**, not the output side. That distinction is why `--agent` remains required for real hook invocations while `tick --mock` can omit it.
 
 ---
 
@@ -172,6 +174,29 @@ To snooze: argus workflow snooze --session abc-123
 To cancel: argus workflow cancel
 ```
 
+#### Developer Prompt Debugging with `tick --mock`
+
+When the goal is to inspect the exact text that `tick` would inject, preparing a full hook stdin payload is unnecessary. Use the internal debug path instead:
+
+```bash
+argus tick --mock
+```
+
+This bypasses stdin parsing, uses the current working directory as `cwd`, and prints the normal `tick` text directly to stdout. When Argus auto-generates a session id, the first line is:
+
+```text
+Argus: Mock session: <generated-session-id>
+```
+
+That line exists so developers can immediately reuse the same session in follow-up commands. Recommended workflow:
+
+1. Run `argus tick --mock` to inspect the first injection quickly.
+2. Copy the generated session id from the first line.
+3. Re-run with `argus tick --mock --mock-session-id <id>` when debugging repeated ticks in the same session, such as minimal-summary behavior, snooze state, or first-tick-only invariant checks.
+4. Use `argus tick --mock --global` when debugging workspace or global-scope resolution instead of project-local scope.
+
+`--agent` is optional in mock mode and currently ignored. It remains required for real hook invocations because real hooks still need agent-specific stdin parsing.
+
 ### OpenCode
 
 OpenCode exposes stronger hooks through `chat.message`, plus `experimental.chat.messages.transform` when a plugin needs to insert a synthetic context part safely.
@@ -247,6 +272,8 @@ Future versions may benefit from:
 Phase 1 uses `chat.message` to compute the pending Argus guidance and `experimental.chat.messages.transform` to inject that guidance as a synthetic text part with the metadata OpenCode expects.
 
 #### Maintenance Notes
+
+When the question is only "what prompt text would `tick` inject right now?", start with `argus tick --mock` before inspecting host-agent logs or installed hook artifacts. That path exercises the shared Argus tick logic directly and avoids unnecessary hook-payload setup.
 
 When debugging agent hook integrations, prefer this order of evidence:
 

@@ -119,7 +119,7 @@ argus toolbox touch-timestamp .argus/data/lint-passed
 
 | Flag | Description |
 | :--- | :--- |
-| `--agent <name>[,<name>...]` | Select target agents (`claude-code`, `codex`, `opencode`). Used only by `tick` and `trap` to parse incoming hook JSON. Multiple values are comma-separated. |
+| `--agent <name>[,<name>...]` | Select target agents (`claude-code`, `codex`, `opencode`). Used by `tick` and `trap` to parse incoming hook JSON. `tick --mock` may omit this flag because it bypasses stdin parsing. Multiple values are comma-separated. |
 | `--global` | Used only by `tick` and `trap`. Marks that the invocation came from a global hook configuration. Written automatically by `setup --workspace`. |
 
 ## 7.6 Exit-Code Conventions
@@ -159,7 +159,7 @@ Specific commands define their own inner fields (see §8.2 `workflow start`, §8
 
 ## 8.1 `tick` Output (Six Scenarios)
 
-`argus tick --agent <name>` returns plain text. Wrappers then inject that text into each host agent’s own context mechanism.
+`argus tick` returns plain text. Real hook invocations use `argus tick --agent <name>` so Argus can parse agent-specific stdin JSON. `argus tick --mock` is a debug path that bypasses stdin parsing and may omit `--agent`. Wrappers then inject the resulting text into each host agent’s own context mechanism.
 
 **Compatibility rule**: the first non-whitespace character must not be `[` or `{`. Current Codex may interpret those prefixes as JSON candidates and reject otherwise valid text output.
 
@@ -167,6 +167,17 @@ Specific commands define their own inner fields (see §8.2 `workflow start`, §8
 
 - **Primary output**: the orchestration context Argus wants the agent to act on
 - **Secondary warnings**: short non-blocking warnings appended after the primary output when needed
+
+For developer debugging, prefer this workflow:
+
+```bash
+argus tick --mock
+```
+
+- Use it when you want to see the injected text without constructing hook stdin JSON.
+- If Argus auto-generates a session, the first line prints `Argus: Mock session: <id>` so you can reuse it.
+- Re-run with `argus tick --mock --mock-session-id <id>` to stay in the same session and debug repeated-tick behavior.
+- Add `--global` when the behavior under inspection depends on workspace or global scope resolution.
 
 The scenarios below describe the primary output. Secondary warnings may still be appended for issues such as invalid invariant definitions or slow automatic checks.
 
